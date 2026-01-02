@@ -1,0 +1,9 @@
+# Core dependencies
+Pillow>=10.0.0
+
+# tkinter is typically included with Python installations
+# If needed on Linux: python3-tk
+
+# Future dependencies as needed:
+# numpy (for advanced transformations)
+# PyYAML (for macro definitions)
