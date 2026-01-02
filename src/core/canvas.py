@@ -1,87 +1,189 @@
 """
-Canvas management for Shape Studio.
-Handles 1024x1024 image creation, grid rendering, and shape drawing.
+Canvas management for Shape Studio
+Handles the 768x768 PIL image with optional ruler overlay and grid
 """
-
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageFont
 
 
 class Canvas:
-    """Manages the 1024x1024 drawing canvas with grid overlay."""
+    """Manages the drawing canvas and shape collection"""
     
-    def __init__(self, size=1024, grid_spacing=64, bg_color=(255, 255, 255)):
-        """
-        Initialize canvas.
-        
-        Args:
-            size: Canvas dimensions (square)
-            grid_spacing: Spacing between grid lines in pixels
-            bg_color: Background color RGB tuple
-        """
+    def __init__(self, size=768):
         self.size = size
-        self.grid_spacing = grid_spacing
-        self.bg_color = bg_color
-        
-        # Create PIL image
-        self.image = Image.new('RGB', (size, size), bg_color)
+        self.image = Image.new('RGB', (size, size), 'white')
         self.draw = ImageDraw.Draw(self.image)
+        self.shapes = []
+        
+        # Display options
+        self.show_rulers = True
+        self.show_grid = True
         
         # Draw initial grid
-        self._draw_grid()
-    
-    def _draw_grid(self):
-        """Draw grid lines on canvas."""
+        if self.show_grid:
+            self._draw_grid_on_canvas(self.draw)
+        
+    def add_shape(self, shape):
+        """Add a shape to the canvas"""
+        self.shapes.append(shape)
+        # Redraw everything to maintain proper layering (grid under shapes)
+        self.redraw()
+        
+    def clear(self):
+        """Clear all shapes and reset canvas"""
+        self.shapes = []
+        self.image = Image.new('RGB', (self.size, self.size), 'white')
+        self.draw = ImageDraw.Draw(self.image)
+        
+        # Redraw grid if enabled
+        if self.show_grid:
+            self._draw_grid_on_canvas(self.draw)
+        
+    def get_shapes(self):
+        """Return list of all shapes"""
+        return self.shapes
+        
+    def redraw(self):
+        """Redraw all shapes on a fresh canvas"""
+        self.image = Image.new('RGB', (self.size, self.size), 'white')
+        self.draw = ImageDraw.Draw(self.image)
+        
+        # Draw grid first (if enabled) so shapes appear on top
+        if self.show_grid:
+            self._draw_grid_on_canvas(self.draw)
+        
+        for shape in self.shapes:
+            shape.draw(self.draw)
+            
+    def _draw_grid_on_canvas(self, draw):
+        """Draw grid lines on the main canvas (every 128px)"""
         grid_color = (220, 220, 220)  # Light gray
+        grid_interval = 128
         
         # Vertical lines
-        for x in range(0, self.size + 1, self.grid_spacing):
-            self.draw.line([(x, 0), (x, self.size)], fill=grid_color, width=1)
+        for x in range(grid_interval, self.size, grid_interval):
+            draw.line([(x, 0), (x, self.size)], fill=grid_color, width=1)
         
         # Horizontal lines
-        for y in range(0, self.size + 1, self.grid_spacing):
-            self.draw.line([(0, y), (self.size, y)], fill=grid_color, width=1)
+        for y in range(grid_interval, self.size, grid_interval):
+            draw.line([(0, y), (self.size, y)], fill=grid_color, width=1)
+            
+    def save(self, filename):
+        """Save the canvas without rulers to PNG file"""
+        self.image.save(filename, 'PNG')
         
-        # Draw axes (darker)
-        axis_color = (180, 180, 180)
-        center = self.size // 2
+    def toggle_rulers(self):
+        """Toggle ruler visibility"""
+        self.show_rulers = not self.show_rulers
+        return self.show_rulers
         
-        # Center vertical line
-        self.draw.line([(center, 0), (center, self.size)], fill=axis_color, width=2)
-        # Center horizontal line
-        self.draw.line([(0, center), (self.size, center)], fill=axis_color, width=2)
-    
-    def clear(self):
-        """Clear canvas and redraw grid."""
-        self.image = Image.new('RGB', (self.size, self.size), self.bg_color)
-        self.draw = ImageDraw.Draw(self.image)
-        self._draw_grid()
-    
-    def draw_line(self, x1, y1, x2, y2, color=(0, 0, 0), width=2):
-        """Draw a line on the canvas."""
-        self.draw.line([(x1, y1), (x2, y2)], fill=color, width=width)
-    
-    def draw_polygon(self, points, color=(0, 0, 0), width=2, fill=None):
-        """
-        Draw a polygon on the canvas.
+    def toggle_grid(self):
+        """Toggle grid visibility"""
+        self.show_grid = not self.show_grid
+        self.redraw()  # Redraw to update grid visibility
+        return self.show_grid
         
-        Args:
-            points: List of (x, y) tuples
-            color: Outline color
-            width: Line width
-            fill: Fill color (None for no fill)
-        """
-        if len(points) < 2:
-            return
-        
-        if fill:
-            self.draw.polygon(points, fill=fill, outline=color)
+    def get_display_image(self):
+        """Get a copy of the image with optional rulers for display"""
+        if self.show_rulers:
+            # Create larger image with margin for rulers
+            margin = 30
+            display_size = self.size + 2 * margin
+            display_img = Image.new('RGB', (display_size, display_size), 'white')
+            
+            # Paste the canvas in the center
+            display_img.paste(self.image, (margin, margin))
+            
+            # Draw rulers on the margin
+            self._draw_rulers(display_img, margin)
+            
+            return display_img
         else:
-            self.draw.polygon(points, outline=color, width=width)
-    
-    def save(self, filepath):
-        """Save canvas to PNG file."""
-        self.image.save(filepath, 'PNG')
-    
-    def get_image(self):
-        """Return the PIL image object."""
-        return self.image
+            # Return canvas without rulers
+            return self.image.copy()
+        
+    def _draw_rulers(self, img, margin):
+        """Draw ruler marks with labels OUTSIDE the canvas area"""
+        draw = ImageDraw.Draw(img)
+        
+        # Try to use a small font, fall back to default if not available
+        try:
+            font = ImageFont.truetype("arial.ttf", 9)
+        except:
+            font = ImageFont.load_default()
+        
+        ruler_color = (100, 100, 100)
+        tick_length_major = 8
+        tick_length_minor = 4
+        
+        # Major tick every 128 pixels, minor every 64
+        major_interval = 128
+        minor_interval = 64
+        
+        # Canvas starts at (margin, margin) in the display image
+        canvas_start = margin
+        canvas_end = margin + self.size
+        
+        # Draw top ruler
+        for x in range(0, self.size + 1, minor_interval):
+            canvas_x = canvas_start + x
+            if x % major_interval == 0:
+                # Major tick - extends into margin
+                draw.line([(canvas_x, canvas_start - tick_length_major), 
+                          (canvas_x, canvas_start)], fill=ruler_color, width=1)
+                if x < self.size:  # Don't draw number at right edge
+                    # Draw number above the tick
+                    text = str(x)
+                    # Center the text on the tick mark
+                    bbox = draw.textbbox((0, 0), text, font=font)
+                    text_width = bbox[2] - bbox[0]
+                    draw.text((canvas_x - text_width // 2, canvas_start - tick_length_major - 12), 
+                             text, fill=ruler_color, font=font)
+            else:
+                # Minor tick
+                draw.line([(canvas_x, canvas_start - tick_length_minor), 
+                          (canvas_x, canvas_start)], fill=ruler_color, width=1)
+        
+        # Draw left ruler
+        for y in range(0, self.size + 1, minor_interval):
+            canvas_y = canvas_start + y
+            if y % major_interval == 0:
+                # Major tick - extends into margin
+                draw.line([(canvas_start - tick_length_major, canvas_y), 
+                          (canvas_start, canvas_y)], fill=ruler_color, width=1)
+                if y < self.size:  # Don't draw number at bottom edge
+                    # Draw number to the left of the tick
+                    text = str(y)
+                    bbox = draw.textbbox((0, 0), text, font=font)
+                    text_width = bbox[2] - bbox[0]
+                    text_height = bbox[3] - bbox[1]
+                    draw.text((canvas_start - tick_length_major - text_width - 4, 
+                              canvas_y - text_height // 2), 
+                             text, fill=ruler_color, font=font)
+            else:
+                # Minor tick
+                draw.line([(canvas_start - tick_length_minor, canvas_y), 
+                          (canvas_start, canvas_y)], fill=ruler_color, width=1)
+        
+        # Draw right ruler (just ticks, no numbers)
+        for y in range(0, self.size + 1, minor_interval):
+            canvas_y = canvas_start + y
+            if y % major_interval == 0:
+                draw.line([(canvas_end, canvas_y), 
+                          (canvas_end + tick_length_major, canvas_y)], fill=ruler_color, width=1)
+            else:
+                draw.line([(canvas_end, canvas_y), 
+                          (canvas_end + tick_length_minor, canvas_y)], fill=ruler_color, width=1)
+        
+        # Draw bottom ruler (just ticks, no numbers)
+        for x in range(0, self.size + 1, minor_interval):
+            canvas_x = canvas_start + x
+            if x % major_interval == 0:
+                draw.line([(canvas_x, canvas_end), 
+                          (canvas_x, canvas_end + tick_length_major)], fill=ruler_color, width=1)
+            else:
+                draw.line([(canvas_x, canvas_end), 
+                          (canvas_x, canvas_end + tick_length_minor)], fill=ruler_color, width=1)
+        
+        # Draw corner frame to box in the canvas
+        draw.rectangle([canvas_start, canvas_start, canvas_end, canvas_end], 
+                      outline=ruler_color, width=1)

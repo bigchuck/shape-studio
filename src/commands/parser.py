@@ -1,187 +1,199 @@
 """
-Command parser for Shape Studio.
-Parses text commands into structured command objects.
+Command parser for Shape Studio
+Parses text commands into structured data
 """
-
 import re
 import random
 
 
 class CommandParser:
-    """Parse text commands into structured format."""
+    """Parse text commands into structured command dictionaries"""
     
     def __init__(self):
-        """Initialize parser."""
         self.commands = {
             'LINE': self._parse_line,
             'POLY': self._parse_poly,
             'MOVE': self._parse_move,
             'ROTATE': self._parse_rotate,
             'SCALE': self._parse_scale,
-            'RESIZE': self._parse_scale,  # Alias for SCALE
+            'RESIZE': self._parse_resize,
             'CLEAR': self._parse_clear,
-            'SAVE': self._parse_save,
             'LIST': self._parse_list,
+            'SAVE': self._parse_save,
         }
-    
-    def parse(self, command_text):
-        """
-        Parse a command string.
         
-        Args:
-            command_text: Raw command string
-            
-        Returns:
-            dict with 'command' and command-specific parameters
-            or dict with 'error' if parsing failed
-        """
-        if not command_text or not command_text.strip():
-            return {'error': 'Empty command'}
+    def parse(self, command_text):
+        """Parse a command string into a command dictionary"""
+        command_text = command_text.strip()
+        
+        if not command_text:
+            raise ValueError("Empty command")
+        
+        # Process RAND() functions first
+        command_text = self._process_rand_functions(command_text)
         
         # Split into tokens
-        tokens = command_text.strip().split()
-        
-        if not tokens:
-            return {'error': 'Empty command'}
-        
-        cmd = tokens[0].upper()
+        parts = command_text.split()
+        cmd = parts[0].upper()
         
         if cmd not in self.commands:
-            return {'error': f'Unknown command: {cmd}'}
+            raise ValueError(f"Unknown command: {cmd}")
         
-        try:
-            return self.commands[cmd](tokens)
-        except Exception as e:
-            return {'error': f'Parse error: {str(e)}'}
-    
-    def _eval_value(self, value_str):
-        """
-        Evaluate a value that might contain RAND() function.
+        return self.commands[cmd](parts)
         
-        Args:
-            value_str: String that might be a number or RAND(min,max)
-            
-        Returns:
-            Numeric value
-        """
-        # Check for RAND(min,max) pattern
-        rand_match = re.match(r'RAND\((\d+),(\d+)\)', value_str, re.IGNORECASE)
-        if rand_match:
-            min_val = int(rand_match.group(1))
-            max_val = int(rand_match.group(2))
-            return random.randint(min_val, max_val)
+    def _process_rand_functions(self, text):
+        """Replace RAND(min,max) with random values"""
+        pattern = r'RAND\((-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)\)'
         
-        # Try to parse as float
-        return float(value_str)
-    
-    def _parse_point(self, point_str):
-        """Parse a point string like '100,200' into (x, y) tuple."""
-        parts = point_str.split(',')
-        if len(parts) != 2:
-            raise ValueError(f'Invalid point format: {point_str}')
+        def replace_rand(match):
+            min_val = float(match.group(1))
+            max_val = float(match.group(2))
+            value = random.uniform(min_val, max_val)
+            # Return as int if both bounds are integers
+            if min_val == int(min_val) and max_val == int(max_val):
+                return str(int(value))
+            return str(value)
         
-        x = self._eval_value(parts[0])
-        y = self._eval_value(parts[1])
+        return re.sub(pattern, replace_rand, text)
         
-        return (x, y)
-    
-    def _parse_line(self, tokens):
-        """Parse LINE command: LINE name x1,y1 x2,y2"""
-        if len(tokens) < 4:
-            return {'error': 'LINE requires: name x1,y1 x2,y2'}
+    def _parse_line(self, parts):
+        """Parse LINE command: LINE <n> <x1>,<y1> <x2>,<y2>"""
+        if len(parts) < 4:
+            raise ValueError("LINE requires: LINE <n> <x1>,<y1> <x2>,<y2>")
         
-        name = tokens[1]
-        p1 = self._parse_point(tokens[2])
-        p2 = self._parse_point(tokens[3])
+        name = parts[1]
+        
+        # Parse start point
+        start_parts = parts[2].split(',')
+        if len(start_parts) != 2:
+            raise ValueError("Invalid start point format")
+        x1, y1 = float(start_parts[0]), float(start_parts[1])
+        
+        # Parse end point
+        end_parts = parts[3].split(',')
+        if len(end_parts) != 2:
+            raise ValueError("Invalid end point format")
+        x2, y2 = float(end_parts[0]), float(end_parts[1])
         
         return {
             'command': 'LINE',
             'name': name,
-            'x1': p1[0], 'y1': p1[1],
-            'x2': p2[0], 'y2': p2[1]
+            'start': (x1, y1),
+            'end': (x2, y2)
         }
-    
-    def _parse_poly(self, tokens):
-        """Parse POLY command: POLY name x1,y1 x2,y2 x3,y3 ..."""
-        if len(tokens) < 4:
-            return {'error': 'POLY requires: name and at least 2 points'}
         
-        name = tokens[1]
+    def _parse_poly(self, parts):
+        """Parse POLY command: POLY <n> <x1>,<y1> <x2>,<y2> ..."""
+        if len(parts) < 4:
+            raise ValueError("POLY requires at least 3 points")
+        
+        name = parts[1]
         points = []
         
-        for i in range(2, len(tokens)):
-            points.append(self._parse_point(tokens[i]))
+        for i in range(2, len(parts)):
+            point_parts = parts[i].split(',')
+            if len(point_parts) != 2:
+                raise ValueError(f"Invalid point format: {parts[i]}")
+            x, y = float(point_parts[0]), float(point_parts[1])
+            points.append((x, y))
+        
+        if len(points) < 3:
+            raise ValueError("POLY requires at least 3 points")
         
         return {
             'command': 'POLY',
             'name': name,
             'points': points
         }
-    
-    def _parse_move(self, tokens):
-        """Parse MOVE command: MOVE name dx,dy"""
-        if len(tokens) < 3:
-            return {'error': 'MOVE requires: name dx,dy'}
         
-        name = tokens[1]
-        delta = self._parse_point(tokens[2])
+    def _parse_move(self, parts):
+        """Parse MOVE command: MOVE <n> <dx>,<dy>"""
+        if len(parts) < 3:
+            raise ValueError("MOVE requires: MOVE <n> <dx>,<dy>")
+        
+        name = parts[1]
+        delta_parts = parts[2].split(',')
+        if len(delta_parts) != 2:
+            raise ValueError("Invalid delta format")
+        
+        dx, dy = float(delta_parts[0]), float(delta_parts[1])
         
         return {
             'command': 'MOVE',
             'name': name,
-            'dx': delta[0],
-            'dy': delta[1]
+            'delta': (dx, dy)
         }
-    
-    def _parse_rotate(self, tokens):
-        """Parse ROTATE command: ROTATE name angle"""
-        if len(tokens) < 3:
-            return {'error': 'ROTATE requires: name angle'}
         
-        name = tokens[1]
-        angle = self._eval_value(tokens[2])
+    def _parse_rotate(self, parts):
+        """Parse ROTATE command: ROTATE <n> <angle>"""
+        if len(parts) < 3:
+            raise ValueError("ROTATE requires: ROTATE <n> <angle>")
+        
+        name = parts[1]
+        angle = float(parts[2])
         
         return {
             'command': 'ROTATE',
             'name': name,
             'angle': angle
         }
-    
-    def _parse_scale(self, tokens):
-        """Parse SCALE/RESIZE command: SCALE name factor OR SCALE name sx,sy"""
-        if len(tokens) < 3:
-            return {'error': 'SCALE requires: name factor or name sx,sy'}
         
-        name = tokens[1]
+    def _parse_scale(self, parts):
+        """Parse SCALE command: SCALE <n> <factor>"""
+        if len(parts) < 3:
+            raise ValueError("SCALE requires: SCALE <n> <factor>")
         
-        # Check if it's a single value or x,y pair
-        if ',' in tokens[2]:
-            scale = self._parse_point(tokens[2])
-            sx, sy = scale[0], scale[1]
-        else:
-            sx = sy = self._eval_value(tokens[2])
+        name = parts[1]
+        factor = float(parts[2])
         
         return {
             'command': 'SCALE',
             'name': name,
-            'sx': sx,
-            'sy': sy
+            'factor': factor
         }
-    
-    def _parse_clear(self, tokens):
-        """Parse CLEAR command."""
+        
+    def _parse_resize(self, parts):
+        """Parse RESIZE command: RESIZE <n> <x_factor> [y_factor]
+        - RESIZE <n> <factor> - uniform resize
+        - RESIZE <n> <x_factor> <y_factor> - anisotropic resize
+        """
+        if len(parts) < 3:
+            raise ValueError("RESIZE requires: RESIZE <n> <x_factor> [y_factor]")
+        
+        name = parts[1]
+        x_factor = float(parts[2])
+        
+        # Check if y_factor is provided
+        if len(parts) >= 4:
+            y_factor = float(parts[3])
+        else:
+            y_factor = x_factor  # Uniform scaling
+        
+        return {
+            'command': 'RESIZE',
+            'name': name,
+            'x_factor': x_factor,
+            'y_factor': y_factor
+        }
+        
+    def _parse_clear(self, parts):
+        """Parse CLEAR command"""
         return {'command': 'CLEAR'}
-    
-    def _parse_save(self, tokens):
-        """Parse SAVE command: SAVE filename"""
-        if len(tokens) < 2:
-            return {'error': 'SAVE requires: filename'}
+        
+    def _parse_list(self, parts):
+        """Parse LIST command"""
+        return {'command': 'LIST'}
+        
+    def _parse_save(self, parts):
+        """Parse SAVE command: SAVE <filename>"""
+        if len(parts) < 2:
+            raise ValueError("SAVE requires: SAVE <filename>")
+        
+        filename = parts[1]
+        if not filename.endswith('.png'):
+            filename += '.png'
         
         return {
             'command': 'SAVE',
-            'filename': tokens[1]
+            'filename': filename
         }
-    
-    def _parse_list(self, tokens):
-        """Parse LIST command."""
-        return {'command': 'LIST'}

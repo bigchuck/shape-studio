@@ -1,134 +1,179 @@
 """
-Shape definitions for Shape Studio.
-Base Shape class and specific shape implementations.
+Shape classes for Shape Studio
+Base Shape class and implementations for Line and Polygon
 """
-
 import math
-from typing import List, Tuple
 
 
 class Shape:
-    """Base class for all shapes."""
+    """Base class for all shapes"""
     
-    def __init__(self, name, color=(0, 0, 0), width=2):
-        """
-        Initialize shape.
-        
-        Args:
-            name: Unique identifier for the shape
-            color: RGB color tuple
-            width: Line width
-        """
+    def __init__(self, name):
         self.name = name
-        self.color = color
-        self.width = width
-        self.points = []
-    
-    def get_center(self):
-        """Calculate centroid of the shape."""
-        if not self.points:
-            return (0, 0)
         
-        x_coords = [p[0] for p in self.points]
-        y_coords = [p[1] for p in self.points]
+    def draw(self, draw_context):
+        """Draw the shape - must be implemented by subclasses"""
+        raise NotImplementedError
         
-        center_x = sum(x_coords) / len(x_coords)
-        center_y = sum(y_coords) / len(y_coords)
-        
-        return (center_x, center_y)
-    
     def move(self, dx, dy):
-        """Translate shape by dx, dy."""
-        self.points = [(x + dx, y + dy) for x, y in self.points]
-    
-    def scale(self, sx, sy=None):
-        """
-        Scale shape around its center.
+        """Move the shape by dx, dy"""
+        raise NotImplementedError
         
-        Args:
-            sx: X scale factor
-            sy: Y scale factor (defaults to sx for uniform scaling)
-        """
-        if sy is None:
-            sy = sx
+    def rotate(self, angle):
+        """Rotate the shape by angle degrees"""
+        raise NotImplementedError
         
-        center_x, center_y = self.get_center()
+    def scale(self, factor):
+        """Scale the shape by factor"""
+        raise NotImplementedError
         
-        # Translate to origin, scale, translate back
-        self.points = [
-            (
-                center_x + (x - center_x) * sx,
-                center_y + (y - center_y) * sy
-            )
-            for x, y in self.points
-        ]
-    
-    def rotate(self, angle_degrees):
-        """Rotate shape around its center by angle in degrees."""
-        angle_rad = math.radians(angle_degrees)
-        cos_a = math.cos(angle_rad)
-        sin_a = math.sin(angle_rad)
+    def resize(self, x_factor, y_factor):
+        """Resize the shape by x_factor and y_factor"""
+        raise NotImplementedError
         
-        center_x, center_y = self.get_center()
-        
-        # Rotate around center
-        rotated_points = []
-        for x, y in self.points:
-            # Translate to origin
-            tx = x - center_x
-            ty = y - center_y
-            
-            # Rotate
-            rx = tx * cos_a - ty * sin_a
-            ry = tx * sin_a + ty * cos_a
-            
-            # Translate back
-            rotated_points.append((rx + center_x, ry + center_y))
-        
-        self.points = rotated_points
-    
-    def draw(self, canvas):
-        """Draw shape on canvas. To be implemented by subclasses."""
+    def get_centroid(self):
+        """Get the center point of the shape"""
         raise NotImplementedError
 
 
 class Line(Shape):
-    """Line shape defined by two points."""
+    """A line segment"""
     
-    def __init__(self, name, x1, y1, x2, y2, color=(0, 0, 0), width=2):
-        """Create a line from (x1, y1) to (x2, y2)."""
-        super().__init__(name, color, width)
-        self.points = [(x1, y1), (x2, y2)]
-    
-    def draw(self, canvas):
-        """Draw line on canvas."""
-        x1, y1 = self.points[0]
-        x2, y2 = self.points[1]
-        canvas.draw_line(x1, y1, x2, y2, self.color, self.width)
+    def __init__(self, name, start, end):
+        super().__init__(name)
+        self.start = start
+        self.end = end
+        
+    def draw(self, draw_context):
+        """Draw the line"""
+        draw_context.line([self.start, self.end], fill='black', width=2)
+        
+    def move(self, dx, dy):
+        """Move the line"""
+        self.start = (self.start[0] + dx, self.start[1] + dy)
+        self.end = (self.end[0] + dx, self.end[1] + dy)
+        
+    def get_centroid(self):
+        """Get the midpoint of the line"""
+        return (
+            (self.start[0] + self.end[0]) / 2,
+            (self.start[1] + self.end[1]) / 2
+        )
+        
+    def rotate(self, angle):
+        """Rotate the line around its center"""
+        center = self.get_centroid()
+        self.start = self._rotate_point(self.start, center, angle)
+        self.end = self._rotate_point(self.end, center, angle)
+        
+    def scale(self, factor):
+        """Scale the line from its center"""
+        center = self.get_centroid()
+        self.start = self._scale_point(self.start, center, factor)
+        self.end = self._scale_point(self.end, center, factor)
+        
+    def resize(self, x_factor, y_factor):
+        """Resize the line with separate X and Y factors"""
+        center = self.get_centroid()
+        self.start = self._resize_point(self.start, center, x_factor, y_factor)
+        self.end = self._resize_point(self.end, center, x_factor, y_factor)
+        
+    def _rotate_point(self, point, center, angle):
+        """Rotate a point around a center by angle degrees"""
+        angle_rad = math.radians(angle)
+        cos_a = math.cos(angle_rad)
+        sin_a = math.sin(angle_rad)
+        
+        # Translate to origin
+        x = point[0] - center[0]
+        y = point[1] - center[1]
+        
+        # Rotate
+        new_x = x * cos_a - y * sin_a
+        new_y = x * sin_a + y * cos_a
+        
+        # Translate back
+        return (new_x + center[0], new_y + center[1])
+        
+    def _scale_point(self, point, center, factor):
+        """Scale a point from a center by factor"""
+        x = center[0] + (point[0] - center[0]) * factor
+        y = center[1] + (point[1] - center[1]) * factor
+        return (x, y)
+        
+    def _resize_point(self, point, center, x_factor, y_factor):
+        """Resize a point from a center with separate X and Y factors"""
+        x = center[0] + (point[0] - center[0]) * x_factor
+        y = center[1] + (point[1] - center[1]) * y_factor
+        return (x, y)
 
 
 class Polygon(Shape):
-    """Polygon shape defined by a list of vertices."""
+    """A polygon (closed shape with multiple vertices)"""
     
-    def __init__(self, name, points, color=(0, 0, 0), width=2, fill=None):
-        """
-        Create a polygon from a list of points.
+    def __init__(self, name, points):
+        super().__init__(name)
+        self.points = points
         
-        Args:
-            name: Shape identifier
-            points: List of (x, y) tuples
-            color: Outline color
-            width: Line width
-            fill: Fill color (None for no fill)
-        """
-        super().__init__(name, color, width)
-        self.points = list(points)
-        self.fill = fill
-    
-    def draw(self, canvas):
-        """Draw polygon on canvas."""
-        canvas.draw_polygon(self.points, self.color, self.width, self.fill)
-    
-    def add_vertex(self, x, y):
-        """Add a vertex to the polygon."""
-        self.points.append((x, y))
+    def draw(self, draw_context):
+        """Draw the polygon"""
+        if len(self.points) < 2:
+            return
+        
+        # Draw closed polygon
+        draw_context.polygon(self.points, outline='black', fill=None, width=2)
+        
+    def move(self, dx, dy):
+        """Move the polygon"""
+        self.points = [(x + dx, y + dy) for x, y in self.points]
+        
+    def get_centroid(self):
+        """Get the center point of the polygon"""
+        x_sum = sum(p[0] for p in self.points)
+        y_sum = sum(p[1] for p in self.points)
+        n = len(self.points)
+        return (x_sum / n, y_sum / n)
+        
+    def rotate(self, angle):
+        """Rotate the polygon around its center"""
+        center = self.get_centroid()
+        self.points = [self._rotate_point(p, center, angle) for p in self.points]
+        
+    def scale(self, factor):
+        """Scale the polygon from its center"""
+        center = self.get_centroid()
+        self.points = [self._scale_point(p, center, factor) for p in self.points]
+        
+    def resize(self, x_factor, y_factor):
+        """Resize the polygon with separate X and Y factors"""
+        center = self.get_centroid()
+        self.points = [self._resize_point(p, center, x_factor, y_factor) for p in self.points]
+        
+    def _rotate_point(self, point, center, angle):
+        """Rotate a point around a center by angle degrees"""
+        angle_rad = math.radians(angle)
+        cos_a = math.cos(angle_rad)
+        sin_a = math.sin(angle_rad)
+        
+        # Translate to origin
+        x = point[0] - center[0]
+        y = point[1] - center[1]
+        
+        # Rotate
+        new_x = x * cos_a - y * sin_a
+        new_y = x * sin_a + y * cos_a
+        
+        # Translate back
+        return (new_x + center[0], new_y + center[1])
+        
+    def _scale_point(self, point, center, factor):
+        """Scale a point from a center by factor"""
+        x = center[0] + (point[0] - center[0]) * factor
+        y = center[1] + (point[1] - center[1]) * factor
+        return (x, y)
+        
+    def _resize_point(self, point, center, x_factor, y_factor):
+        """Resize a point from a center with separate X and Y factors"""
+        x = center[0] + (point[0] - center[0]) * x_factor
+        y = center[1] + (point[1] - center[1]) * y_factor
+        return (x, y)
