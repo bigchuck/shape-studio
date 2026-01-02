@@ -1,0 +1,36 @@
+# Shape Studio Example Commands
+
+# Basic line drawing
+LINE l1 100,100 900,900
+LINE l2 100,900 900,100
+
+# Create a triangle
+POLY tri1 512,200 300,700 724,700
+
+# Create a square
+POLY square1 300,300 700,300 700,700 300,700
+
+# Move a shape
+MOVE tri1 0,-50
+
+# Rotate a shape
+ROTATE square1 45
+
+# Scale a shape uniformly
+SCALE square1 0.8
+
+# Scale non-uniformly (x, y)
+RESIZE tri1 1.2,0.9
+
+# Using random values
+LINE rand1 RAND(100,900),RAND(100,900) RAND(100,900),RAND(100,900)
+POLY rand2 RAND(200,400),RAND(200,400) RAND(600,800),RAND(200,400) RAND(400,600),RAND(600,800)
+
+# List all shapes
+LIST
+
+# Clear canvas
+CLEAR
+
+# Save output
+SAVE my_drawing.png
