@@ -34,3 +34,5 @@ htmlcov/
 # Temporary files
 *.tmp
 *.bak
+projects/
+shapes/

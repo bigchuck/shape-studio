@@ -1,6 +1,6 @@
 """
-Command parser for Shape Studio - Phase 3 Enhanced + Fixes
-Parses text commands with safety features
+Command parser for Shape Studio - Phase 4
+Parses text commands with persistence support
 """
 import re
 import random
@@ -26,6 +26,10 @@ class CommandParser:
             'UNPROMOTE': self._parse_unpromote,
             'STASH': self._parse_stash,
             'UNSTASH': self._parse_unstash,
+            'STORE': self._parse_store,
+            'LOAD': self._parse_load,
+            'SAVE_PROJECT': self._parse_save_project,
+            'LOAD_PROJECT': self._parse_load_project,
             'CLEAR': self._parse_clear,
             'LIST': self._parse_list,
             'INFO': self._parse_info,
@@ -227,10 +231,7 @@ class CommandParser:
         }
         
     def _parse_delete(self, parts):
-        """Parse DELETE command: DELETE <shape_name> [CONFIRM]
-        
-        Safety: Groups with members require CONFIRM
-        """
+        """Parse DELETE command: DELETE <shape_name> [CONFIRM]"""
         if len(parts) < 2:
             raise ValueError("DELETE requires: DELETE <shape>")
         
@@ -317,11 +318,7 @@ class CommandParser:
         }
         
     def _parse_unstash(self, parts):
-        """Parse UNSTASH command: UNSTASH [MOVE] <shape>
-        
-        Default: Copy from stash (keeps in stash)
-        MOVE modifier: Remove from stash after unstashing
-        """
+        """Parse UNSTASH command: UNSTASH [MOVE] <shape>"""
         if len(parts) < 2:
             raise ValueError("UNSTASH requires: UNSTASH [MOVE] <shape>")
         
@@ -341,11 +338,76 @@ class CommandParser:
             'mode': mode
         }
         
-    def _parse_clear(self, parts):
-        """Parse CLEAR command: CLEAR [WIP|MAIN|STASH] [ALL]
+    def _parse_store(self, parts):
+        """Parse STORE command: STORE [GLOBAL] <shape>
         
-        Safety: Canvas clearing requires ALL keyword
+        STORE <shape> - Save to project store
+        STORE GLOBAL <shape> - Save to global library
         """
+        if len(parts) < 2:
+            raise ValueError("STORE requires: STORE [GLOBAL] <shape>")
+        
+        # Check for GLOBAL modifier
+        if parts[1].upper() == 'GLOBAL':
+            if len(parts) < 3:
+                raise ValueError("STORE GLOBAL requires shape name")
+            scope = 'global'
+            shape_name = parts[2]
+        else:
+            scope = 'project'
+            shape_name = parts[1]
+        
+        return {
+            'command': 'STORE',
+            'name': shape_name,
+            'scope': scope
+        }
+        
+    def _parse_load(self, parts):
+        """Parse LOAD command: LOAD <shape>
+        
+        Searches project store first, then global library
+        """
+        if len(parts) < 2:
+            raise ValueError("LOAD requires: LOAD <shape>")
+        
+        shape_name = parts[1]
+        
+        return {
+            'command': 'LOAD',
+            'name': shape_name
+        }
+        
+    def _parse_save_project(self, parts):
+        """Parse SAVE_PROJECT command: SAVE_PROJECT <filename>"""
+        if len(parts) < 2:
+            raise ValueError("SAVE_PROJECT requires: SAVE_PROJECT <filename>")
+        
+        filename = parts[1]
+        if not filename.endswith('.shapestudio'):
+            filename += '.shapestudio'
+        
+        return {
+            'command': 'SAVE_PROJECT',
+            'filename': filename
+        }
+        
+    def _parse_load_project(self, parts):
+        """Parse LOAD_PROJECT command: LOAD_PROJECT <filename>"""
+        if len(parts) < 2:
+            raise ValueError("LOAD_PROJECT requires: LOAD_PROJECT <filename>")
+        
+        filename = parts[1]
+        if not filename.endswith('.shapestudio'):
+            filename += '.shapestudio'
+        
+        return {
+            'command': 'LOAD_PROJECT',
+            'filename': filename
+        }
+        
+    def _parse_clear(self, parts):
+        """Parse CLEAR command: CLEAR [WIP|MAIN|STASH] [ALL]"""
         target = None
         require_all = False
         
@@ -367,12 +429,12 @@ class CommandParser:
         }
         
     def _parse_list(self, parts):
-        """Parse LIST command: LIST [WIP|MAIN|STASH]"""
+        """Parse LIST command: LIST [WIP|MAIN|STASH|STORE|GLOBAL]"""
         target = None
         if len(parts) >= 2:
             target = parts[1].upper()
-            if target not in ['WIP', 'MAIN', 'STASH']:
-                raise ValueError("LIST target must be WIP, MAIN, or STASH")
+            if target not in ['WIP', 'MAIN', 'STASH', 'STORE', 'GLOBAL']:
+                raise ValueError("LIST target must be WIP, MAIN, STASH, STORE, or GLOBAL")
         
         return {
             'command': 'LIST',

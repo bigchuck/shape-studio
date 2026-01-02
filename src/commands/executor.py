@@ -1,12 +1,14 @@
 """
-Command executor for Shape Studio - Phase 3 Enhanced + Canvas Sync Fix
-Properly syncs canvas shape list with executor registry
+Command executor for Shape Studio
+
 """
 import os
+import json
 import copy
+from pathlib import Path
+from datetime import datetime
 from src.core.shape import Line, Polygon, ShapeGroup
 from src.commands.parser import CommandParser
-
 
 class CommandExecutor:
     """Execute commands on WIP or Main canvas"""
@@ -25,9 +27,18 @@ class CommandExecutor:
         
         # Global stash for temporary storage
         self.stash = {}
+
+        # Persistence directories
+        self.project_store_dir = Path('shapes')
+        self.global_store_dir = Path.home() / '.shapestudio' / 'shapes'
+        self.projects_dir = Path('projects')
         
-        # Create output directory if it doesn't exist
+        # Create directories
         os.makedirs('output', exist_ok=True)
+        os.makedirs(self.project_store_dir, exist_ok=True)
+        os.makedirs(self.global_store_dir, exist_ok=True)
+        os.makedirs(self.projects_dir, exist_ok=True)
+        
         
     def get_active_shapes(self):
         """Get the shapes dictionary for the active canvas"""
@@ -37,11 +48,7 @@ class CommandExecutor:
             return self.main_shapes
             
     def _sync_active_canvas(self):
-        """Sync active canvas's shape list with executor's registry
-        
-        This is THE FIX for ghost shapes. After any operation that changes
-        the registry (delete, stash, promote, etc.), we must sync the canvas.
-        """
+        """Sync active canvas's shape list with executor's registry"""
         if self.active_canvas_name == 'WIP':
             self.wip_canvas.sync_shapes(self.wip_shapes)
         else:
@@ -52,46 +59,36 @@ class CommandExecutor:
         # Parse the command
         cmd_dict = self.parser.parse(command_text)
         command = cmd_dict['command']
+
+        # Route to handler
+        handlers = {
+            'LINE': self._execute_line,
+            'POLY': self._execute_poly,
+            'MOVE': self._execute_move,
+            'ROTATE': self._execute_rotate,
+            'SCALE': self._execute_scale,
+            'RESIZE': self._execute_resize,
+            'GROUP': self._execute_group,
+            'UNGROUP': self._execute_ungroup,
+            'EXTRACT': self._execute_extract,
+            'DELETE': self._execute_delete,
+            'SWITCH': self._execute_switch,
+            'PROMOTE': self._execute_promote,
+            'UNPROMOTE': self._execute_unpromote,
+            'STASH': self._execute_stash,
+            'UNSTASH': self._execute_unstash,
+            'STORE': self._execute_store,
+            'LOAD': self._execute_load,
+            'SAVE_PROJECT': self._execute_save_project,
+            'LOAD_PROJECT': self._execute_load_project,
+            'CLEAR': self._execute_clear,
+            'LIST': self._execute_list,
+            'INFO': self._execute_info,
+            'SAVE': self._execute_save,
+        }
         
-        # Route to appropriate handler
-        if command == 'LINE':
-            return self._execute_line(cmd_dict, command_text)
-        elif command == 'POLY':
-            return self._execute_poly(cmd_dict, command_text)
-        elif command == 'MOVE':
-            return self._execute_move(cmd_dict, command_text)
-        elif command == 'ROTATE':
-            return self._execute_rotate(cmd_dict, command_text)
-        elif command == 'SCALE':
-            return self._execute_scale(cmd_dict, command_text)
-        elif command == 'RESIZE':
-            return self._execute_resize(cmd_dict, command_text)
-        elif command == 'GROUP':
-            return self._execute_group(cmd_dict, command_text)
-        elif command == 'UNGROUP':
-            return self._execute_ungroup(cmd_dict, command_text)
-        elif command == 'EXTRACT':
-            return self._execute_extract(cmd_dict, command_text)
-        elif command == 'DELETE':
-            return self._execute_delete(cmd_dict, command_text)
-        elif command == 'SWITCH':
-            return self._execute_switch(cmd_dict)
-        elif command == 'PROMOTE':
-            return self._execute_promote(cmd_dict, command_text)
-        elif command == 'UNPROMOTE':
-            return self._execute_unpromote(cmd_dict, command_text)
-        elif command == 'STASH':
-            return self._execute_stash(cmd_dict, command_text)
-        elif command == 'UNSTASH':
-            return self._execute_unstash(cmd_dict, command_text)
-        elif command == 'CLEAR':
-            return self._execute_clear(cmd_dict)
-        elif command == 'LIST':
-            return self._execute_list(cmd_dict)
-        elif command == 'INFO':
-            return self._execute_info(cmd_dict)
-        elif command == 'SAVE':
-            return self._execute_save(cmd_dict)
+        if command in handlers:
+            return handlers[command](cmd_dict, command_text)
         else:
             raise ValueError(f"Unknown command: {command}")
             
@@ -367,7 +364,7 @@ class CommandExecutor:
         
         return f"Deleted '{shape_name}' from {self.active_canvas_name}"
         
-    def _execute_switch(self, cmd_dict):
+    def _execute_switch(self, cmd_dict, command_text):
         """Execute SWITCH command - change active canvas"""
         target = cmd_dict['target']
         
@@ -504,7 +501,7 @@ class CommandExecutor:
         else:
             return f"Unstashed '{shape_name}' to {self.active_canvas_name} (kept in stash)"
         
-    def _execute_clear(self, cmd_dict):
+    def _execute_clear(self, cmd_dict, command_text):
         """Execute CLEAR command on specified or active canvas"""
         target = cmd_dict['target']
         all_flag = cmd_dict['all']
@@ -531,43 +528,7 @@ class CommandExecutor:
             self.main_shapes.clear()
             return "MAIN canvas cleared"
         
-    def _execute_list(self, cmd_dict):
-        """Execute LIST command on specified or active canvas"""
-        target = cmd_dict['target']
-        
-        if target is None:
-            target = self.active_canvas_name
-        
-        if target == 'WIP':
-            shapes = self.wip_shapes
-        elif target == 'MAIN':
-            shapes = self.main_shapes
-        else:  # STASH
-            shapes = self.stash
-        
-        if not shapes:
-            return f"No shapes in {target}"
-        
-        shapes_info = []
-        for name, shape in shapes.items():
-            shape_type = shape.attrs['type']
-            
-            if isinstance(shape, ShapeGroup):
-                member_count = len(shape.attrs['geometry']['members'])
-                shapes_info.append(f"{name} (Group: {member_count} members)")
-            else:
-                group = shape.attrs['relationships']['group']
-                if group:
-                    shapes_info.append(f"{name} ({shape_type}, in group '{group}')")
-                else:
-                    shapes_info.append(f"{name} ({shape_type})")
-        
-        if target in ['WIP', 'MAIN']:
-            return f"{target} canvas shapes:\n  " + "\n  ".join(shapes_info)
-        else:
-            return f"Stash:\n  " + "\n  ".join(shapes_info)
-            
-    def _execute_info(self, cmd_dict):
+    def _execute_info(self, cmd_dict, command_text):
         """Execute INFO command - show detailed shape information"""
         shape_name = cmd_dict['name']
         
@@ -623,7 +584,7 @@ class CommandExecutor:
         
         return "\n".join(info)
         
-    def _execute_save(self, cmd_dict):
+    def _execute_save(self, cmd_dict, command_text):
         """Execute SAVE command - always saves MAIN canvas"""
         filename = cmd_dict['filename']
         filepath = os.path.join('output', filename)
@@ -632,3 +593,261 @@ class CommandExecutor:
         self.main_canvas.save(filepath)
         
         return f"Saved MAIN canvas to {filepath}"
+    
+    def _execute_store(self, cmd_dict, command_text):
+        """Execute STORE command - save shape to object store"""
+        shape_name = cmd_dict['name']
+        scope = cmd_dict['scope']
+        
+        # Find shape in WIP, MAIN, or stash
+        shape = None
+        if shape_name in self.wip_shapes:
+            shape = self.wip_shapes[shape_name]
+        elif shape_name in self.main_shapes:
+            shape = self.main_shapes[shape_name]
+        elif shape_name in self.stash:
+            shape = self.stash[shape_name]
+        else:
+            raise ValueError(f"Shape '{shape_name}' not found")
+        
+        # Serialize shape
+        shape_data = self._serialize_shape(shape)
+        
+        # Determine save directory
+        if scope == 'global':
+            save_dir = self.global_store_dir
+        else:
+            save_dir = self.project_store_dir
+        
+        # Save to file
+        filepath = save_dir / f"{shape_name}.json"
+        with open(filepath, 'w') as f:
+            json.dump(shape_data, f, indent=2)
+        
+        scope_name = "global library" if scope == 'global' else "project store"
+        return f"Stored '{shape_name}' to {scope_name}: {filepath}"
+    
+    def _execute_load(self, cmd_dict, command_text):
+        """Execute LOAD command - load shape from object store"""
+        shape_name = cmd_dict['name']
+        
+        shapes = self.get_active_shapes()
+        if shape_name in shapes:
+            raise ValueError(f"Shape '{shape_name}' already exists on {self.active_canvas_name} canvas")
+        
+        # Search project store first, then global
+        filepath = self.project_store_dir / f"{shape_name}.json"
+        source = "project store"
+        
+        if not filepath.exists():
+            filepath = self.global_store_dir / f"{shape_name}.json"
+            source = "global library"
+        
+        if not filepath.exists():
+            raise ValueError(f"Shape '{shape_name}' not found in project store or global library")
+        
+        # Load and deserialize
+        with open(filepath, 'r') as f:
+            shape_data = json.load(f)
+        
+        shape = self._deserialize_shape(shape_data)
+        shape.add_history('LOAD', command_text)
+        
+        # Add to active canvas
+        self.active_canvas.add_shape(shape)
+        shapes[shape_name] = shape
+        
+        return f"Loaded '{shape_name}' from {source} to {self.active_canvas_name}"
+    
+    def _execute_save_project(self, cmd_dict, command_text):
+        """Execute SAVE_PROJECT command - save entire session"""
+        filename = cmd_dict['filename']
+        filepath = self.projects_dir / filename
+        
+        # Build project data
+        project_data = {
+            'version': '1.0',
+            'created': datetime.now().isoformat(),
+            'wip_shapes': {name: self._serialize_shape(shape) 
+                          for name, shape in self.wip_shapes.items()},
+            'main_shapes': {name: self._serialize_shape(shape) 
+                           for name, shape in self.main_shapes.items()},
+            'stash': {name: self._serialize_shape(shape) 
+                     for name, shape in self.stash.items()},
+            'canvas_settings': {
+                'show_grid': self.wip_canvas.show_grid,
+                'show_rulers': self.wip_canvas.show_rulers
+            },
+            'active_canvas': self.active_canvas_name
+        }
+        
+        # Save to file
+        with open(filepath, 'w') as f:
+            json.dump(project_data, f, indent=2)
+        
+        return f"Saved project to {filepath}"
+    
+    def _execute_load_project(self, cmd_dict, command_text):
+        """Execute LOAD_PROJECT command - load entire session"""
+        filename = cmd_dict['filename']
+        filepath = self.projects_dir / filename
+        
+        if not filepath.exists():
+            raise ValueError(f"Project file not found: {filepath}")
+        
+        # Load project data
+        with open(filepath, 'r') as f:
+            project_data = json.load(f)
+        
+        # Clear current state
+        self.wip_shapes.clear()
+        self.main_shapes.clear()
+        self.stash.clear()
+        self.wip_canvas.clear()
+        self.main_canvas.clear()
+        
+        # Restore WIP shapes
+        for name, shape_data in project_data['wip_shapes'].items():
+            shape = self._deserialize_shape(shape_data)
+            self.wip_shapes[name] = shape
+            self.wip_canvas.add_shape(shape)
+        
+        # Restore MAIN shapes
+        for name, shape_data in project_data['main_shapes'].items():
+            shape = self._deserialize_shape(shape_data)
+            self.main_shapes[name] = shape
+            self.main_canvas.add_shape(shape)
+        
+        # Restore stash
+        for name, shape_data in project_data['stash'].items():
+            shape = self._deserialize_shape(shape_data)
+            self.stash[name] = shape
+        
+        # Restore canvas settings
+        settings = project_data.get('canvas_settings', {})
+        self.wip_canvas.show_grid = settings.get('show_grid', True)
+        self.wip_canvas.show_rulers = settings.get('show_rulers', True)
+        self.main_canvas.show_grid = settings.get('show_grid', True)
+        self.main_canvas.show_rulers = settings.get('show_rulers', True)
+        
+        # Restore active canvas
+        active = project_data.get('active_canvas', 'WIP')
+        if active == 'MAIN':
+            self.active_canvas = self.main_canvas
+            self.active_canvas_name = 'MAIN'
+        else:
+            self.active_canvas = self.wip_canvas
+            self.active_canvas_name = 'WIP'
+        
+        # Redraw both canvases
+        self.wip_canvas.redraw()
+        self.main_canvas.redraw()
+        
+        wip_count = len(self.wip_shapes)
+        main_count = len(self.main_shapes)
+        stash_count = len(self.stash)
+        
+        return f"Loaded project from {filepath} (WIP: {wip_count}, MAIN: {main_count}, Stash: {stash_count})"
+    
+    def _serialize_shape(self, shape):
+        """Convert shape to JSON-serializable dict"""
+        data = {
+            'name': shape.name,
+            'type': shape.attrs['type'],
+            'attrs': {}
+        }
+        
+        # Deep copy attrs to avoid modifying original
+        attrs = copy.deepcopy(shape.attrs)
+        
+        # Handle geometry - convert ShapeGroup members to names only
+        if isinstance(shape, ShapeGroup):
+            members = attrs['geometry']['members']
+            attrs['geometry']['members'] = [m.name for m in members]
+        
+        data['attrs'] = attrs
+        return data
+    
+    def _deserialize_shape(self, data):
+        """Recreate shape from JSON data"""
+        shape_type = data['type']
+        name = data['name']
+        attrs = data['attrs']
+        geom = attrs['geometry']
+        
+        if shape_type == 'Line':
+            shape = Line(name, tuple(geom['start']), tuple(geom['end']))
+        elif shape_type == 'Polygon':
+            points = [tuple(p) for p in geom['points']]
+            shape = Polygon(name, points)
+        elif shape_type == 'ShapeGroup':
+            # For groups, we'll handle member reconstruction later
+            # For now, create empty group (members will be linked in second pass)
+            shape = ShapeGroup(name, [])
+        else:
+            raise ValueError(f"Unknown shape type: {shape_type}")
+        
+        # Restore attrs
+        shape.attrs = attrs
+        
+        return shape
+    
+    def _execute_list(self, cmd_dict, command_text):
+        """Execute LIST command - extended to include stores"""
+        target = cmd_dict['target']
+        
+        if target is None:
+            target = self.active_canvas_name
+        
+        if target == 'WIP':
+            shapes = self.wip_shapes
+        elif target == 'MAIN':
+            shapes = self.main_shapes
+        elif target == 'STASH':
+            shapes = self.stash
+        elif target == 'STORE':
+            return self._list_store(self.project_store_dir, "project store")
+        elif target == 'GLOBAL':
+            return self._list_store(self.global_store_dir, "global library")
+        else:
+            raise ValueError(f"Unknown LIST target: {target}")
+        
+        if not shapes:
+            return f"No shapes in {target}"
+        
+        shapes_info = []
+        for name, shape in shapes.items():
+            shape_type = shape.attrs['type']
+            
+            if isinstance(shape, ShapeGroup):
+                member_count = len(shape.attrs['geometry']['members'])
+                shapes_info.append(f"{name} (Group: {member_count} members)")
+            else:
+                group = shape.attrs['relationships']['group']
+                if group:
+                    shapes_info.append(f"{name} ({shape_type}, in group '{group}')")
+                else:
+                    shapes_info.append(f"{name} ({shape_type})")
+        
+        if target in ['WIP', 'MAIN']:
+            return f"{target} canvas shapes:\n  " + "\n  ".join(shapes_info)
+        else:
+            return f"Stash:\n  " + "\n  ".join(shapes_info)
+    
+    def _list_store(self, store_dir, store_name):
+        """List shapes in a store directory"""
+        json_files = list(store_dir.glob('*.json'))
+        
+        if not json_files:
+            return f"No shapes in {store_name}"
+        
+        shapes_info = []
+        for filepath in sorted(json_files):
+            shape_name = filepath.stem
+            # Load to get type
+            with open(filepath, 'r') as f:
+                data = json.load(f)
+            shape_type = data['type']
+            shapes_info.append(f"{shape_name} ({shape_type})")
+        
+        return f"{store_name.title()} ({len(json_files)} shapes):\n  " + "\n  ".join(shapes_info)
