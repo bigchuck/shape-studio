@@ -1,6 +1,6 @@
 """
-Command parser for Shape Studio - Phase 2
-Parses text commands into structured data with GROUP/UNGROUP support
+Command parser for Shape Studio - Phase 3 Enhanced + Fixes
+Parses text commands with safety features
 """
 import re
 import random
@@ -19,8 +19,16 @@ class CommandParser:
             'RESIZE': self._parse_resize,
             'GROUP': self._parse_group,
             'UNGROUP': self._parse_ungroup,
+            'EXTRACT': self._parse_extract,
+            'DELETE': self._parse_delete,
+            'SWITCH': self._parse_switch,
+            'PROMOTE': self._parse_promote,
+            'UNPROMOTE': self._parse_unpromote,
+            'STASH': self._parse_stash,
+            'UNSTASH': self._parse_unstash,
             'CLEAR': self._parse_clear,
             'LIST': self._parse_list,
+            'INFO': self._parse_info,
             'SAVE': self._parse_save,
         }
         
@@ -155,10 +163,7 @@ class CommandParser:
         }
         
     def _parse_resize(self, parts):
-        """Parse RESIZE command: RESIZE <n> <x_factor> [y_factor]
-        - RESIZE <n> <factor> - uniform resize
-        - RESIZE <n> <x_factor> <y_factor> - anisotropic resize
-        """
+        """Parse RESIZE command: RESIZE <n> <x_factor> [y_factor]"""
         if len(parts) < 3:
             raise ValueError("RESIZE requires: RESIZE <n> <x_factor> [y_factor]")
         
@@ -179,15 +184,12 @@ class CommandParser:
         }
         
     def _parse_group(self, parts):
-        """Parse GROUP command: GROUP <group_name> <shape1> <shape2> ...
-        
-        Creates a new group containing the specified shapes.
-        """
+        """Parse GROUP command: GROUP <group_name> <shape1> <shape2> ..."""
         if len(parts) < 3:
             raise ValueError("GROUP requires: GROUP <group_name> <shape1> [shape2 ...]")
         
         group_name = parts[1]
-        member_names = parts[2:]  # All remaining args are shape names
+        member_names = parts[2:]
         
         return {
             'command': 'GROUP',
@@ -196,10 +198,7 @@ class CommandParser:
         }
         
     def _parse_ungroup(self, parts):
-        """Parse UNGROUP command: UNGROUP <group_name>
-        
-        Dissolves a group, making its members independent again.
-        """
+        """Parse UNGROUP command: UNGROUP <group_name>"""
         if len(parts) < 2:
             raise ValueError("UNGROUP requires: UNGROUP <group_name>")
         
@@ -210,13 +209,187 @@ class CommandParser:
             'name': group_name
         }
         
+    def _parse_extract(self, parts):
+        """Parse EXTRACT command: EXTRACT <member> FROM <group>"""
+        if len(parts) < 4:
+            raise ValueError("EXTRACT requires: EXTRACT <member> FROM <group>")
+        
+        if parts[2].upper() != 'FROM':
+            raise ValueError("EXTRACT syntax: EXTRACT <member> FROM <group>")
+        
+        member_name = parts[1]
+        group_name = parts[3]
+        
+        return {
+            'command': 'EXTRACT',
+            'member': member_name,
+            'group': group_name
+        }
+        
+    def _parse_delete(self, parts):
+        """Parse DELETE command: DELETE <shape_name> [CONFIRM]
+        
+        Safety: Groups with members require CONFIRM
+        """
+        if len(parts) < 2:
+            raise ValueError("DELETE requires: DELETE <shape>")
+        
+        shape_name = parts[1]
+        
+        # Check for CONFIRM flag
+        confirm = False
+        if len(parts) >= 3 and parts[2].upper() == 'CONFIRM':
+            confirm = True
+        
+        return {
+            'command': 'DELETE',
+            'name': shape_name,
+            'confirm': confirm
+        }
+        
+    def _parse_switch(self, parts):
+        """Parse SWITCH command: SWITCH WIP|MAIN"""
+        if len(parts) < 2:
+            raise ValueError("SWITCH requires: SWITCH WIP|MAIN")
+        
+        target = parts[1].upper()
+        
+        if target not in ['WIP', 'MAIN']:
+            raise ValueError("SWITCH target must be WIP or MAIN")
+        
+        return {
+            'command': 'SWITCH',
+            'target': target
+        }
+        
+    def _parse_promote(self, parts):
+        """Parse PROMOTE command: PROMOTE [COPY] <shape>"""
+        if len(parts) < 2:
+            raise ValueError("PROMOTE requires: PROMOTE [COPY] <shape>")
+        
+        # Check for COPY modifier
+        if parts[1].upper() == 'COPY':
+            if len(parts) < 3:
+                raise ValueError("PROMOTE COPY requires shape name")
+            mode = 'copy'
+            shape_name = parts[2]
+        else:
+            mode = 'move'
+            shape_name = parts[1]
+        
+        return {
+            'command': 'PROMOTE',
+            'name': shape_name,
+            'mode': mode
+        }
+        
+    def _parse_unpromote(self, parts):
+        """Parse UNPROMOTE command: UNPROMOTE [COPY] <shape>"""
+        if len(parts) < 2:
+            raise ValueError("UNPROMOTE requires: UNPROMOTE [COPY] <shape>")
+        
+        # Check for COPY modifier
+        if parts[1].upper() == 'COPY':
+            if len(parts) < 3:
+                raise ValueError("UNPROMOTE COPY requires shape name")
+            mode = 'copy'
+            shape_name = parts[2]
+        else:
+            mode = 'move'
+            shape_name = parts[1]
+        
+        return {
+            'command': 'UNPROMOTE',
+            'name': shape_name,
+            'mode': mode
+        }
+        
+    def _parse_stash(self, parts):
+        """Parse STASH command: STASH <shape>"""
+        if len(parts) < 2:
+            raise ValueError("STASH requires: STASH <shape>")
+        
+        shape_name = parts[1]
+        
+        return {
+            'command': 'STASH',
+            'name': shape_name
+        }
+        
+    def _parse_unstash(self, parts):
+        """Parse UNSTASH command: UNSTASH [MOVE] <shape>
+        
+        Default: Copy from stash (keeps in stash)
+        MOVE modifier: Remove from stash after unstashing
+        """
+        if len(parts) < 2:
+            raise ValueError("UNSTASH requires: UNSTASH [MOVE] <shape>")
+        
+        # Check for MOVE modifier
+        if parts[1].upper() == 'MOVE':
+            if len(parts) < 3:
+                raise ValueError("UNSTASH MOVE requires shape name")
+            mode = 'move'
+            shape_name = parts[2]
+        else:
+            mode = 'copy'  # Default: keep in stash
+            shape_name = parts[1]
+        
+        return {
+            'command': 'UNSTASH',
+            'name': shape_name,
+            'mode': mode
+        }
+        
     def _parse_clear(self, parts):
-        """Parse CLEAR command"""
-        return {'command': 'CLEAR'}
+        """Parse CLEAR command: CLEAR [WIP|MAIN|STASH] [ALL]
+        
+        Safety: Canvas clearing requires ALL keyword
+        """
+        target = None
+        require_all = False
+        
+        if len(parts) >= 2:
+            token = parts[1].upper()
+            if token in ['WIP', 'MAIN', 'STASH']:
+                target = token
+                # Check for ALL in third position
+                if len(parts) >= 3 and parts[2].upper() == 'ALL':
+                    require_all = True
+            elif token == 'ALL':
+                # CLEAR ALL - clears active canvas
+                require_all = True
+        
+        return {
+            'command': 'CLEAR',
+            'target': target,  # None means active canvas
+            'all': require_all
+        }
         
     def _parse_list(self, parts):
-        """Parse LIST command"""
-        return {'command': 'LIST'}
+        """Parse LIST command: LIST [WIP|MAIN|STASH]"""
+        target = None
+        if len(parts) >= 2:
+            target = parts[1].upper()
+            if target not in ['WIP', 'MAIN', 'STASH']:
+                raise ValueError("LIST target must be WIP, MAIN, or STASH")
+        
+        return {
+            'command': 'LIST',
+            'target': target  # None means active canvas
+        }
+        
+    def _parse_info(self, parts):
+        """Parse INFO command: INFO <shape>"""
+        if len(parts) < 2:
+            raise ValueError("INFO requires: INFO <shape>")
+        
+        shape_name = parts[1]
+        
+        return {
+            'command': 'INFO',
+            'name': shape_name
+        }
         
     def _parse_save(self, parts):
         """Parse SAVE command: SAVE <filename>"""

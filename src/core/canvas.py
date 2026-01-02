@@ -25,7 +25,22 @@ class Canvas:
     def add_shape(self, shape):
         """Add a shape to the canvas"""
         self.shapes.append(shape)
-        # Redraw everything to maintain proper layering (grid under shapes)
+        shape.draw(self.draw)
+        
+    def remove_shape(self, shape):
+        """Remove a shape from the canvas"""
+        if shape in self.shapes:
+            self.shapes.remove(shape)
+            
+    def sync_shapes(self, shapes_dict):
+        """Sync canvas's shape list with a dictionary of shapes
+        
+        This rebuilds the canvas to match the executor's registry.
+        Use this after deleting/stashing shapes.
+        """
+        # Replace our shapes list with values from the dict
+        self.shapes = list(shapes_dict.values())
+        # Redraw everything
         self.redraw()
         
     def clear(self):

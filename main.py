@@ -1,6 +1,6 @@
 """
-Shape Studio - Main Entry Point
-Command-line driven shape drawing tool for LoRA training image generation
+Shape Studio - Main Entry Point - Phase 3
+Dual canvas system with WIP and Main canvases
 """
 from src.core.canvas import Canvas
 from src.commands.executor import CommandExecutor
@@ -8,15 +8,18 @@ from src.ui.interface import ShapeStudioUI
 
 
 def main():
-    """Initialize and run Shape Studio"""
-    # Create canvas (1024x1024)
-    canvas = Canvas()
+    """Initialize and run Shape Studio with dual canvas system"""
+    # Create WIP canvas (working/scratch space)
+    wip_canvas = Canvas()
     
-    # Create command executor
-    executor = CommandExecutor(canvas)
+    # Create Main canvas (final composition)
+    main_canvas = Canvas()
+    
+    # Create command executor with both canvases
+    executor = CommandExecutor(wip_canvas, main_canvas)
     
     # Create and run UI
-    ui = ShapeStudioUI(canvas, executor)
+    ui = ShapeStudioUI(executor)
     ui.run()
 
 

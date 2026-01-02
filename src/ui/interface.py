@@ -1,5 +1,6 @@
 """
-Shape Studio UI Interface with Fullscreen Support and Toggle Controls
+Shape Studio UI Interface - Phase 3 Enhanced
+Dual canvas system with command history recall
 """
 import tkinter as tk
 from tkinter import ttk, scrolledtext
@@ -7,10 +8,9 @@ from PIL import Image, ImageTk
 
 
 class ShapeStudioUI:
-    """Main UI for Shape Studio with fullscreen capability"""
+    """Main UI for Shape Studio with WIP/Main canvas system"""
     
-    def __init__(self, canvas, executor):
-        self.canvas = canvas
+    def __init__(self, executor):
         self.executor = executor
         self.root = tk.Tk()
         self.root.title("Shape Studio - Command Line Drawing Tool")
@@ -23,6 +23,11 @@ class ShapeStudioUI:
         self.root.bind('<F11>', self.toggle_fullscreen)
         
         self.command_counter = 0  # Track command numbers
+        
+        # Command history for up/down arrow recall
+        self.command_history = []
+        self.history_index = -1
+        
         self._setup_ui()
         self._update_canvas_display()
         
@@ -66,6 +71,8 @@ class ShapeStudioUI:
         self.command_input = tk.Entry(input_frame, font=('Consolas', 10))
         self.command_input.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=5)
         self.command_input.bind('<Return>', self._execute_command)
+        self.command_input.bind('<Up>', self._history_up)
+        self.command_input.bind('<Down>', self._history_down)
         
         execute_btn = tk.Button(input_frame, text="Execute", command=self._execute_command)
         execute_btn.pack(side=tk.LEFT)
@@ -77,8 +84,31 @@ class ShapeStudioUI:
         control_frame = tk.Frame(right_frame)
         control_frame.pack(fill=tk.X, pady=5)
         
-        canvas_label = tk.Label(control_frame, text="Canvas (768x768)", font=('Arial', 10, 'bold'))
-        canvas_label.pack(side=tk.LEFT, padx=10)
+        # Active canvas indicator
+        self.canvas_indicator = tk.Label(
+            control_frame, 
+            text="Active: WIP", 
+            font=('Arial', 12, 'bold'),
+            fg='white',
+            bg='blue',
+            padx=10,
+            pady=5
+        )
+        self.canvas_indicator.pack(side=tk.LEFT, padx=10)
+        
+        # Switch canvas button
+        self.switch_btn = tk.Button(
+            control_frame,
+            text="Switch to MAIN →",
+            command=self._switch_canvas,
+            font=('Arial', 10),
+            bg='lightblue',
+            width=15
+        )
+        self.switch_btn.pack(side=tk.LEFT, padx=5)
+        
+        # Spacer
+        tk.Label(control_frame, text="  ").pack(side=tk.LEFT)
         
         # Toggle buttons
         self.ruler_btn = tk.Button(
@@ -99,7 +129,7 @@ class ShapeStudioUI:
         )
         self.grid_btn.pack(side=tk.LEFT, padx=5)
         
-        # Canvas display with scrollbars (in case fullscreen isn't enough)
+        # Canvas display with scrollbars
         canvas_frame = tk.Frame(right_frame, bg='gray')
         canvas_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
         
@@ -132,7 +162,7 @@ class ShapeStudioUI:
         
         self.status_label = tk.Label(
             status_frame, 
-            text="Ready | Press ESC or F11 to toggle fullscreen",
+            text="Ready | Active: WIP | Use ↑↓ arrows for command history | ESC/F11 = fullscreen",
             anchor=tk.W
         )
         self.status_label.pack(side=tk.LEFT, fill=tk.X, expand=True)
@@ -140,9 +170,92 @@ class ShapeStudioUI:
         # Focus on command input
         self.command_input.focus()
         
+    def _history_up(self, event):
+        """Navigate up in command history"""
+        if not self.command_history:
+            return
+        
+        # If at the bottom, go to most recent
+        if self.history_index == -1:
+            self.history_index = len(self.command_history) - 1
+        # Otherwise, go one back (if not at the top)
+        elif self.history_index > 0:
+            self.history_index -= 1
+        
+        # Set the command input to the history entry
+        if 0 <= self.history_index < len(self.command_history):
+            self.command_input.delete(0, tk.END)
+            self.command_input.insert(0, self.command_history[self.history_index])
+        
+        return "break"  # Prevent default behavior
+        
+    def _history_down(self, event):
+        """Navigate down in command history"""
+        if not self.command_history:
+            return
+        
+        # If not at bottom, move forward
+        if self.history_index < len(self.command_history) - 1:
+            self.history_index += 1
+            self.command_input.delete(0, tk.END)
+            self.command_input.insert(0, self.command_history[self.history_index])
+        # If at bottom or beyond, clear input and reset index
+        else:
+            self.history_index = -1
+            self.command_input.delete(0, tk.END)
+        
+        return "break"  # Prevent default behavior
+        
+    def _switch_canvas(self):
+        """Switch between WIP and MAIN canvas"""
+        try:
+            # Execute SWITCH command
+            if self.executor.active_canvas_name == 'WIP':
+                result = self.executor.execute('SWITCH MAIN')
+            else:
+                result = self.executor.execute('SWITCH WIP')
+            
+            # Update UI indicators
+            self._update_canvas_indicators()
+            self._update_canvas_display()
+            
+            # Log the switch
+            self.command_counter += 1
+            self._log_command(f"[{self.command_counter}] {result}")
+            
+        except Exception as e:
+            self.status_label.config(text=f"Error: {str(e)}")
+            
+    def _update_canvas_indicators(self):
+        """Update the canvas indicator labels and button"""
+        active = self.executor.active_canvas_name
+        
+        if active == 'WIP':
+            self.canvas_indicator.config(
+                text="Active: WIP",
+                bg='blue'
+            )
+            self.switch_btn.config(
+                text="Switch to MAIN →"
+            )
+            self.status_label.config(
+                text=f"Active: WIP | Use ↑↓ arrows for command history | ESC/F11 = fullscreen"
+            )
+        else:  # MAIN
+            self.canvas_indicator.config(
+                text="Active: MAIN",
+                bg='green'
+            )
+            self.switch_btn.config(
+                text="← Switch to WIP"
+            )
+            self.status_label.config(
+                text=f"Active: MAIN | Use ↑↓ arrows for command history | ESC/F11 = fullscreen"
+            )
+        
     def _toggle_rulers(self):
-        """Toggle ruler visibility"""
-        state = self.canvas.toggle_rulers()
+        """Toggle ruler visibility on active canvas"""
+        state = self.executor.active_canvas.toggle_rulers()
         if state:
             self.ruler_btn.config(text="Rulers: ON", bg='lightgreen')
         else:
@@ -150,8 +263,8 @@ class ShapeStudioUI:
         self._update_canvas_display()
         
     def _toggle_grid(self):
-        """Toggle grid visibility"""
-        state = self.canvas.toggle_grid()
+        """Toggle grid visibility on active canvas"""
+        state = self.executor.active_canvas.toggle_grid()
         if state:
             self.grid_btn.config(text="Grid: ON", bg='lightgreen')
         else:
@@ -163,6 +276,13 @@ class ShapeStudioUI:
         command = self.command_input.get().strip()
         if not command:
             return
+        
+        # Add to command history (avoid duplicates of last command)
+        if not self.command_history or self.command_history[-1] != command:
+            self.command_history.append(command)
+        
+        # Reset history index
+        self.history_index = -1
             
         # Increment command counter
         self.command_counter += 1
@@ -178,7 +298,13 @@ class ShapeStudioUI:
             result = self.executor.execute(command)
             if result:
                 self._log_output(f"    → {result}")
+            
+            # Update canvas indicators if canvas was switched
+            self._update_canvas_indicators()
+            
+            # Update display
             self._update_canvas_display()
+            
             self.status_label.config(text=f"Command executed: {command}")
         except Exception as e:
             error_msg = f"    ✗ Error: {str(e)}"
@@ -200,9 +326,9 @@ class ShapeStudioUI:
         self.command_log.see(tk.END)
         
     def _update_canvas_display(self):
-        """Update the canvas display with current image"""
-        # Get display image with rulers
-        display_img = self.canvas.get_display_image()
+        """Update the canvas display with current active canvas"""
+        # Get display image from active canvas
+        display_img = self.executor.active_canvas.get_display_image()
         
         # Convert to PhotoImage
         self.photo = ImageTk.PhotoImage(display_img)
@@ -217,6 +343,6 @@ class ShapeStudioUI:
         self.root.mainloop()
 
 
-def create_ui(canvas, executor):
+def create_ui(executor):
     """Factory function to create and return the UI"""
-    return ShapeStudioUI(canvas, executor)
+    return ShapeStudioUI(executor)
