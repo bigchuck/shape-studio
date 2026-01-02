@@ -1,6 +1,5 @@
 """
-Shape Studio - Main Entry Point - Phase 3
-Dual canvas system with WIP and Main canvases
+Shape Studio - Main Entry Point
 """
 from src.core.canvas import Canvas
 from src.commands.executor import CommandExecutor

@@ -1,9 +1,81 @@
 """
-Command parser for Shape Studio - Phase 4
-Parses text commands with persistence support
+Command parser for Shape Studio - Phase 5
+Parses text commands with persistence and style support
 """
 import re
 import random
+import colorsys
+
+
+class ColorParser:
+    """Parse various color formats into PIL-compatible format"""
+    
+    @staticmethod
+    def parse(color_str):
+        """Parse color string into PIL-compatible format
+        
+        Supports:
+        - Named colors: 'red', 'blue', etc.
+        - RGB: rgb(255,0,0)
+        - RGBA: rgba(255,0,0,128) or rgba(255,0,0,0.5)
+        - HSL: hsl(0,100%,50%)
+        - HSLA: hsla(0,100%,50%,0.5)
+        - Hex: #FF0000 or #FF0000FF
+        """
+        color_str = color_str.strip().lower()
+        
+        # Check for None/NONE
+        if color_str in ['none', 'null']:
+            return None
+        
+        # Check for RGB/RGBA
+        rgb_match = re.match(r'rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*(\d+(?:\.\d+)?))?\)', color_str)
+        if rgb_match:
+            r, g, b = int(rgb_match.group(1)), int(rgb_match.group(2)), int(rgb_match.group(3))
+            if rgb_match.group(4):
+                a = float(rgb_match.group(4))
+                # If alpha is 0-1 range, convert to 0-255
+                if a <= 1.0:
+                    a = int(a * 255)
+                else:
+                    a = int(a)
+                return (r, g, b, a)
+            return (r, g, b)
+        
+        # Check for HSL/HSLA
+        hsl_match = re.match(r'hsla?\((\d+(?:\.\d+)?),\s*(\d+(?:\.\d+)?)%?,\s*(\d+(?:\.\d+)?)%?(?:,\s*(\d+(?:\.\d+)?))?\)', color_str)
+        if hsl_match:
+            h = float(hsl_match.group(1)) / 360.0  # Convert to 0-1
+            s = float(hsl_match.group(2)) / 100.0  # Convert to 0-1
+            l = float(hsl_match.group(3)) / 100.0  # Convert to 0-1
+            
+            # Convert HSL to RGB
+            r, g, b = colorsys.hls_to_rgb(h, l, s)
+            r, g, b = int(r * 255), int(g * 255), int(b * 255)
+            
+            if hsl_match.group(4):
+                a = float(hsl_match.group(4))
+                if a <= 1.0:
+                    a = int(a * 255)
+                else:
+                    a = int(a)
+                return (r, g, b, a)
+            return (r, g, b)
+        
+        # Check for hex color
+        hex_match = re.match(r'#?([0-9a-f]{6})([0-9a-f]{2})?', color_str)
+        if hex_match:
+            hex_val = hex_match.group(1)
+            r = int(hex_val[0:2], 16)
+            g = int(hex_val[2:4], 16)
+            b = int(hex_val[4:6], 16)
+            if hex_match.group(2):
+                a = int(hex_match.group(2), 16)
+                return (r, g, b, a)
+            return f'#{hex_val}'
+        
+        # Assume it's a named color - PIL will validate
+        return color_str
 
 
 class CommandParser:
@@ -34,6 +106,13 @@ class CommandParser:
             'LIST': self._parse_list,
             'INFO': self._parse_info,
             'SAVE': self._parse_save,
+            # Phase 5: Style commands
+            'COLOR': self._parse_color,
+            'WIDTH': self._parse_width,
+            'FILL': self._parse_fill,
+            'ALPHA': self._parse_alpha,
+            'BRING_FORWARD': self._parse_bring_forward,
+            'SEND_BACKWARD': self._parse_send_backward,
         }
         
     def parse(self, command_text):
@@ -69,6 +148,10 @@ class CommandParser:
             return str(value)
         
         return re.sub(pattern, replace_rand, text)
+    
+    def _parse_shape_list(self, shape_names_str):
+        """Parse comma-separated list of shape names"""
+        return [name.strip() for name in shape_names_str.split(',')]
         
     def _parse_line(self, parts):
         """Parse LINE command: LINE <n> <x1>,<y1> <x2>,<y2>"""
@@ -465,4 +548,174 @@ class CommandParser:
         return {
             'command': 'SAVE',
             'filename': filename
+        }
+    
+    # ============= Phase 5: Style Commands =============
+    
+    def _parse_color(self, parts):
+        """Parse COLOR command: COLOR <shape1>[,<shape2>,...] <color>
+        
+        Examples:
+        COLOR tri1 red
+        COLOR tri1,tri2,tri3 rgb(255,0,0)
+        COLOR square1 hsl(120,100%,50%)
+        """
+        if len(parts) < 3:
+            raise ValueError("COLOR requires: COLOR <shape(s)> <color>")
+        
+        # Parse shape names (comma-separated)
+        shape_names = self._parse_shape_list(parts[1])
+        
+        # Rest is the color (may contain spaces or commas)
+        color_str = ' '.join(parts[2:])
+        
+        # Parse the color
+        try:
+            color = ColorParser.parse(color_str)
+        except Exception as e:
+            raise ValueError(f"Invalid color format: {color_str} ({e})")
+        
+        return {
+            'command': 'COLOR',
+            'shapes': shape_names,
+            'color': color
+        }
+    
+    def _parse_width(self, parts):
+        """Parse WIDTH command: WIDTH <shape1>[,<shape2>,...] <pixels>
+        
+        Examples:
+        WIDTH tri1 5
+        WIDTH tri1,tri2 3
+        """
+        if len(parts) < 3:
+            raise ValueError("WIDTH requires: WIDTH <shape(s)> <pixels>")
+        
+        # Parse shape names
+        shape_names = self._parse_shape_list(parts[1])
+        
+        # Parse width
+        try:
+            width = int(parts[2])
+            if width < 1:
+                raise ValueError("Width must be >= 1")
+        except ValueError:
+            raise ValueError(f"Invalid width value: {parts[2]}")
+        
+        return {
+            'command': 'WIDTH',
+            'shapes': shape_names,
+            'width': width
+        }
+    
+    def _parse_fill(self, parts):
+        """Parse FILL command: FILL <shape1>[,<shape2>,...] <color|NONE>
+        
+        Examples:
+        FILL tri1 red
+        FILL square1 NONE
+        FILL tri1,tri2 rgba(255,0,0,128)
+        """
+        if len(parts) < 3:
+            raise ValueError("FILL requires: FILL <shape(s)> <color|NONE>")
+        
+        # Parse shape names
+        shape_names = self._parse_shape_list(parts[1])
+        
+        # Rest is the color
+        color_str = ' '.join(parts[2:])
+        
+        # Parse the color (NONE is handled in ColorParser)
+        try:
+            color = ColorParser.parse(color_str)
+        except Exception as e:
+            raise ValueError(f"Invalid color format: {color_str} ({e})")
+        
+        return {
+            'command': 'FILL',
+            'shapes': shape_names,
+            'fill': color
+        }
+    
+    def _parse_alpha(self, parts):
+        """Parse ALPHA command: ALPHA <shape1>[,<shape2>,...] <0.0-1.0>
+        
+        Examples:
+        ALPHA tri1 0.5
+        ALPHA tri1,tri2 0.75
+        """
+        if len(parts) < 3:
+            raise ValueError("ALPHA requires: ALPHA <shape(s)> <0.0-1.0>")
+        
+        # Parse shape names
+        shape_names = self._parse_shape_list(parts[1])
+        
+        # Parse alpha value
+        try:
+            alpha = float(parts[2])
+            if not 0.0 <= alpha <= 1.0:
+                raise ValueError("Alpha must be between 0.0 and 1.0")
+        except ValueError:
+            raise ValueError(f"Invalid alpha value: {parts[2]}")
+        
+        return {
+            'command': 'ALPHA',
+            'shapes': shape_names,
+            'alpha': alpha
+        }
+    
+    def _parse_bring_forward(self, parts):
+        """Parse BRING_FORWARD command: BRING_FORWARD <shape> [<n>]
+        
+        Examples:
+        BRING_FORWARD tri1
+        BRING_FORWARD tri1 5
+        """
+        if len(parts) < 2:
+            raise ValueError("BRING_FORWARD requires: BRING_FORWARD <shape> [<n>]")
+        
+        shape_name = parts[1]
+        
+        # Default to 1 step
+        steps = 1
+        if len(parts) >= 3:
+            try:
+                steps = int(parts[2])
+                if steps < 1:
+                    raise ValueError("Steps must be >= 1")
+            except ValueError:
+                raise ValueError(f"Invalid step count: {parts[2]}")
+        
+        return {
+            'command': 'BRING_FORWARD',
+            'name': shape_name,
+            'steps': steps
+        }
+    
+    def _parse_send_backward(self, parts):
+        """Parse SEND_BACKWARD command: SEND_BACKWARD <shape> [<n>]
+        
+        Examples:
+        SEND_BACKWARD tri1
+        SEND_BACKWARD tri1 5
+        """
+        if len(parts) < 2:
+            raise ValueError("SEND_BACKWARD requires: SEND_BACKWARD <shape> [<n>]")
+        
+        shape_name = parts[1]
+        
+        # Default to 1 step
+        steps = 1
+        if len(parts) >= 3:
+            try:
+                steps = int(parts[2])
+                if steps < 1:
+                    raise ValueError("Steps must be >= 1")
+            except ValueError:
+                raise ValueError(f"Invalid step count: {parts[2]}")
+        
+        return {
+            'command': 'SEND_BACKWARD',
+            'name': shape_name,
+            'steps': steps
         }

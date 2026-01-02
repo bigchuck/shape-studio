@@ -1,6 +1,6 @@
 """
-Canvas management for Shape Studio
-Handles the 768x768 PIL image with optional ruler overlay and grid
+Canvas management for Shape Studio - Phase 5
+Handles the 768x768 PIL image with optional ruler overlay, grid, and z-ordering
 """
 from PIL import Image, ImageDraw, ImageFont
 
@@ -58,7 +58,7 @@ class Canvas:
         return self.shapes
         
     def redraw(self):
-        """Redraw all shapes on a fresh canvas"""
+        """Redraw all shapes on a fresh canvas, respecting z-order"""
         self.image = Image.new('RGB', (self.size, self.size), 'white')
         self.draw = ImageDraw.Draw(self.image)
         
@@ -66,7 +66,10 @@ class Canvas:
         if self.show_grid:
             self._draw_grid_on_canvas(self.draw)
         
-        for shape in self.shapes:
+        # Sort shapes by z_coord (lower z_coord drawn first = further back)
+        sorted_shapes = sorted(self.shapes, key=lambda s: s.attrs['style']['z_coord'])
+        
+        for shape in sorted_shapes:
             shape.draw(self.draw)
             
     def _draw_grid_on_canvas(self, draw):

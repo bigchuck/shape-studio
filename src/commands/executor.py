@@ -1,6 +1,6 @@
 """
-Command executor for Shape Studio
-
+Command executor for Shape Studio - Phase 5
+Executes commands with style support
 """
 import os
 import json
@@ -16,29 +16,23 @@ class CommandExecutor:
     def __init__(self, wip_canvas, main_canvas):
         self.wip_canvas = wip_canvas
         self.main_canvas = main_canvas
-        self.active_canvas = wip_canvas  # Start with WIP active
+        self.active_canvas = wip_canvas
         self.active_canvas_name = 'WIP'
         
         self.parser = CommandParser()
         
-        # Separate shape registries for each canvas
         self.wip_shapes = {}
         self.main_shapes = {}
-        
-        # Global stash for temporary storage
         self.stash = {}
 
-        # Persistence directories
         self.project_store_dir = Path('shapes')
         self.global_store_dir = Path.home() / '.shapestudio' / 'shapes'
         self.projects_dir = Path('projects')
         
-        # Create directories
         os.makedirs('output', exist_ok=True)
         os.makedirs(self.project_store_dir, exist_ok=True)
         os.makedirs(self.global_store_dir, exist_ok=True)
         os.makedirs(self.projects_dir, exist_ok=True)
-        
         
     def get_active_shapes(self):
         """Get the shapes dictionary for the active canvas"""
@@ -56,11 +50,9 @@ class CommandExecutor:
             
     def execute(self, command_text):
         """Execute a command string"""
-        # Parse the command
         cmd_dict = self.parser.parse(command_text)
         command = cmd_dict['command']
 
-        # Route to handler
         handlers = {
             'LINE': self._execute_line,
             'POLY': self._execute_poly,
@@ -85,6 +77,12 @@ class CommandExecutor:
             'LIST': self._execute_list,
             'INFO': self._execute_info,
             'SAVE': self._execute_save,
+            'COLOR': self._execute_color,
+            'WIDTH': self._execute_width,
+            'FILL': self._execute_fill,
+            'ALPHA': self._execute_alpha,
+            'BRING_FORWARD': self._execute_bring_forward,
+            'SEND_BACKWARD': self._execute_send_backward,
         }
         
         if command in handlers:
@@ -93,7 +91,6 @@ class CommandExecutor:
             raise ValueError(f"Unknown command: {command}")
             
     def _execute_line(self, cmd_dict, command_text):
-        """Execute LINE command on active canvas"""
         name = cmd_dict['name']
         start = cmd_dict['start']
         end = cmd_dict['end']
@@ -111,7 +108,6 @@ class CommandExecutor:
         return f"Created line '{name}' on {self.active_canvas_name}"
         
     def _execute_poly(self, cmd_dict, command_text):
-        """Execute POLY command on active canvas"""
         name = cmd_dict['name']
         points = cmd_dict['points']
         
@@ -128,7 +124,6 @@ class CommandExecutor:
         return f"Created polygon '{name}' on {self.active_canvas_name} ({len(points)} points)"
         
     def _execute_move(self, cmd_dict, command_text):
-        """Execute MOVE command on active canvas"""
         name = cmd_dict['name']
         delta = cmd_dict['delta']
         
@@ -150,7 +145,6 @@ class CommandExecutor:
         return f"Moved '{name}' by {delta}"
         
     def _execute_rotate(self, cmd_dict, command_text):
-        """Execute ROTATE command on active canvas"""
         name = cmd_dict['name']
         angle = cmd_dict['angle']
         
@@ -172,7 +166,6 @@ class CommandExecutor:
         return f"Rotated '{name}' by {angle}°"
         
     def _execute_scale(self, cmd_dict, command_text):
-        """Execute SCALE command on active canvas"""
         name = cmd_dict['name']
         factor = cmd_dict['factor']
         
@@ -194,7 +187,6 @@ class CommandExecutor:
         return f"Scaled '{name}' by {factor}x"
         
     def _execute_resize(self, cmd_dict, command_text):
-        """Execute RESIZE command on active canvas"""
         name = cmd_dict['name']
         x_factor = cmd_dict['x_factor']
         y_factor = cmd_dict['y_factor']
@@ -220,7 +212,6 @@ class CommandExecutor:
             return f"Resized '{name}' by {x_factor}x, {y_factor}x"
             
     def _execute_group(self, cmd_dict, command_text):
-        """Execute GROUP command on active canvas"""
         group_name = cmd_dict['name']
         member_names = cmd_dict['members']
         
@@ -229,7 +220,6 @@ class CommandExecutor:
         if group_name in shapes:
             raise ValueError(f"Shape '{group_name}' already exists on {self.active_canvas_name} canvas")
         
-        # Collect member shapes
         members = []
         for member_name in member_names:
             if member_name not in shapes:
@@ -243,7 +233,6 @@ class CommandExecutor:
             
             members.append(shape)
         
-        # Create the group
         group = ShapeGroup(group_name, members)
         group.add_history('CREATE', command_text)
         shapes[group_name] = group
@@ -253,7 +242,6 @@ class CommandExecutor:
         return f"Created group '{group_name}' with {len(members)} members on {self.active_canvas_name}"
         
     def _execute_ungroup(self, cmd_dict, command_text):
-        """Execute UNGROUP command on active canvas"""
         group_name = cmd_dict['name']
         
         shapes = self.get_active_shapes()
@@ -266,28 +254,22 @@ class CommandExecutor:
         if not isinstance(shape, ShapeGroup):
             raise ValueError(f"'{group_name}' is not a group")
         
-        # Get members and clear their group relationship
         members = shape.attrs['geometry']['members']
         for member in members:
             member.attrs['relationships']['group'] = None
             member.add_history('UNGROUP', command_text)
         
-        # Remove the group from registry
         del shapes[group_name]
-        
-        # SYNC: Rebuild canvas shape list from registry
         self._sync_active_canvas()
         
         return f"Ungrouped '{group_name}' ({len(members)} members now independent)"
         
     def _execute_extract(self, cmd_dict, command_text):
-        """Execute EXTRACT command - remove single member from group"""
         member_name = cmd_dict['member']
         group_name = cmd_dict['group']
         
         shapes = self.get_active_shapes()
         
-        # Check group exists
         if group_name not in shapes:
             raise ValueError(f"Group '{group_name}' not found on {self.active_canvas_name} canvas")
         
@@ -296,7 +278,6 @@ class CommandExecutor:
         if not isinstance(group, ShapeGroup):
             raise ValueError(f"'{group_name}' is not a group")
         
-        # Check member exists in group
         if member_name not in shapes:
             raise ValueError(f"Shape '{member_name}' not found on {self.active_canvas_name} canvas")
         
@@ -305,15 +286,12 @@ class CommandExecutor:
         if member.attrs['relationships']['group'] != group_name:
             raise ValueError(f"Shape '{member_name}' is not in group '{group_name}'")
         
-        # Remove member from group
         members = group.attrs['geometry']['members']
         members.remove(member)
         
-        # Clear member's group relationship
         member.attrs['relationships']['group'] = None
         member.add_history('EXTRACT', command_text)
         
-        # If group is now empty or has only 1 member, delete it
         if len(members) == 0:
             del shapes[group_name]
             self._sync_active_canvas()
@@ -329,7 +307,6 @@ class CommandExecutor:
         return f"Extracted '{member_name}' from '{group_name}' ({len(members)} members remaining)"
         
     def _execute_delete(self, cmd_dict, command_text):
-        """Execute DELETE command - remove shape from active canvas"""
         shape_name = cmd_dict['name']
         confirm = cmd_dict['confirm']
         
@@ -340,109 +317,87 @@ class CommandExecutor:
         
         shape = shapes[shape_name]
         
-        # Check if shape is in a group
         if shape.attrs['relationships']['group']:
             raise ValueError(f"Shape '{shape_name}' is in group '{shape.attrs['relationships']['group']}'. "
                            "EXTRACT it first or UNGROUP the group.")
         
-        # Safety check: If it's a group with members, require CONFIRM
         if isinstance(shape, ShapeGroup):
             members = shape.attrs['geometry']['members']
             if len(members) > 0 and not confirm:
                 raise ValueError(f"'{shape_name}' is a group with {len(members)} members. "
                                f"Use 'DELETE {shape_name} CONFIRM' to delete it and free its members.")
             
-            # Free all members
             for member in members:
                 member.attrs['relationships']['group'] = None
         
-        # Remove from registry
         del shapes[shape_name]
-        
-        # SYNC FIX: Rebuild canvas shape list from registry
         self._sync_active_canvas()
         
         return f"Deleted '{shape_name}' from {self.active_canvas_name}"
         
     def _execute_switch(self, cmd_dict, command_text):
-        """Execute SWITCH command - change active canvas"""
         target = cmd_dict['target']
         
         if target == 'WIP':
             self.active_canvas = self.wip_canvas
             self.active_canvas_name = 'WIP'
-        else:  # MAIN
+        else:
             self.active_canvas = self.main_canvas
             self.active_canvas_name = 'MAIN'
         
         return f"Switched to {self.active_canvas_name} canvas"
         
     def _execute_promote(self, cmd_dict, command_text):
-        """Execute PROMOTE command - move/copy shape from WIP to Main"""
         shape_name = cmd_dict['name']
         mode = cmd_dict['mode']
         
-        # Check shape exists on WIP
         if shape_name not in self.wip_shapes:
             raise ValueError(f"Shape '{shape_name}' not found on WIP canvas")
         
-        # Check shape doesn't already exist on Main
         if shape_name in self.main_shapes:
             raise ValueError(f"Shape '{shape_name}' already exists on MAIN canvas")
         
         shape = self.wip_shapes[shape_name]
         
-        # Deep copy the shape
         promoted_shape = copy.deepcopy(shape)
         promoted_shape.add_history('PROMOTE', command_text)
         
-        # Add to Main canvas
         self.main_canvas.add_shape(promoted_shape)
         self.main_shapes[shape_name] = promoted_shape
         
-        # If move mode, remove from WIP
         if mode == 'move':
             del self.wip_shapes[shape_name]
-            # SYNC FIX: Rebuild WIP canvas shape list from registry
             self.wip_canvas.sync_shapes(self.wip_shapes)
             return f"Promoted '{shape_name}' from WIP to MAIN (moved)"
-        else:  # copy mode
+        else:
             return f"Promoted '{shape_name}' from WIP to MAIN (copied)"
         
     def _execute_unpromote(self, cmd_dict, command_text):
-        """Execute UNPROMOTE command - move/copy shape from Main to WIP"""
         shape_name = cmd_dict['name']
         mode = cmd_dict['mode']
         
-        # Check shape exists on Main
         if shape_name not in self.main_shapes:
             raise ValueError(f"Shape '{shape_name}' not found on MAIN canvas")
         
-        # Check shape doesn't already exist on WIP
         if shape_name in self.wip_shapes:
             raise ValueError(f"Shape '{shape_name}' already exists on WIP canvas")
         
         shape = self.main_shapes[shape_name]
         
-        # Deep copy the shape
         unpromoted_shape = copy.deepcopy(shape)
         unpromoted_shape.add_history('UNPROMOTE', command_text)
         
-        # Add to WIP canvas
         self.wip_canvas.add_shape(unpromoted_shape)
         self.wip_shapes[shape_name] = unpromoted_shape
         
-        # If move mode, remove from Main
         if mode == 'move':
             del self.main_shapes[shape_name]
-            # SYNC FIX: Rebuild Main canvas shape list from registry
             self.main_canvas.sync_shapes(self.main_shapes)
             return f"Unpromoted '{shape_name}' from MAIN to WIP (moved)"
-        else:  # copy mode
+        else:
             return f"Unpromoted '{shape_name}' from MAIN to WIP (copied)"
             
     def _execute_stash(self, cmd_dict, command_text):
-        """Execute STASH command - move shape to temporary storage"""
         shape_name = cmd_dict['name']
         
         shapes = self.get_active_shapes()
@@ -455,26 +410,20 @@ class CommandExecutor:
         
         shape = shapes[shape_name]
         
-        # Check if shape is in a group
         if shape.attrs['relationships']['group']:
             raise ValueError(f"Shape '{shape_name}' is in group '{shape.attrs['relationships']['group']}'. "
                            "EXTRACT it first or UNGROUP the group.")
         
-        # Deep copy and add to stash
         stashed_shape = copy.deepcopy(shape)
         stashed_shape.add_history('STASH', command_text)
         self.stash[shape_name] = stashed_shape
         
-        # Remove from active canvas
         del shapes[shape_name]
-        
-        # SYNC FIX: Rebuild canvas shape list from registry
         self._sync_active_canvas()
         
         return f"Stashed '{shape_name}' from {self.active_canvas_name}"
         
     def _execute_unstash(self, cmd_dict, command_text):
-        """Execute UNSTASH command - restore shape from stash to active canvas"""
         shape_name = cmd_dict['name']
         mode = cmd_dict['mode']
         
@@ -486,15 +435,12 @@ class CommandExecutor:
         if shape_name in shapes:
             raise ValueError(f"Shape '{shape_name}' already exists on {self.active_canvas_name} canvas")
         
-        # Deep copy from stash
         unstashed_shape = copy.deepcopy(self.stash[shape_name])
         unstashed_shape.add_history('UNSTASH', command_text)
         
-        # Add to active canvas
         self.active_canvas.add_shape(unstashed_shape)
         shapes[shape_name] = unstashed_shape
         
-        # Only remove from stash if MOVE mode
         if mode == 'move':
             del self.stash[shape_name]
             return f"Unstashed '{shape_name}' to {self.active_canvas_name} (removed from stash)"
@@ -502,19 +448,16 @@ class CommandExecutor:
             return f"Unstashed '{shape_name}' to {self.active_canvas_name} (kept in stash)"
         
     def _execute_clear(self, cmd_dict, command_text):
-        """Execute CLEAR command on specified or active canvas"""
         target = cmd_dict['target']
         all_flag = cmd_dict['all']
         
         if target is None:
             target = self.active_canvas_name
         
-        # STASH doesn't require ALL (it's meant for temporary storage)
         if target == 'STASH':
             self.stash.clear()
             return "Stash cleared"
         
-        # Canvas clearing requires ALL for safety
         if not all_flag:
             raise ValueError(f"Clearing {target} canvas requires ALL keyword for safety. "
                            f"Use: CLEAR {target} ALL")
@@ -523,16 +466,14 @@ class CommandExecutor:
             self.wip_canvas.clear()
             self.wip_shapes.clear()
             return "WIP canvas cleared"
-        else:  # MAIN
+        else:
             self.main_canvas.clear()
             self.main_shapes.clear()
             return "MAIN canvas cleared"
         
     def _execute_info(self, cmd_dict, command_text):
-        """Execute INFO command - show detailed shape information"""
         shape_name = cmd_dict['name']
         
-        # Search for shape in WIP, MAIN, and stash
         shape = None
         location = None
         
@@ -548,12 +489,10 @@ class CommandExecutor:
         else:
             raise ValueError(f"Shape '{shape_name}' not found on any canvas or stash")
         
-        # Build info string
         info = [f"Shape: {shape_name}"]
         info.append(f"Location: {location}")
         info.append(f"Type: {shape.attrs['type']}")
         
-        # Geometry info
         geom = shape.attrs['geometry']
         if shape.attrs['type'] == 'Line':
             info.append(f"Start: {geom['start']}")
@@ -565,17 +504,17 @@ class CommandExecutor:
             members = geom['members']
             info.append(f"Members ({len(members)}): {[m.name for m in members]}")
         
-        # Style info
         style = shape.attrs['style']
         info.append(f"Color: {style['color']}")
         info.append(f"Width: {style['width']}")
+        info.append(f"Fill: {style['fill']}")
+        info.append(f"Alpha: {style['transparency']}")
+        info.append(f"Z-order: {style['z_coord']}")
         
-        # Relationships
         rel = shape.attrs['relationships']
         if rel['group']:
             info.append(f"In group: {rel['group']}")
         
-        # History (last 5 commands)
         history = shape.attrs['history']
         if history:
             info.append(f"History (last 5):")
@@ -585,21 +524,17 @@ class CommandExecutor:
         return "\n".join(info)
         
     def _execute_save(self, cmd_dict, command_text):
-        """Execute SAVE command - always saves MAIN canvas"""
         filename = cmd_dict['filename']
         filepath = os.path.join('output', filename)
         
-        # Always save the MAIN canvas
         self.main_canvas.save(filepath)
         
         return f"Saved MAIN canvas to {filepath}"
     
     def _execute_store(self, cmd_dict, command_text):
-        """Execute STORE command - save shape to object store"""
         shape_name = cmd_dict['name']
         scope = cmd_dict['scope']
         
-        # Find shape in WIP, MAIN, or stash
         shape = None
         if shape_name in self.wip_shapes:
             shape = self.wip_shapes[shape_name]
@@ -610,16 +545,13 @@ class CommandExecutor:
         else:
             raise ValueError(f"Shape '{shape_name}' not found")
         
-        # Serialize shape
         shape_data = self._serialize_shape(shape)
         
-        # Determine save directory
         if scope == 'global':
             save_dir = self.global_store_dir
         else:
             save_dir = self.project_store_dir
         
-        # Save to file
         filepath = save_dir / f"{shape_name}.json"
         with open(filepath, 'w') as f:
             json.dump(shape_data, f, indent=2)
@@ -628,14 +560,12 @@ class CommandExecutor:
         return f"Stored '{shape_name}' to {scope_name}: {filepath}"
     
     def _execute_load(self, cmd_dict, command_text):
-        """Execute LOAD command - load shape from object store"""
         shape_name = cmd_dict['name']
         
         shapes = self.get_active_shapes()
         if shape_name in shapes:
             raise ValueError(f"Shape '{shape_name}' already exists on {self.active_canvas_name} canvas")
         
-        # Search project store first, then global
         filepath = self.project_store_dir / f"{shape_name}.json"
         source = "project store"
         
@@ -646,25 +576,21 @@ class CommandExecutor:
         if not filepath.exists():
             raise ValueError(f"Shape '{shape_name}' not found in project store or global library")
         
-        # Load and deserialize
         with open(filepath, 'r') as f:
             shape_data = json.load(f)
         
         shape = self._deserialize_shape(shape_data)
         shape.add_history('LOAD', command_text)
         
-        # Add to active canvas
         self.active_canvas.add_shape(shape)
         shapes[shape_name] = shape
         
         return f"Loaded '{shape_name}' from {source} to {self.active_canvas_name}"
     
     def _execute_save_project(self, cmd_dict, command_text):
-        """Execute SAVE_PROJECT command - save entire session"""
         filename = cmd_dict['filename']
         filepath = self.projects_dir / filename
         
-        # Build project data
         project_data = {
             'version': '1.0',
             'created': datetime.now().isoformat(),
@@ -681,56 +607,47 @@ class CommandExecutor:
             'active_canvas': self.active_canvas_name
         }
         
-        # Save to file
         with open(filepath, 'w') as f:
             json.dump(project_data, f, indent=2)
         
         return f"Saved project to {filepath}"
     
     def _execute_load_project(self, cmd_dict, command_text):
-        """Execute LOAD_PROJECT command - load entire session"""
         filename = cmd_dict['filename']
         filepath = self.projects_dir / filename
         
         if not filepath.exists():
             raise ValueError(f"Project file not found: {filepath}")
         
-        # Load project data
         with open(filepath, 'r') as f:
             project_data = json.load(f)
         
-        # Clear current state
         self.wip_shapes.clear()
         self.main_shapes.clear()
         self.stash.clear()
         self.wip_canvas.clear()
         self.main_canvas.clear()
         
-        # Restore WIP shapes
         for name, shape_data in project_data['wip_shapes'].items():
             shape = self._deserialize_shape(shape_data)
             self.wip_shapes[name] = shape
             self.wip_canvas.add_shape(shape)
         
-        # Restore MAIN shapes
         for name, shape_data in project_data['main_shapes'].items():
             shape = self._deserialize_shape(shape_data)
             self.main_shapes[name] = shape
             self.main_canvas.add_shape(shape)
         
-        # Restore stash
         for name, shape_data in project_data['stash'].items():
             shape = self._deserialize_shape(shape_data)
             self.stash[name] = shape
         
-        # Restore canvas settings
         settings = project_data.get('canvas_settings', {})
         self.wip_canvas.show_grid = settings.get('show_grid', True)
         self.wip_canvas.show_rulers = settings.get('show_rulers', True)
         self.main_canvas.show_grid = settings.get('show_grid', True)
         self.main_canvas.show_rulers = settings.get('show_rulers', True)
         
-        # Restore active canvas
         active = project_data.get('active_canvas', 'WIP')
         if active == 'MAIN':
             self.active_canvas = self.main_canvas
@@ -739,7 +656,6 @@ class CommandExecutor:
             self.active_canvas = self.wip_canvas
             self.active_canvas_name = 'WIP'
         
-        # Redraw both canvases
         self.wip_canvas.redraw()
         self.main_canvas.redraw()
         
@@ -750,17 +666,14 @@ class CommandExecutor:
         return f"Loaded project from {filepath} (WIP: {wip_count}, MAIN: {main_count}, Stash: {stash_count})"
     
     def _serialize_shape(self, shape):
-        """Convert shape to JSON-serializable dict"""
         data = {
             'name': shape.name,
             'type': shape.attrs['type'],
             'attrs': {}
         }
         
-        # Deep copy attrs to avoid modifying original
         attrs = copy.deepcopy(shape.attrs)
         
-        # Handle geometry - convert ShapeGroup members to names only
         if isinstance(shape, ShapeGroup):
             members = attrs['geometry']['members']
             attrs['geometry']['members'] = [m.name for m in members]
@@ -769,7 +682,6 @@ class CommandExecutor:
         return data
     
     def _deserialize_shape(self, data):
-        """Recreate shape from JSON data"""
         shape_type = data['type']
         name = data['name']
         attrs = data['attrs']
@@ -781,19 +693,15 @@ class CommandExecutor:
             points = [tuple(p) for p in geom['points']]
             shape = Polygon(name, points)
         elif shape_type == 'ShapeGroup':
-            # For groups, we'll handle member reconstruction later
-            # For now, create empty group (members will be linked in second pass)
             shape = ShapeGroup(name, [])
         else:
             raise ValueError(f"Unknown shape type: {shape_type}")
         
-        # Restore attrs
         shape.attrs = attrs
         
         return shape
     
     def _execute_list(self, cmd_dict, command_text):
-        """Execute LIST command - extended to include stores"""
         target = cmd_dict['target']
         
         if target is None:
@@ -835,7 +743,6 @@ class CommandExecutor:
             return f"Stash:\n  " + "\n  ".join(shapes_info)
     
     def _list_store(self, store_dir, store_name):
-        """List shapes in a store directory"""
         json_files = list(store_dir.glob('*.json'))
         
         if not json_files:
@@ -844,10 +751,154 @@ class CommandExecutor:
         shapes_info = []
         for filepath in sorted(json_files):
             shape_name = filepath.stem
-            # Load to get type
             with open(filepath, 'r') as f:
                 data = json.load(f)
             shape_type = data['type']
             shapes_info.append(f"{shape_name} ({shape_type})")
         
         return f"{store_name.title()} ({len(json_files)} shapes):\n  " + "\n  ".join(shapes_info)
+    
+    # ============= Phase 5: Style Commands =============
+    
+    def _apply_style_to_shape(self, shape, style_attr, value, command_text):
+        """Apply a style attribute to a shape or group (recursively)"""
+        if isinstance(shape, ShapeGroup):
+            # For groups, recursively apply to all members
+            members = shape.attrs['geometry']['members']
+            for member in members:
+                self._apply_style_to_shape(member, style_attr, value, command_text)
+        else:
+            # For regular shapes, apply directly
+            shape.attrs['style'][style_attr] = value
+            shape.add_history('STYLE', command_text)
+    
+    def _execute_color(self, cmd_dict, command_text):
+        """Execute COLOR command"""
+        shape_names = cmd_dict['shapes']
+        color = cmd_dict['color']
+        
+        shapes = self.get_active_shapes()
+        
+        applied_count = 0
+        for shape_name in shape_names:
+            if shape_name not in shapes:
+                raise ValueError(f"Shape '{shape_name}' not found on {self.active_canvas_name} canvas")
+            
+            shape = shapes[shape_name]
+            self._apply_style_to_shape(shape, 'color', color, command_text)
+            applied_count += 1
+        
+        self.active_canvas.redraw()
+        
+        if applied_count == 1:
+            return f"Set color of '{shape_names[0]}' to {color}"
+        else:
+            return f"Set color of {applied_count} shapes to {color}"
+    
+    def _execute_width(self, cmd_dict, command_text):
+        """Execute WIDTH command"""
+        shape_names = cmd_dict['shapes']
+        width = cmd_dict['width']
+        
+        shapes = self.get_active_shapes()
+        
+        applied_count = 0
+        for shape_name in shape_names:
+            if shape_name not in shapes:
+                raise ValueError(f"Shape '{shape_name}' not found on {self.active_canvas_name} canvas")
+            
+            shape = shapes[shape_name]
+            self._apply_style_to_shape(shape, 'width', width, command_text)
+            applied_count += 1
+        
+        self.active_canvas.redraw()
+        
+        if applied_count == 1:
+            return f"Set width of '{shape_names[0]}' to {width}px"
+        else:
+            return f"Set width of {applied_count} shapes to {width}px"
+    
+    def _execute_fill(self, cmd_dict, command_text):
+        """Execute FILL command"""
+        shape_names = cmd_dict['shapes']
+        fill = cmd_dict['fill']
+        
+        shapes = self.get_active_shapes()
+        
+        applied_count = 0
+        for shape_name in shape_names:
+            if shape_name not in shapes:
+                raise ValueError(f"Shape '{shape_name}' not found on {self.active_canvas_name} canvas")
+            
+            shape = shapes[shape_name]
+            self._apply_style_to_shape(shape, 'fill', fill, command_text)
+            applied_count += 1
+        
+        self.active_canvas.redraw()
+        
+        fill_desc = "NONE" if fill is None else str(fill)
+        if applied_count == 1:
+            return f"Set fill of '{shape_names[0]}' to {fill_desc}"
+        else:
+            return f"Set fill of {applied_count} shapes to {fill_desc}"
+    
+    def _execute_alpha(self, cmd_dict, command_text):
+        """Execute ALPHA command"""
+        shape_names = cmd_dict['shapes']
+        alpha = cmd_dict['alpha']
+        
+        shapes = self.get_active_shapes()
+        
+        applied_count = 0
+        for shape_name in shape_names:
+            if shape_name not in shapes:
+                raise ValueError(f"Shape '{shape_name}' not found on {self.active_canvas_name} canvas")
+            
+            shape = shapes[shape_name]
+            self._apply_style_to_shape(shape, 'transparency', alpha, command_text)
+            applied_count += 1
+        
+        self.active_canvas.redraw()
+        
+        if applied_count == 1:
+            return f"Set alpha of '{shape_name[0]}' to {alpha}"
+        else:
+            return f"Set alpha of {applied_count} shapes to {alpha}"
+    
+    def _execute_bring_forward(self, cmd_dict, command_text):
+        """Execute BRING_FORWARD command"""
+        shape_name = cmd_dict['name']
+        steps = cmd_dict['steps']
+        
+        shapes = self.get_active_shapes()
+        
+        if shape_name not in shapes:
+            raise ValueError(f"Shape '{shape_name}' not found on {self.active_canvas_name} canvas")
+        
+        shape = shapes[shape_name]
+        shape.attrs['style']['z_coord'] += steps
+        shape.add_history('Z_ORDER', command_text)
+        
+        self.active_canvas.redraw()
+        
+        new_z = shape.attrs['style']['z_coord']
+        return f"Brought '{shape_name}' forward by {steps} (z={new_z})"
+    
+    def _execute_send_backward(self, cmd_dict, command_text):
+        """Execute SEND_BACKWARD command"""
+        shape_name = cmd_dict['name']
+        steps = cmd_dict['steps']
+        
+        shapes = self.get_active_shapes()
+        
+        if shape_name not in shapes:
+            raise ValueError(f"Shape '{shape_name}' not found on {self.active_canvas_name} canvas")
+        
+        shape = shapes[shape_name]
+        shape.attrs['style']['z_coord'] -= steps
+        shape.add_history('Z_ORDER', command_text)
+        
+        self.active_canvas.redraw()
+        
+        new_z = shape.attrs['style']['z_coord']
+        return f"Sent '{shape_name}' backward by {steps} (z={new_z})"
