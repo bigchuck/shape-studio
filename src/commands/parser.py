@@ -1,6 +1,6 @@
 """
-Command parser for Shape Studio
-Parses text commands into structured data
+Command parser for Shape Studio - Phase 2
+Parses text commands into structured data with GROUP/UNGROUP support
 """
 import re
 import random
@@ -17,6 +17,8 @@ class CommandParser:
             'ROTATE': self._parse_rotate,
             'SCALE': self._parse_scale,
             'RESIZE': self._parse_resize,
+            'GROUP': self._parse_group,
+            'UNGROUP': self._parse_ungroup,
             'CLEAR': self._parse_clear,
             'LIST': self._parse_list,
             'SAVE': self._parse_save,
@@ -174,6 +176,38 @@ class CommandParser:
             'name': name,
             'x_factor': x_factor,
             'y_factor': y_factor
+        }
+        
+    def _parse_group(self, parts):
+        """Parse GROUP command: GROUP <group_name> <shape1> <shape2> ...
+        
+        Creates a new group containing the specified shapes.
+        """
+        if len(parts) < 3:
+            raise ValueError("GROUP requires: GROUP <group_name> <shape1> [shape2 ...]")
+        
+        group_name = parts[1]
+        member_names = parts[2:]  # All remaining args are shape names
+        
+        return {
+            'command': 'GROUP',
+            'name': group_name,
+            'members': member_names
+        }
+        
+    def _parse_ungroup(self, parts):
+        """Parse UNGROUP command: UNGROUP <group_name>
+        
+        Dissolves a group, making its members independent again.
+        """
+        if len(parts) < 2:
+            raise ValueError("UNGROUP requires: UNGROUP <group_name>")
+        
+        group_name = parts[1]
+        
+        return {
+            'command': 'UNGROUP',
+            'name': group_name
         }
         
     def _parse_clear(self, parts):
