@@ -1,0 +1,70 @@
+╔══════════════════════════════════════════════════════════════╗
+║              SHAPE STUDIO - QUICK REFERENCE                  ║
+╚══════════════════════════════════════════════════════════════╝
+
+┌──────────────────────────────────────────────────────────────┐
+│ SHAPE CREATION                                               │
+└──────────────────────────────────────────────────────────────┘
+
+  LINE <name> <x1>,<y1> <x2>,<y2>
+    Example: LINE l1 100,100 900,900
+
+  POLY <name> <x1>,<y1> <x2>,<y2> <x3>,<y3> ...
+    Example: POLY tri 512,200 300,700 724,700
+    Example: POLY square 300,300 700,300 700,700 300,700
+
+┌──────────────────────────────────────────────────────────────┐
+│ TRANSFORMATIONS                                              │
+└──────────────────────────────────────────────────────────────┘
+
+  MOVE <name> <dx>,<dy>
+    Example: MOVE tri 50,100
+
+  ROTATE <name> <angle>
+    Example: ROTATE square 45
+    Example: ROTATE tri RAND(0,360)
+
+  SCALE <name> <factor>
+    Example: SCALE tri 1.5
+
+  RESIZE <name> <sx>,<sy>
+    Example: RESIZE tri 1.2,0.8
+
+┌──────────────────────────────────────────────────────────────┐
+│ CANVAS OPERATIONS                                            │
+└──────────────────────────────────────────────────────────────┘
+
+  CLEAR        - Clear all shapes
+  LIST         - Show all shapes
+  SAVE <file>  - Save to output/<file>.png
+
+┌──────────────────────────────────────────────────────────────┐
+│ RANDOM VALUES                                                │
+└──────────────────────────────────────────────────────────────┘
+
+  RAND(min,max) - Random integer between min and max
+    Example: LINE l1 RAND(0,1024),RAND(0,1024) RAND(0,1024),RAND(0,1024)
+    Example: ROTATE square RAND(0,360)
+    Example: SCALE tri RAND(50,150)/100
+
+┌──────────────────────────────────────────────────────────────┐
+│ TIPS                                                         │
+└──────────────────────────────────────────────────────────────┘
+
+  • Canvas is 1024x1024 pixels
+  • Origin (0,0) is top-left corner
+  • Grid spacing is 64 pixels
+  • Commands are case-insensitive
+  • Use Tab to switch between entry and execute button
+  • Press Enter to execute command
+
+┌──────────────────────────────────────────────────────────────┐
+│ EXAMPLE SESSION                                              │
+└──────────────────────────────────────────────────────────────┘
+
+  POLY hex 512,200 712,312 712,512 512,624 312,512 312,312
+  ROTATE hex 30
+  SCALE hex 0.8
+  LINE l1 512,0 512,1024
+  LINE l2 0,512 1024,512
+  SAVE hexagon.png
