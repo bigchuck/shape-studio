@@ -1,6 +1,7 @@
 """
 Command executor for Shape Studio - Phase 5
 Adds RUN and BATCH commands for script execution and dataset generation
+Plus PROC system for procedural generation
 """
 import os
 import json
@@ -10,6 +11,7 @@ from pathlib import Path
 from datetime import datetime
 from src.core.shape import Line, Polygon, ShapeGroup
 from src.commands.parser import CommandParser
+from src.core.procedural import ProceduralGenerators
 
 class CommandExecutor:
     """Execute commands on WIP or Main canvas"""
@@ -21,6 +23,7 @@ class CommandExecutor:
         self.active_canvas_name = 'WIP'
         
         self.parser = CommandParser()
+        self.procedural_gen = ProceduralGenerators()  # NEW: Procedural generation system
         
         # Separate shape registries for each canvas
         self.wip_shapes = {}
@@ -90,6 +93,9 @@ class CommandExecutor:
             'SAVE': self._execute_save,
             'RUN': self._execute_run,
             'BATCH': self._execute_batch,
+            'PROC': self._execute_proc,
+            'LIST_PRESET': self._execute_list_preset,
+            'INFO_PROC': self._execute_info_proc,
         }
         
         if command in handlers:
@@ -914,7 +920,7 @@ class CommandExecutor:
         return shape
     
     def _execute_list(self, cmd_dict, command_text):
-        """Execute LIST command - extended to include stores"""
+        """Execute LIST command - extended to include stores and PROC"""
         target = cmd_dict['target']
         
         if target is None:
@@ -930,6 +936,10 @@ class CommandExecutor:
             return self._list_store(self.project_store_dir, "project store")
         elif target == 'GLOBAL':
             return self._list_store(self.global_store_dir, "global library")
+        elif target == 'PROC':
+            # List available procedural methods
+            methods = self.procedural_gen.list_methods()
+            return "Available procedural methods:\n  " + "\n  ".join(methods)
         else:
             raise ValueError(f"Unknown LIST target: {target}")
         
@@ -972,3 +982,55 @@ class CommandExecutor:
             shapes_info.append(f"{shape_name} ({shape_type})")
         
         return f"{store_name.title()} ({len(json_files)} shapes):\n  " + "\n  ".join(shapes_info)
+    
+    def _execute_proc(self, cmd_dict, command_text):
+        """Execute PROC command - call procedural generation method"""
+        method_name = cmd_dict['method']
+        shape_name = cmd_dict['name']
+        params = cmd_dict['params']
+        
+        # Call procedural generator
+        result = self.procedural_gen.call(method_name, shape_name, params)
+        
+        shapes = self.get_active_shapes()
+        
+        # Handle different return types
+        if isinstance(result, list):
+            # Multiple shapes - add each individually
+            for shape in result:
+                if shape.name in shapes:
+                    raise ValueError(f"Shape '{shape.name}' already exists on {self.active_canvas_name} canvas")
+                shapes[shape.name] = shape
+                self.active_canvas.add_shape(shape)
+            
+            shape_names = ', '.join(s.name for s in result)
+            return f"Created {len(result)} shapes on {self.active_canvas_name}: {shape_names}"
+        
+        elif isinstance(result, (Polygon, Line, ShapeGroup)):
+            # Single shape
+            if shape_name in shapes:
+                raise ValueError(f"Shape '{shape_name}' already exists on {self.active_canvas_name} canvas")
+            
+            shapes[shape_name] = result
+            self.active_canvas.add_shape(result)
+            
+            # Include procedure info if available
+            proc_info = result.attrs.get('procedure', {})
+            if proc_info:
+                method_used = proc_info.get('method', method_name)
+                return f"Created {result.attrs['type']} '{shape_name}' using {method_used} on {self.active_canvas_name}"
+            else:
+                return f"Created {result.attrs['type']} '{shape_name}' on {self.active_canvas_name}"
+        
+        else:
+            raise ValueError(f"Unexpected return type from {method_name}: {type(result)}")
+    
+    def _execute_list_preset(self, cmd_dict, command_text):
+        """Execute LIST PRESET command - show presets for a method"""
+        method_name = cmd_dict['method']
+        return self.procedural_gen.list_presets(method_name)
+    
+    def _execute_info_proc(self, cmd_dict, command_text):
+        """Execute INFO PROC command - show details about a procedural method"""
+        method_name = cmd_dict['method']
+        return self.procedural_gen.get_method_info(method_name)

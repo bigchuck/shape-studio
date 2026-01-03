@@ -165,6 +165,98 @@ Behavior:
 
 ---
 
+## PROCEDURAL GENERATION (NEW!)
+
+**PROC** `<method>` `<n>` `[PARAM=value ...]`
+Generate shapes using procedural algorithms
+Example: `PROC dynamic_polygon shape1 VERTICES=5 BOUNDS=100,100,600,600`
+
+**LIST PROC**
+List all available procedural methods
+Example: `LIST PROC`
+
+**INFO PROC** `<method>`
+Show detailed information about a procedural method
+Example: `INFO PROC dynamic_polygon`
+
+**LIST PRESET** `<method>`
+Show available presets for a method
+Example: `LIST PRESET dynamic_polygon`
+
+### Using Presets
+```
+PROC dynamic_polygon shape1 PRESET=simple BOUNDS=0,0,768,768
+PROC dynamic_polygon shape2 PRESET=complex BOUNDS=100,100,600,600
+PROC dynamic_polygon shape3 PRESET=organic BOUNDS=200,200,500,500
+```
+
+### Parameter Types
+
+**Single values:**
+```
+VERTICES=5        # Exact count
+ITERATIONS=10     # Exact number
+```
+
+**Ranges (method chooses randomly):**
+```
+VERTICES=5,8      # Method picks from 5-8
+DEPTH_RANGE=0.2,0.8  # Method picks from 0.2-0.8
+```
+
+**Script-level random (changes per BATCH):**
+```
+VERTICES=RAND(5,8)    # Script picks, different each batch
+BOUNDS=100,100,RAND(500,700),RAND(500,700)
+```
+
+**Combining both:**
+```
+PROC dynamic_polygon shape1 VERTICES=RAND(4,10) ITERS=8,15
+# Script picks vertices from 4-10 (varies per batch)
+# Method picks iterations from 8-15 (varies per call)
+# Maximum variation!
+```
+
+### Dynamic Polygon Method
+
+**PROC dynamic_polygon** `<n>` `VERTICES=<n|range>` `BOUNDS=<x1,y1,x2,y2>` `[options...]`
+
+Creates evolved polygon through iterative segment modification.
+
+**Parameters:**
+- `VERTICES` - Number of initial vertices (int) or range (REQUIRED)
+- `BOUNDS` - Bounding box as x1,y1,x2,y2 (REQUIRED)
+- `ITERATIONS` - Number of evolution steps (default: 10)
+- `CONNECT` - Initial connection: angle_sort or convex_hull (default: angle_sort)
+- `OPERATIONS` - Allowed ops: split_offset,sawtooth,squarewave (default: split_offset,sawtooth)
+- `DEPTH_RANGE` - Depth percentage (float) or range (default: 0.2,0.8)
+- `WEIGHT_DECAY` - Split segment weight multiplier (default: 0.5)
+- `MAX_RETRIES` - Max attempts per modification (default: 10)
+- `DIRECTION_BIAS` - Preferred direction: inward, outward, random (default: random)
+
+**Examples:**
+```
+# Basic usage
+PROC dynamic_polygon poly1 VERTICES=6 BOUNDS=100,100,600,600
+
+# With preset
+PROC dynamic_polygon poly2 PRESET=organic BOUNDS=0,0,768,768
+
+# Full control
+PROC dynamic_polygon poly3 VERTICES=8,12 BOUNDS=100,100,600,600 ITERATIONS=20 OPERATIONS=split_offset,sawtooth,squarewave DEPTH_RANGE=0.3,0.9
+
+# Maximum variation for BATCH
+PROC dynamic_polygon poly4 VERTICES=RAND(5,10) BOUNDS=100,100,600,600 ITERATIONS=RAND(10,20)
+```
+
+**Presets:**
+- `simple` - 5-8 vertices, 5 iterations, basic operations
+- `complex` - 8-12 vertices, 20 iterations, all operations
+- `organic` - 6-10 vertices, 15 iterations, sawtooth bias inward
+
+---
+
 ## RANDOMIZATION
 
 **RAND(**`min`,`max`**)**
@@ -189,6 +281,32 @@ Example: `MOVE tri1 RANDBOOL(),RANDBOOL()`
 ---
 
 ## WORKFLOW EXAMPLES
+
+### Generate LoRA Training Dataset with PROC
+```
+# Create script: scripts/proc_variations.txt
+CLEAR WIP ALL
+PROC dynamic_polygon p1 VERTICES=RAND(5,8) BOUNDS=100,100,668,668 PRESET=organic
+ROTATE p1 RAND(0,360)
+SCALE p1 RAND(0.7,1.3)
+PROMOTE p1
+CLEAR WIP ALL
+
+# Generate 100 unique procedural variations
+BATCH 100 proc_variations.txt training_data MAIN
+```
+
+### Discover Available Procedural Methods
+```
+# See what's available
+LIST PROC
+
+# Get details on a method
+INFO PROC dynamic_polygon
+
+# Check presets
+LIST PRESET dynamic_polygon
+```
 
 ### Generate LoRA Training Dataset
 ```

@@ -36,6 +36,7 @@ class CommandParser:
             'SAVE': self._parse_save,
             'RUN': self._parse_run,
             'BATCH': self._parse_batch,
+            'PROC': self._parse_proc,
         }
         
     def parse(self, command_text):
@@ -438,12 +439,30 @@ class CommandParser:
         }
         
     def _parse_list(self, parts):
-        """Parse LIST command: LIST [WIP|MAIN|STASH|STORE|GLOBAL]"""
+        """Parse LIST command: LIST [WIP|MAIN|STASH|STORE|GLOBAL|PROC|PRESET]
+        
+        LIST PROC - List available procedural methods
+        LIST PRESET <method> - List presets for a method
+        """
         target = None
+        method_name = None
+        
         if len(parts) >= 2:
             target = parts[1].upper()
-            if target not in ['WIP', 'MAIN', 'STASH', 'STORE', 'GLOBAL']:
-                raise ValueError("LIST target must be WIP, MAIN, STASH, STORE, or GLOBAL")
+            
+            # Handle LIST PRESET <method>
+            if target == 'PRESET':
+                if len(parts) < 3:
+                    raise ValueError("LIST PRESET requires method name")
+                method_name = parts[2]
+                return {
+                    'command': 'LIST_PRESET',
+                    'method': method_name
+                }
+            
+            # Validate target
+            if target not in ['WIP', 'MAIN', 'STASH', 'STORE', 'GLOBAL', 'PROC']:
+                raise ValueError("LIST target must be WIP, MAIN, STASH, STORE, GLOBAL, PROC, or PRESET <method>")
         
         return {
             'command': 'LIST',
@@ -451,10 +470,20 @@ class CommandParser:
         }
         
     def _parse_info(self, parts):
-        """Parse INFO command: INFO <shape>"""
+        """Parse INFO command: INFO <shape> or INFO PROC <method>"""
         if len(parts) < 2:
-            raise ValueError("INFO requires: INFO <shape>")
+            raise ValueError("INFO requires: INFO <shape> or INFO PROC <method>")
         
+        # Check for INFO PROC <method>
+        if parts[1].upper() == 'PROC':
+            if len(parts) < 3:
+                raise ValueError("INFO PROC requires method name")
+            return {
+                'command': 'INFO_PROC',
+                'method': parts[2]
+            }
+        
+        # Regular shape info
         shape_name = parts[1]
         
         return {
@@ -517,4 +546,32 @@ class CommandParser:
             'scriptfile': scriptfile,
             'output_prefix': output_prefix,
             'target_canvas': target_canvas
+        }
+    
+    def _parse_proc(self, parts):
+        """Parse PROC command: PROC <method> <name> [PARAM=value ...]
+        
+        Example: PROC dynamic_polygon shape1 VERTICES=5 BOUNDS=100,100,600,600
+        """
+        if len(parts) < 3:
+            raise ValueError("PROC requires: PROC <method> <name> [PARAM=value ...]")
+        
+        method_name = parts[1]
+        shape_name = parts[2]
+        
+        # Parse parameter assignments
+        params = {}
+        for i in range(3, len(parts)):
+            part = parts[i]
+            if '=' not in part:
+                raise ValueError(f"Invalid parameter format: '{part}'. Expected PARAM=value")
+            
+            key, value = part.split('=', 1)
+            params[key.strip().upper()] = value.strip()
+        
+        return {
+            'command': 'PROC',
+            'method': method_name,
+            'name': shape_name,
+            'params': params
         }
