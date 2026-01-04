@@ -96,6 +96,7 @@ class CommandExecutor:
             'PROC': self._execute_proc,
             'LIST_PRESET': self._execute_list_preset,
             'INFO_PROC': self._execute_info_proc,
+            'ANIMATE': self._execute_animate,
         }
         
         if command in handlers:
@@ -1177,3 +1178,86 @@ class CommandExecutor:
                 lines.append(f"    {op}: {count}")
         
         return "\n".join(lines)
+     
+    def _find_snapshots(self, base_name):
+        """
+        Find all iteration snapshots for a base shape name
+        
+        Args:
+            base_name: Base shape name (e.g., "demo1")
+            
+        Returns:
+            List of snapshot shapes sorted by iteration number,
+            or empty list if no snapshots found
+        """
+        snapshots = []
+        
+        # Search in WIP shapes (where SAVE_ITERATIONS creates them)
+        for name, shape in self.wip_shapes.items():
+            # Only check shapes that match the naming pattern
+            # This is much faster than checking all shapes
+            if not (name.startswith(f"{base_name}_iter_") or name == f"{base_name}_final"):
+                continue
+            
+            proc = shape.attrs.get('procedure')
+            
+            # Skip shapes without procedure metadata
+            if not proc:
+                continue
+            
+            # Check if it's a snapshot (has snapshot_of matching base_name)
+            is_iteration_snapshot = proc.get('snapshot_of') == base_name
+            
+            # Check if it's the final snapshot (name matches and has is_final flag)
+            is_final_snapshot = (name == f"{base_name}_final" and proc.get('is_final'))
+            
+            if is_iteration_snapshot or is_final_snapshot:
+                # Extract iteration number from name
+                # Names like: demo1_iter_0, demo1_iter_1, ..., demo1_final
+                if '_iter_' in name:
+                    try:
+                        iter_num = int(name.split('_iter_')[1])
+                        snapshots.append((iter_num, shape))
+                    except (ValueError, IndexError):
+                        pass
+                elif name == f"{base_name}_final":
+                    # Final snapshot - use large number to sort last
+                    snapshots.append((999999, shape))
+        
+        # Sort by iteration number
+        snapshots.sort(key=lambda x: x[0])
+        
+        # Return just the shape objects
+        return [shape for _, shape in snapshots]
+
+    def _execute_animate(self, cmd_dict, command_text):
+        """Execute ANIMATE command - launch preview window for iteration snapshots"""
+        base_name = cmd_dict['base_name']
+        fps = cmd_dict['fps']
+        loop = cmd_dict['loop']
+        
+        # Find all snapshots
+        snapshots = self._find_snapshots(base_name)
+        
+        if not snapshots:
+            raise ValueError(
+                f"No iteration snapshots found for '{base_name}'.\n"
+                f"Did you use SAVE_ITERATIONS=true when creating it?\n"
+                f"Example: PROC dynamic_polygon {base_name} ... SAVE_ITERATIONS=true"
+            )
+        
+        if len(snapshots) < 2:
+            raise ValueError(
+                f"Only {len(snapshots)} snapshot(s) found for '{base_name}'.\n"
+                f"Animation requires at least 2 iterations."
+            )
+        
+        # Launch preview window
+        from ui.animation_preview import AnimationPreview
+        
+        # Need to get the root window from UI
+        # Assuming self has a reference to UI or root window
+        # This will need to be passed when CommandExecutor is created
+        AnimationPreview(self.ui_root, snapshots, base_name, fps, loop, self, self.ui_instance)
+        
+        return f"Animation preview opened for '{base_name}' ({len(snapshots)} frames, {fps} FPS)"

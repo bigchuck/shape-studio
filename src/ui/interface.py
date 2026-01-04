@@ -30,6 +30,11 @@ class ShapeStudioUI:
         self._load_help_content()
         self._setup_ui()
         self._update_canvas_display()
+
+        # Give executor reference to root window for animation
+        self.executor.ui_root = self.root
+        self.executor.ui_instance = self
+
         
     def toggle_fullscreen(self, event=None):
         """Toggle fullscreen mode"""

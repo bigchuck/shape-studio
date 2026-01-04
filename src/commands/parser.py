@@ -37,6 +37,7 @@ class CommandParser:
             'RUN': self._parse_run,
             'BATCH': self._parse_batch,
             'PROC': self._parse_proc,
+            'ANIMATE': self._parse_animate,
         }
         
     def parse(self, command_text):
@@ -574,4 +575,44 @@ class CommandParser:
             'method': method_name,
             'name': shape_name,
             'params': params
+        }
+    
+    def _parse_animate(self, parts):
+        """Parse ANIMATE command: ANIMATE <base_name> [FPS=<n>] [LOOP=<true|false>]"""
+        if len(parts) < 2:
+            raise ValueError("ANIMATE requires: ANIMATE <base_name> [FPS=n] [LOOP=true|false]")
+        
+        base_name = parts[1]
+        fps = 2  # default
+        loop = False  # default
+        
+        # Parse optional parameters
+        for i in range(2, len(parts)):
+            part = parts[i]
+            if '=' not in part:
+                raise ValueError(f"Invalid parameter format: '{part}'. Expected PARAM=value")
+            
+            key, value = part.split('=', 1)
+            key = key.strip().upper()
+            value = value.strip()
+            
+            if key == 'FPS':
+                try:
+                    fps = int(value)
+                    if fps < 1 or fps > 10:
+                        raise ValueError("FPS must be between 1 and 10")
+                except ValueError as e:
+                    raise ValueError(f"Invalid FPS value: '{value}'. Must be integer 1-10")
+            
+            elif key == 'LOOP':
+                loop = value.upper() in ['TRUE', '1', 'YES', 'ON']
+            
+            else:
+                raise ValueError(f"Unknown parameter: {key}")
+        
+        return {
+            'command': 'ANIMATE',
+            'base_name': base_name,
+            'fps': fps,
+            'loop': loop
         }
