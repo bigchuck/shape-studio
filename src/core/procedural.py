@@ -129,6 +129,18 @@ class ProceduralGenerators:
                     'default': 1,
                     'description': 'Save every Nth iteration (use with save_iterations)'
                 },
+                'remove_prob': {
+                    'type': 'float',
+                    'required': False,
+                    'default': 0.0,
+                    'description': 'Probability of remove_point operation per iteration (0.0-1.0)'
+                },
+                'distort_prob': {
+                    'type': 'float',
+                    'required': False,
+                    'default': 0.0,
+                    'description': 'Probability of distort_original operation per iteration (0.0-1.0)'
+                },
             },
         }
         
@@ -304,7 +316,8 @@ class ProceduralGenerators:
                        depth_range=(0.2, 0.8), weight_decay=0.5,
                        max_retries=10, direction_bias='random',
                        return_mode='single', verbose=0,
-                       save_iterations=False, snapshot_interval=1):
+                       save_iterations=False, snapshot_interval=1,
+                       remove_prob=0.0, distort_prob=0.0):
         """
         Generate evolved polygon through iterative segment modification.
         
@@ -349,6 +362,13 @@ class ProceduralGenerators:
         
         # PHASE 2: Connect vertices into polygon
         connected_points = self._connect_vertices(initial_points, connect)
+        
+        # Round all initial points to integer pixel coordinates
+        connected_points = [self._round_point(p) for p in connected_points]
+        
+        # Track original vertices for distort_original operation
+        # This is a separate list that only contains vertices from initial construction
+        distortable_points = connected_points[:]  # Independent copy
         
         # Initialize debug log
         debug_log = None
@@ -404,8 +424,17 @@ class ProceduralGenerators:
             # Select a segment using weighted random selection
             segment_idx = self._select_segment(segment_weights)
             
-            # Choose a random operation
-            operation = random.choice(operations)
+            # PROBABILITY-BASED OPERATION SELECTION
+            # Check probabilities first, then fall back to regular operations
+            rand_val = random.random()
+            
+            if remove_prob > 0 and rand_val < remove_prob:
+                operation = 'remove_point'
+            elif distort_prob > 0 and rand_val < (remove_prob + distort_prob):
+                operation = 'distort_original'
+            else:
+                # Use regular operations list
+                operation = random.choice(operations)
             
             # Prepare iteration log entry
             iter_log = None
@@ -439,10 +468,11 @@ class ProceduralGenerators:
             for attempt in range(max_retries):
                 attempt_count += 1
                 try:
-                    # Apply the operation
-                    new_points, new_weights = self._apply_operation(
+                    # Apply the operation (returns triple)
+                    new_points, new_weights, new_distortable = self._apply_operation(
                         current_points, segment_weights, segment_idx,
-                        operation, depth_pct, direction_bias, centroid, weight_decay
+                        operation, depth_pct, direction_bias, centroid, weight_decay,
+                        bounds, distortable_points
                     )
                     
                     # Validate: check for self-intersections
@@ -450,6 +480,7 @@ class ProceduralGenerators:
                         # Success! Update state
                         current_points = new_points
                         segment_weights = new_weights
+                        distortable_points = new_distortable
                         centroid = self._compute_centroid(current_points)  # Update centroid
                         stats['successful_modifications'] += 1
                         stats['operations_used'][operation] += 1
@@ -674,36 +705,54 @@ class ProceduralGenerators:
         return len(weights) - 1
     
     def _apply_operation(self, points, weights, segment_idx, operation,
-                        depth_pct, direction_bias, centroid, weight_decay):
+                        depth_pct, direction_bias, centroid, weight_decay, bounds=None,
+                        distortable_points=None):
         """Apply a modification operation to a segment.
         
         Args:
             points: Current polygon points
             weights: Current segment weights
             segment_idx: Index of segment to modify
-            operation: Operation name ('split_offset', 'sawtooth', 'squarewave')
+            operation: Operation name
             depth_pct: Depth percentage (0.0-1.0)
             direction_bias: 'inward', 'outward', or 'random'
             centroid: Polygon centroid (cx, cy)
             weight_decay: Multiplier for new segment weights
+            bounds: Bounding box (x1, y1, x2, y2) for validation
+            distortable_points: List of original vertices (for distort_original)
             
         Returns:
-            (new_points, new_weights) tuple
+            (new_points, new_weights, new_distortable_points) tuple
         """
         if operation == 'split_offset':
-            return self._op_split_offset(points, weights, segment_idx, depth_pct,
-                                        direction_bias, centroid, weight_decay)
+            new_points, new_weights = self._op_split_offset(points, weights, segment_idx, depth_pct,
+                                        direction_bias, centroid, weight_decay, bounds)
+            return new_points, new_weights, distortable_points  # Unchanged
+            
         elif operation == 'sawtooth':
-            return self._op_sawtooth(points, weights, segment_idx, depth_pct,
-                                    direction_bias, centroid, weight_decay)
+            new_points, new_weights = self._op_sawtooth(points, weights, segment_idx, depth_pct,
+                                    direction_bias, centroid, weight_decay, bounds)
+            return new_points, new_weights, distortable_points  # Unchanged
+            
         elif operation == 'squarewave':
-            return self._op_squarewave(points, weights, segment_idx, depth_pct,
-                                      direction_bias, centroid, weight_decay)
+            new_points, new_weights = self._op_squarewave(points, weights, segment_idx, depth_pct,
+                                      direction_bias, centroid, weight_decay, bounds)
+            return new_points, new_weights, distortable_points  # Unchanged
+            
+        elif operation == 'remove_point':
+            return self._op_remove_point(points, weights, segment_idx, depth_pct,
+                                         direction_bias, centroid, weight_decay, bounds,
+                                         distortable_points)
+                                         
+        elif operation == 'distort_original':
+            return self._op_distort_original(points, weights, segment_idx, depth_pct,
+                                             direction_bias, centroid, weight_decay, bounds,
+                                             distortable_points)
         else:
             raise ValueError(f"Unknown operation: {operation}")
     
     def _op_split_offset(self, points, weights, idx, depth_pct,
-                        direction_bias, centroid, weight_decay):
+                        direction_bias, centroid, weight_decay, bounds=None):
         """Split segment and offset midpoint perpendicular to segment.
         
         Operation: A---B becomes A---M---B where M is offset perpendicular
@@ -716,9 +765,13 @@ class ProceduralGenerators:
             direction_bias: Direction preference
             centroid: Polygon centroid
             weight_decay: Weight multiplier for new segments
+            bounds: Optional bounding box (x1, y1, x2, y2) for validation
             
         Returns:
             (new_points, new_weights) tuple
+            
+        Raises:
+            ValueError: If new point is outside bounds
         """
         n = len(points)
         p1 = points[idx]
@@ -737,8 +790,17 @@ class ProceduralGenerators:
         # Offset distance
         offset_dist = seg_length * depth_pct
         
-        # New midpoint
-        new_point = (mx + perp_x * offset_dist, my + perp_y * offset_dist)
+        # New midpoint (as float for calculation)
+        new_x = mx + perp_x * offset_dist
+        new_y = my + perp_y * offset_dist
+        new_point = (new_x, new_y)
+        
+        # Round to integer pixel coordinates
+        new_point = self._round_point(new_point)
+        
+        # Check bounds if provided
+        if bounds and not self._is_within_bounds(new_point, bounds):
+            raise ValueError(f"Point {new_point} outside bounds {bounds}")
         
         # Insert new point
         new_points = points[:idx+1] + [new_point] + points[idx+1:]
@@ -751,7 +813,7 @@ class ProceduralGenerators:
         return new_points, new_weights
     
     def _op_sawtooth(self, points, weights, idx, depth_pct,
-                    direction_bias, centroid, weight_decay):
+                    direction_bias, centroid, weight_decay, bounds=None):
         """Create sawtooth pattern on segment.
         
         Operation: A---B becomes A-/\-B (triangular protrusion)
@@ -764,20 +826,17 @@ class ProceduralGenerators:
             direction_bias: Direction preference
             centroid: Polygon centroid
             weight_decay: Weight multiplier for new segments
+            bounds: Optional bounding box (x1, y1, x2, y2) for validation
             
         Returns:
             (new_points, new_weights) tuple
+            
+        Raises:
+            ValueError: If new point is outside bounds
         """
         n = len(points)
         p1 = points[idx]
         p2 = points[(idx + 1) % n]
-        
-        # Compute 1/3 and 2/3 points along segment
-        third_x = p1[0] + (p2[0] - p1[0]) / 3
-        third_y = p1[1] + (p2[1] - p1[1]) / 3
-        
-        two_third_x = p1[0] + 2 * (p2[0] - p1[0]) / 3
-        two_third_y = p1[1] + 2 * (p2[1] - p1[1]) / 3
         
         # Midpoint for peak
         mx = (p1[0] + p2[0]) / 2
@@ -793,14 +852,16 @@ class ProceduralGenerators:
         # Peak point
         peak_x = mx + perp_x * offset_dist
         peak_y = my + perp_y * offset_dist
-        
-        # Insert two new points: 1/3 point and peak
-        # A -> A -> 1/3 -> peak -> 2/3 -> B
-        # But we want: A -> peak -> B (simplified sawtooth)
-        # Actually, proper sawtooth: A -> left_base -> peak -> right_base -> B
-        
-        # Simplified: just insert peak at midpoint
         new_point = (peak_x, peak_y)
+        
+        # Round to integer pixel coordinates
+        new_point = self._round_point(new_point)
+        
+        # Check bounds if provided
+        if bounds and not self._is_within_bounds(new_point, bounds):
+            raise ValueError(f"Point {new_point} outside bounds {bounds}")
+        
+        # Insert peak at midpoint
         new_points = points[:idx+1] + [new_point] + points[idx+1:]
         
         # Update weights
@@ -811,7 +872,7 @@ class ProceduralGenerators:
         return new_points, new_weights
     
     def _op_squarewave(self, points, weights, idx, depth_pct,
-                      direction_bias, centroid, weight_decay):
+                      direction_bias, centroid, weight_decay, bounds=None):
         """Create square wave pattern on segment.
         
         Operation: A---B becomes A-|_|-B (rectangular protrusion)
@@ -824,9 +885,13 @@ class ProceduralGenerators:
             direction_bias: Direction preference
             centroid: Polygon centroid
             weight_decay: Weight multiplier for new segments
+            bounds: Optional bounding box (x1, y1, x2, y2) for validation
             
         Returns:
             (new_points, new_weights) tuple
+            
+        Raises:
+            ValueError: If any new point is outside bounds
         """
         n = len(points)
         p1 = points[idx]
@@ -850,14 +915,25 @@ class ProceduralGenerators:
         offset_x = perp_x * offset_dist
         offset_y = perp_y * offset_dist
         
-        # Create three new points: quarter, quarter+offset, three_quarter+offset
+        # Create four corner points
         point1 = (quarter_x, quarter_y)
         point2 = (quarter_x + offset_x, quarter_y + offset_y)
         point3 = (three_quarter_x + offset_x, three_quarter_y + offset_y)
         point4 = (three_quarter_x, three_quarter_y)
         
+        # Round all points to integer pixel coordinates
+        point1 = self._round_point(point1)
+        point2 = self._round_point(point2)
+        point3 = self._round_point(point3)
+        point4 = self._round_point(point4)
+        
+        # Check bounds if provided
+        if bounds:
+            for point in [point1, point2, point3, point4]:
+                if not self._is_within_bounds(point, bounds):
+                    raise ValueError(f"Point {point} outside bounds {bounds}")
+        
         # Insert all four corner points
-        # A -> p1 -> p2 -> p3 -> p4 -> B
         new_points = points[:idx+1] + [point1, point2, point3, point4] + points[idx+1:]
         
         # Update weights: one segment becomes five
@@ -868,6 +944,141 @@ class ProceduralGenerators:
                       weights[idx+1:])
         
         return new_points, new_weights
+    
+    def _op_remove_point(self, points, weights, idx, depth_pct,
+                        direction_bias, centroid, weight_decay, bounds=None,
+                        distortable_points=None):
+        """Remove a vertex, merging two adjacent segments into one.
+        
+        Operation: A---B---C becomes A-------C (removes B)
+        
+        Args:
+            points: Current polygon points
+            weights: Current segment weights
+            idx: Vertex index to remove (selected by weighted random)
+            depth_pct: Unused (for signature compatibility)
+            direction_bias: Unused (for signature compatibility)
+            centroid: Unused (for signature compatibility)
+            weight_decay: Unused (for signature compatibility)
+            bounds: Unused (for signature compatibility)
+            distortable_points: List of original vertices (will be updated if removed point is original)
+            
+        Returns:
+            (new_points, new_weights, new_distortable_points) tuple
+            
+        Raises:
+            ValueError: If polygon would have too few vertices
+        """
+        if len(points) <= 3:
+            raise ValueError("Cannot remove point - polygon must have at least 3 vertices")
+        
+        # Get the point being removed
+        removed_point = points[idx]
+        
+        # Remove the vertex from points
+        new_points = points[:idx] + points[idx+1:]
+        
+        # Merge weights: the two adjacent segments become one
+        # The new segment gets the average weight
+        n = len(weights)
+        prev_idx = (idx - 1) % n
+        
+        # Average the two weights that are being merged
+        new_weight = (weights[prev_idx] + weights[idx]) / 2
+        
+        # Build new weights list
+        new_weights = weights[:prev_idx] + [new_weight] + weights[idx+1:]
+        
+        # Update distortable_points if this was an original vertex
+        new_distortable = distortable_points[:] if distortable_points else []
+        if removed_point in new_distortable:
+            new_distortable.remove(removed_point)
+        
+        return new_points, new_weights, new_distortable
+    
+    def _op_distort_original(self, points, weights, idx, depth_pct,
+                            direction_bias, centroid, weight_decay, bounds=None,
+                            distortable_points=None):
+        """Move an original vertex toward or away from centroid.
+        
+        This operation only works on vertices from the initial polygon construction.
+        The vertex moves along the line from centroid to its current position.
+        
+        Args:
+            points: Current polygon points
+            weights: Current segment weights
+            idx: IGNORED - we select randomly from distortable_points instead
+            depth_pct: How far to move (percentage of distance to centroid)
+            direction_bias: 'inward' (toward centroid) or 'outward' (away from centroid)
+            centroid: Polygon centroid
+            weight_decay: Unused (for signature compatibility)
+            bounds: Bounding box (x1, y1, x2, y2) for validation
+            distortable_points: List of original vertices (REQUIRED)
+            
+        Returns:
+            (new_points, new_weights, new_distortable_points) tuple
+            
+        Raises:
+            ValueError: If no distortable points available or new point outside bounds
+        """
+        if not distortable_points or len(distortable_points) == 0:
+            raise ValueError("No distortable points available")
+        
+        # Select a random point from distortable_points
+        old_coord = random.choice(distortable_points)
+        
+        # Find this point in the current points list
+        try:
+            point_idx = points.index(old_coord)
+        except ValueError:
+            raise ValueError(f"Distortable point {old_coord} not found in current polygon")
+        
+        # Vector from centroid to point
+        dx = old_coord[0] - centroid[0]
+        dy = old_coord[1] - centroid[1]
+        distance = math.sqrt(dx**2 + dy**2)
+        
+        if distance == 0:
+            # Point is at centroid - can't move
+            return points[:], weights[:], distortable_points[:]
+        
+        # Normalize direction
+        dir_x = dx / distance
+        dir_y = dy / distance
+        
+        # Movement distance
+        move_dist = distance * depth_pct
+        
+        # Apply direction bias
+        if direction_bias == 'inward':
+            # Move toward centroid (negative direction)
+            new_x = old_coord[0] - dir_x * move_dist
+            new_y = old_coord[1] - dir_y * move_dist
+        else:  # outward or random
+            # Move away from centroid (positive direction)
+            new_x = old_coord[0] + dir_x * move_dist
+            new_y = old_coord[1] + dir_y * move_dist
+        
+        new_coord = (new_x, new_y)
+        
+        # Round to integer pixel coordinates
+        new_coord = self._round_point(new_coord)
+        
+        # Check bounds if provided
+        if bounds and not self._is_within_bounds(new_coord, bounds):
+            raise ValueError(f"Point {new_coord} outside bounds {bounds}")
+        
+        # Update points list
+        new_points = points[:point_idx] + [new_coord] + points[point_idx+1:]
+        
+        # Weights unchanged
+        new_weights = weights[:]
+        
+        # Update distortable_points - replace old coord with new coord
+        distort_idx = distortable_points.index(old_coord)
+        new_distortable = distortable_points[:distort_idx] + [new_coord] + distortable_points[distort_idx+1:]
+        
+        return new_points, new_weights, new_distortable
     
     def _is_valid_polygon(self, points):
         """Check if polygon is valid (no self-intersections).
@@ -975,3 +1186,31 @@ class ProceduralGenerators:
                 perp_y = -perp_y
         
         return (perp_x, perp_y)
+    
+    def _round_point(self, point):
+        """Round point to integer pixel coordinates.
+        
+        Points are stored as floats for intermediate calculations,
+        but represent integer pixel positions.
+        
+        Args:
+            point: (x, y) tuple with float values
+            
+        Returns:
+            (x, y) tuple with values rounded to nearest integer (as floats)
+        """
+        return (round(point[0]), round(point[1]))
+    
+    def _is_within_bounds(self, point, bounds):
+        """Check if point is within bounding rectangle.
+        
+        Args:
+            point: (x, y) tuple
+            bounds: (x1, y1, x2, y2) rectangle
+            
+        Returns:
+            True if point is inside bounds
+        """
+        x, y = point
+        x1, y1, x2, y2 = bounds
+        return x1 <= x <= x2 and y1 <= y <= y2
