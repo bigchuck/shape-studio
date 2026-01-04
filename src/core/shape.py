@@ -40,7 +40,29 @@ class Shape:
         entry = (action_type, command, datetime.now().isoformat())
         self.attrs['history'].append(entry)
         self.attrs['metadata']['modified'] = datetime.now().isoformat()
+
+    def _apply_alpha(self, color, alpha):
+        """Convert color to RGBA tuple with alpha applied
         
+        Args:
+            color: Named color or hex string
+            alpha: Transparency (0.0-1.0)
+        
+        Returns:
+            RGBA tuple (r, g, b, a)
+        """
+        from PIL import ImageColor
+        
+        # Convert named/hex color to RGB
+        if isinstance(color, str):
+            rgb = ImageColor.getrgb(color)
+        else:
+            rgb = color
+        
+        # Add alpha channel (0-255)
+        a = int(alpha * 255)
+        return (rgb[0], rgb[1], rgb[2], a)
+
     def draw(self, draw_context):
         """Draw the shape - must be implemented by subclasses"""
         raise NotImplementedError
@@ -80,9 +102,10 @@ class Line(Shape):
         """Draw the line using style attributes"""
         geom = self.attrs['geometry']
         style = self.attrs['style']
+        color = self._apply_alpha(style['color'], style['transparency'])
         draw_context.line(
             [geom['start'], geom['end']], 
-            fill=style['color'], 
+            fill=color, 
             width=style['width']
         )
         
@@ -165,10 +188,15 @@ class Polygon(Shape):
         if len(geom['points']) < 2:
             return
         
+        outline_color = self._apply_alpha(style['color'], style['transparency'])
+        fill_color = None
+        if style['fill']:
+            fill_color = self._apply_alpha(style['fill'], style['transparency'])
+
         draw_context.polygon(
             geom['points'], 
-            outline=style['color'],
-            fill=style['fill'],
+            outline=outline_color,
+            fill=fill_color,
             width=style['width']
         )
         

@@ -97,6 +97,11 @@ class CommandExecutor:
             'LIST_PRESET': self._execute_list_preset,
             'INFO_PROC': self._execute_info_proc,
             'ANIMATE': self._execute_animate,
+            'COLOR': self._execute_color,
+            'WIDTH': self._execute_width,
+            'FILL': self._execute_fill,
+            'ALPHA': self._execute_alpha,
+            'ZORDER': self._execute_zorder,
         }
         
         if command in handlers:
@@ -1261,3 +1266,85 @@ class CommandExecutor:
         AnimationPreview(self.ui_root, snapshots, base_name, fps, loop, self, self.ui_instance)
         
         return f"Animation preview opened for '{base_name}' ({len(snapshots)} frames, {fps} FPS)"
+
+    def _execute_color(self, cmd_dict, command_text):
+        """Execute COLOR command - set shape outline color"""
+        name = cmd_dict['name']
+        color = cmd_dict['color']
+        
+        shapes = self.get_active_shapes()
+        if name not in shapes:
+            raise ValueError(f"Shape '{name}' not found on {self.active_canvas_name} canvas")
+        
+        shape = shapes[name]
+        shape.attrs['style']['color'] = color
+        shape.add_history('STYLE', command_text)
+        self.active_canvas.redraw()
+        
+        return f"Set color of '{name}' to {color}"
+
+    def _execute_width(self, cmd_dict, command_text):
+        """Execute WIDTH command - set shape line width"""
+        name = cmd_dict['name']
+        width = cmd_dict['width']
+        
+        shapes = self.get_active_shapes()
+        if name not in shapes:
+            raise ValueError(f"Shape '{name}' not found on {self.active_canvas_name} canvas")
+        
+        shape = shapes[name]
+        shape.attrs['style']['width'] = width
+        shape.add_history('STYLE', command_text)
+        self.active_canvas.redraw()
+        
+        return f"Set width of '{name}' to {width}"
+
+    def _execute_fill(self, cmd_dict, command_text):
+        """Execute FILL command - set shape fill color"""
+        name = cmd_dict['name']
+        fill = cmd_dict['fill']
+        
+        shapes = self.get_active_shapes()
+        if name not in shapes:
+            raise ValueError(f"Shape '{name}' not found on {self.active_canvas_name} canvas")
+        
+        shape = shapes[name]
+        shape.attrs['style']['fill'] = fill
+        shape.add_history('STYLE', command_text)
+        self.active_canvas.redraw()
+        
+        if fill is None:
+            return f"Removed fill from '{name}'"
+        return f"Set fill of '{name}' to {fill}"
+
+    def _execute_alpha(self, cmd_dict, command_text):
+        """Execute ALPHA command - set shape transparency"""
+        name = cmd_dict['name']
+        alpha = cmd_dict['alpha']
+        
+        shapes = self.get_active_shapes()
+        if name not in shapes:
+            raise ValueError(f"Shape '{name}' not found on {self.active_canvas_name} canvas")
+        
+        shape = shapes[name]
+        shape.attrs['style']['transparency'] = alpha
+        shape.add_history('STYLE', command_text)
+        self.active_canvas.redraw()
+        
+        return f"Set transparency of '{name}' to {alpha}"
+
+    def _execute_zorder(self, cmd_dict, command_text):
+        """Execute ZORDER command - set shape z-coordinate for layering"""
+        name = cmd_dict['name']
+        z_coord = cmd_dict['z_coord']
+        
+        shapes = self.get_active_shapes()
+        if name not in shapes:
+            raise ValueError(f"Shape '{name}' not found on {self.active_canvas_name} canvas")
+        
+        shape = shapes[name]
+        shape.attrs['style']['z_coord'] = z_coord
+        shape.add_history('STYLE', command_text)
+        self.active_canvas.redraw()
+        
+        return f"Set z-order of '{name}' to {z_coord}"

@@ -38,6 +38,11 @@ class CommandParser:
             'BATCH': self._parse_batch,
             'PROC': self._parse_proc,
             'ANIMATE': self._parse_animate,
+            'COLOR': self._parse_color,
+            'WIDTH': self._parse_width,
+            'FILL': self._parse_fill,
+            'ALPHA': self._parse_alpha,
+            'ZORDER': self._parse_zorder,
         }
         
     def parse(self, command_text):
@@ -615,4 +620,138 @@ class CommandParser:
             'base_name': base_name,
             'fps': fps,
             'loop': loop
+        }
+
+    def _parse_width(self, parts):
+        """Parse WIDTH command: WIDTH <n> <width>"""
+        if len(parts) < 3:
+            raise ValueError("WIDTH requires: WIDTH <n> <width>")
+        
+        width = int(parts[2])
+        if width < 1:
+            raise ValueError("Width must be at least 1")
+        
+        return {
+            'command': 'WIDTH',
+            'name': parts[1],
+            'width': width
+        }
+
+    def _parse_color_value(self, color_str):
+        """Parse color from various formats to hex or named color
+        
+        Supports:
+            - Named: 'red', 'blue', etc.
+            - Hex: '#FF0000' or '#F00'
+            - RGB: 'rgb(255,0,0)' or '255,0,0'
+            - HSV: 'hsv(360,100,100)' or '360,100,100'
+        
+        Returns hex string or named color
+        """
+        import colorsys
+        
+        color = color_str.strip()
+        
+        # Hex color
+        if color.startswith('#'):
+            # Validate hex format
+            if len(color) == 4:  # #RGB
+                return '#' + ''.join([c*2 for c in color[1:]])  # Convert to #RRGGBB
+            elif len(color) == 7:  # #RRGGBB
+                return color
+            else:
+                raise ValueError(f"Invalid hex color format: {color}")
+        
+        # RGB format: rgb(255,0,0) or 255,0,0
+        if color.lower().startswith('rgb(') or (',' in color and not color.lower().startswith('hsv')):
+            # Extract numbers
+            if color.lower().startswith('rgb('):
+                color = color[4:-1]  # Remove 'rgb(' and ')'
+            
+            parts = [int(x.strip()) for x in color.split(',')]
+            if len(parts) != 3:
+                raise ValueError("RGB requires 3 values: r,g,b")
+            
+            r, g, b = parts
+            if not all(0 <= v <= 255 for v in [r, g, b]):
+                raise ValueError("RGB values must be 0-255")
+            
+            return f'#{r:02x}{g:02x}{b:02x}'
+        
+        # HSV format: hsv(360,100,100) or 360,100,100
+        if color.lower().startswith('hsv('):
+            color = color[4:-1]  # Remove 'hsv(' and ')'
+            parts = [float(x.strip()) for x in color.split(',')]
+            if len(parts) != 3:
+                raise ValueError("HSV requires 3 values: h,s,v")
+            
+            h, s, v = parts
+            if not (0 <= h <= 360):
+                raise ValueError("Hue must be 0-360")
+            if not (0 <= s <= 100 and 0 <= v <= 100):
+                raise ValueError("Saturation and Value must be 0-100")
+            
+            # Convert to RGB (colorsys expects 0-1 range)
+            r, g, b = colorsys.hsv_to_rgb(h/360, s/100, v/100)
+            r, g, b = int(r*255), int(g*255), int(b*255)
+            
+            return f'#{r:02x}{g:02x}{b:02x}'
+        
+        # Named color - return as-is (PIL will validate)
+        return color
+
+    def _parse_color(self, parts):
+        """Parse COLOR command: COLOR <n> <color>"""
+        if len(parts) < 3:
+            raise ValueError("COLOR requires: COLOR <n> <color>")
+        
+        color = self._parse_color_value(parts[2])
+        
+        return {
+            'command': 'COLOR',
+            'name': parts[1],
+            'color': color
+        }
+
+    def _parse_fill(self, parts):
+        """Parse FILL command: FILL <n> <color|NONE>"""
+        if len(parts) < 3:
+            raise ValueError("FILL requires: FILL <n> <color|NONE>")
+        
+        fill = parts[2]
+        if fill.upper() == 'NONE':
+            fill = None
+        else:
+            fill = self._parse_color_value(fill)
+        
+        return {
+            'command': 'FILL',
+            'name': parts[1],
+            'fill': fill
+        }
+
+    def _parse_alpha(self, parts):
+        """Parse ALPHA command: ALPHA <n> <value>"""
+        if len(parts) < 3:
+            raise ValueError("ALPHA requires: ALPHA <n> <value>")
+        
+        alpha = float(parts[2])
+        if alpha < 0 or alpha > 1:
+            raise ValueError("Alpha must be between 0 and 1")
+        
+        return {
+            'command': 'ALPHA',
+            'name': parts[1],
+            'alpha': alpha
+        }
+
+    def _parse_zorder(self, parts):
+        """Parse ZORDER command: ZORDER <n> <value>"""
+        if len(parts) < 3:
+            raise ValueError("ZORDER requires: ZORDER <n> <value>")
+        
+        return {
+            'command': 'ZORDER',
+            'name': parts[1],
+            'z_coord': int(parts[2])
         }

@@ -10,7 +10,7 @@ class Canvas:
     
     def __init__(self, size=768):
         self.size = size
-        self.image = Image.new('RGB', (size, size), 'white')
+        self.image = Image.new('RGBA', (size, size), (255, 255, 255, 255))
         self.draw = ImageDraw.Draw(self.image)
         self.shapes = []
         
@@ -59,7 +59,7 @@ class Canvas:
         
     def redraw(self):
         """Redraw all shapes on a fresh canvas, respecting z-order"""
-        self.image = Image.new('RGB', (self.size, self.size), 'white')
+        self.image = Image.new('RGBA', (self.size, self.size), (255, 255, 255, 255))
         self.draw = ImageDraw.Draw(self.image)
         
         # Draw grid first (if enabled) so shapes appear on top
@@ -87,7 +87,13 @@ class Canvas:
             
     def save(self, filename):
         """Save the canvas without rulers to PNG file"""
-        self.image.save(filename, 'PNG')
+        # Convert RGBA to RGB for saving
+        if self.image.mode == 'RGBA':
+            rgb_image = Image.new('RGB', self.image.size, (255, 255, 255))
+            rgb_image.paste(self.image, mask=self.image.split()[3])  # Use alpha as mask
+            rgb_image.save(filename, 'PNG')
+        else:
+            self.image.save(filename, 'PNG')
         
     def toggle_rulers(self):
         """Toggle ruler visibility"""
