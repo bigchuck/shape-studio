@@ -111,6 +111,24 @@ class ProceduralGenerators:
                     'default': 'single',
                     'description': 'How to return result (single shape, group, or individual shapes)'
                 },
+                'verbose': {
+                    'type': 'int',
+                    'required': False,
+                    'default': 0,
+                    'description': 'Debug verbosity: 0=silent, 1=summary, 2=detailed, 3=full geometry'
+                },
+                'save_iterations': {
+                    'type': 'bool',
+                    'required': False,
+                    'default': False,
+                    'description': 'Create snapshot polygons for each iteration'
+                },
+                'snapshot_interval': {
+                    'type': 'int',
+                    'required': False,
+                    'default': 1,
+                    'description': 'Save every Nth iteration (use with save_iterations)'
+                },
             },
         }
         
@@ -285,7 +303,8 @@ class ProceduralGenerators:
                        connect='angle_sort', operations=None,
                        depth_range=(0.2, 0.8), weight_decay=0.5,
                        max_retries=10, direction_bias='random',
-                       return_mode='single'):
+                       return_mode='single', verbose=0,
+                       save_iterations=False, snapshot_interval=1):
         """
         Generate evolved polygon through iterative segment modification.
         
@@ -312,9 +331,12 @@ class ProceduralGenerators:
             max_retries: Max attempts per modification
             direction_bias: Preferred direction ('inward', 'outward', 'random')
             return_mode: How to return ('single', 'group', 'individual')
+            verbose: Debug verbosity (0=silent, 1=summary, 2=detailed, 3=full)
+            save_iterations: Create snapshot polygons for each iteration
+            snapshot_interval: Save every Nth iteration
             
         Returns:
-            Polygon object (or ShapeGroup, or list based on return_mode)
+            Polygon object or list of Polygons (if save_iterations=True)
         """
         if operations is None:
             operations = ['split_offset', 'sawtooth']
@@ -327,6 +349,26 @@ class ProceduralGenerators:
         
         # PHASE 2: Connect vertices into polygon
         connected_points = self._connect_vertices(initial_points, connect)
+        
+        # Initialize debug log
+        debug_log = None
+        if verbose > 0:
+            debug_log = {
+                'verbose_level': verbose,
+                'initial_state': {
+                    'vertex_count': num_vertices,
+                    'bounds': bounds,
+                    'points': connected_points[:] if verbose >= 3 else None,
+                    'centroid': self._compute_centroid(connected_points),
+                    'connection_method': connect
+                },
+                'iterations': [],
+                'summary': {
+                    'successful_modifications': 0,
+                    'failed_attempts': 0,
+                    'operations_used': {op: 0 for op in operations}
+                }
+            }
         
         # PHASE 3: Initialize segment weights (all segments start equal)
         segment_weights = [1.0] * len(connected_points)
@@ -341,6 +383,20 @@ class ProceduralGenerators:
         current_points = connected_points[:]
         centroid = self._compute_centroid(current_points)
         
+        # For snapshots
+        snapshots = []
+        if save_iterations:
+            # Save initial state as iteration 0
+            snapshot = Polygon(f"{name}_iter_0", current_points[:])
+            snapshot.attrs['procedure'] = {
+                'method': 'dynamic_polygon',
+                'is_snapshot': True,
+                'snapshot_of': name,
+                'iteration': 0,
+                'stats': stats.copy()
+            }
+            snapshots.append(snapshot)
+        
         for iteration in range(iterations):
             # Choose depth for this iteration
             depth_pct = random.uniform(*depth_range) if isinstance(depth_range, tuple) else depth_range
@@ -351,9 +407,37 @@ class ProceduralGenerators:
             # Choose a random operation
             operation = random.choice(operations)
             
+            # Prepare iteration log entry
+            iter_log = None
+            if verbose >= 2:
+                n = len(current_points)
+                p1 = current_points[segment_idx]
+                p2 = current_points[(segment_idx + 1) % n]
+                seg_length = math.sqrt((p2[0] - p1[0])**2 + (p2[1] - p1[1])**2)
+                total_weight = sum(segment_weights)
+                
+                iter_log = {
+                    'iteration': iteration + 1,
+                    'selection': {
+                        'segment_idx': segment_idx,
+                        'segment_endpoints': [p1, p2] if verbose >= 3 else None,
+                        'segment_weight': segment_weights[segment_idx],
+                        'segment_length': round(seg_length, 1),
+                        'selection_probability': round(segment_weights[segment_idx] / total_weight, 3) if total_weight > 0 else 0
+                    },
+                    'operation': {
+                        'name': operation,
+                        'depth_pct': round(depth_pct, 2),
+                        'depth_pixels': round(seg_length * depth_pct, 1),
+                    }
+                }
+            
             # Attempt modification with retries
             success = False
+            attempt_count = 0
+            
             for attempt in range(max_retries):
+                attempt_count += 1
                 try:
                     # Apply the operation
                     new_points, new_weights = self._apply_operation(
@@ -370,6 +454,36 @@ class ProceduralGenerators:
                         stats['successful_modifications'] += 1
                         stats['operations_used'][operation] += 1
                         success = True
+                        
+                        # Log successful operation details
+                        if verbose >= 2 and iter_log:
+                            # Get the new point(s) that were added
+                            if operation == 'split_offset':
+                                new_point = current_points[segment_idx + 1]
+                                iter_log['operation']['new_point'] = new_point if verbose >= 3 else None
+                            
+                            # Add direction info
+                            n = len(current_points) - (len(current_points) - len(new_points))
+                            if segment_idx < len(current_points) - 1:
+                                perp_x, perp_y = self._get_perpendicular_direction(
+                                    current_points[segment_idx], 
+                                    current_points[segment_idx + 1],
+                                    direction_bias, 
+                                    centroid
+                                )
+                                # Determine if it's inward or outward
+                                p1 = current_points[segment_idx]
+                                p2 = current_points[segment_idx + 1]
+                                mx = (p1[0] + p2[0]) / 2
+                                my = (p1[1] + p2[1]) / 2
+                                to_mid_x = mx - centroid[0]
+                                to_mid_y = my - centroid[1]
+                                dot = perp_x * to_mid_x + perp_y * to_mid_y
+                                
+                                iter_log['operation']['direction'] = 'outward' if dot > 0 else 'inward'
+                                if verbose >= 3:
+                                    iter_log['operation']['direction_vector'] = (round(perp_x, 2), round(perp_y, 2))
+                        
                         break
                     else:
                         stats['failed_attempts'] += 1
@@ -377,8 +491,35 @@ class ProceduralGenerators:
                 except Exception as e:
                     # Operation failed (e.g., degenerate geometry)
                     stats['failed_attempts'] += 1
-                    
-            # If all retries failed, continue to next iteration (skip this one)
+            
+            # Log iteration result
+            if verbose >= 2 and iter_log:
+                points_before = len(current_points) - (len(current_points) - len(connected_points)) if not success else len(current_points) - 1
+                iter_log['result'] = {
+                    'points_before': points_before if success else len(current_points),
+                    'points_after': len(current_points),
+                    'validation_attempts': attempt_count,
+                    'validation_result': 'PASS' if success else 'FAIL',
+                    'intersection_count': 0 if success else '?',
+                    'new_weights': new_weights[:] if verbose >= 3 and success else None
+                }
+                debug_log['iterations'].append(iter_log)
+            
+            # Update summary stats in debug log
+            if verbose > 0:
+                debug_log['summary'] = stats.copy()
+            
+            # Save iteration snapshot
+            if save_iterations and ((iteration + 1) % snapshot_interval == 0):
+                snapshot = Polygon(f"{name}_iter_{iteration + 1}", current_points[:])
+                snapshot.attrs['procedure'] = {
+                    'method': 'dynamic_polygon',
+                    'is_snapshot': True,
+                    'snapshot_of': name,
+                    'iteration': iteration + 1,
+                    'stats': stats.copy()
+                }
+                snapshots.append(snapshot)
         
         # PHASE 5: Create final polygon
         polygon = Polygon(name, current_points)
@@ -395,11 +536,28 @@ class ProceduralGenerators:
                 'depth_range': depth_range,
                 'weight_decay': weight_decay,
                 'direction_bias': direction_bias,
+                'verbose': verbose,
+                'save_iterations': save_iterations,
             },
             'statistics': stats
         }
         
-        return polygon
+        # Add debug log if verbose
+        if debug_log:
+            polygon.attrs['procedure']['debug_log'] = debug_log
+        
+        # Return based on save_iterations
+        if save_iterations:
+            # Add final snapshot
+            final_snapshot = Polygon(f"{name}_final", current_points[:])
+            final_snapshot.attrs = polygon.attrs.copy()
+            final_snapshot.attrs['procedure']['is_final'] = True
+            snapshots.append(final_snapshot)
+            
+            # Return list: snapshots + main polygon
+            return snapshots + [polygon]
+        else:
+            return polygon
     
     # ========================================================================
     # DYNAMIC POLYGON HELPER METHODS

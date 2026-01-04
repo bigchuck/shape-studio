@@ -1,0 +1,95 @@
+# Dynamic Polygon Test Script - Enhanced Debug Mode
+# Tests verbose logging and iteration snapshots
+
+# ========================================
+# Test 1: Verbose Level 1 (Summary only)
+# ========================================
+CLEAR WIP ALL
+PROC dynamic_polygon test1 VERTICES=5 BOUNDS=50,50,350,350 ITERATIONS=5 VERBOSE=1
+INFO test1
+# Expected: Just final statistics
+
+# ========================================
+# Test 2: Verbose Level 2 (Detailed)
+# ========================================
+CLEAR WIP ALL
+PROC dynamic_polygon test2 VERTICES=5 BOUNDS=400,50,700,350 ITERATIONS=5 VERBOSE=2
+INFO test2
+# Expected: Per-iteration details with selections, operations, results
+
+# ========================================
+# Test 3: Verbose Level 3 (Full geometry)
+# ========================================
+CLEAR WIP ALL
+PROC dynamic_polygon test3 VERTICES=4 BOUNDS=50,400,350,700 ITERATIONS=3 VERBOSE=3
+INFO test3
+# Expected: Everything including coordinate data, direction vectors
+
+# ========================================
+# Test 4: Save Iterations (No verbose)
+# ========================================
+CLEAR WIP ALL
+PROC dynamic_polygon test4 VERTICES=5 BOUNDS=400,400,700,700 ITERATIONS=10 SAVE_ITERATIONS=true
+LIST WIP
+# Expected: test4_iter_0 through test4_iter_10, test4_final, and test4
+
+# ========================================
+# Test 5: Save Iterations with Interval
+# ========================================
+CLEAR WIP ALL
+PROC dynamic_polygon test5 VERTICES=6 BOUNDS=100,100,300,300 ITERATIONS=20 SAVE_ITERATIONS=true SNAPSHOT_INTERVAL=5
+LIST WIP
+# Expected: test5_iter_0, test5_iter_5, test5_iter_10, test5_iter_15, test5_iter_20, test5_final, test5
+
+# ========================================
+# Test 6: Combined - Verbose + Snapshots
+# ========================================
+CLEAR WIP ALL
+PROC dynamic_polygon test6 VERTICES=5 BOUNDS=400,100,600,300 ITERATIONS=8 VERBOSE=2 SAVE_ITERATIONS=true SNAPSHOT_INTERVAL=2
+INFO test6
+LIST WIP
+# Expected: Detailed log + iteration snapshots every 2 iterations
+
+# ========================================
+# Test 7: Different operations with debug
+# ========================================
+CLEAR WIP ALL
+PROC dynamic_polygon test7a VERTICES=5 BOUNDS=100,400,250,550 OPERATIONS=split_offset ITERATIONS=6 VERBOSE=2
+PROC dynamic_polygon test7b VERTICES=5 BOUNDS=300,400,450,550 OPERATIONS=sawtooth ITERATIONS=6 VERBOSE=2
+PROC dynamic_polygon test7c VERTICES=5 BOUNDS=500,400,650,550 OPERATIONS=squarewave ITERATIONS=6 VERBOSE=2
+
+INFO test7a
+INFO test7b
+INFO test7c
+# Expected: Compare operation usage across different methods
+
+# ========================================
+# Test 8: Preset with verbose
+# ========================================
+CLEAR WIP ALL
+PROC dynamic_polygon test8 PRESET=organic BOUNDS=100,100,400,400 VERBOSE=2
+INFO test8
+# Expected: Organic preset parameters visible in log
+
+# ========================================
+# Test 9: Snapshot inspection
+# ========================================
+CLEAR WIP ALL
+PROC dynamic_polygon evolution VERTICES=5 BOUNDS=200,200,568,568 ITERATIONS=10 SAVE_ITERATIONS=true VERBOSE=2
+INFO evolution_iter_0
+INFO evolution_iter_5
+INFO evolution_final
+INFO evolution
+# Expected: Each snapshot has its own stats up to that iteration
+
+# ========================================
+# Test 10: High iteration count with sampling
+# ========================================
+CLEAR WIP ALL
+PROC dynamic_polygon complex VERTICES=8 BOUNDS=100,100,668,668 ITERATIONS=50 SAVE_ITERATIONS=true SNAPSHOT_INTERVAL=10 VERBOSE=1
+LIST WIP
+INFO complex
+# Expected: Manageable number of snapshots, summary stats show 50 iterations
+
+# Final check - list everything
+LIST WIP

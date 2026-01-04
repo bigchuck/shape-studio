@@ -586,6 +586,25 @@ class CommandExecutor:
         if rel['group']:
             info.append(f"In group: {rel['group']}")
         
+        # Procedural info
+        proc = shape.attrs.get('procedure')
+        if proc:
+            info.append("")
+            info.append("Procedural Generation:")
+            info.append(f"  Method: {proc.get('method', 'unknown')}")
+            
+            # Statistics
+            stats = proc.get('statistics', {})
+            if stats:
+                info.append(f"  Successful: {stats.get('successful_modifications', 0)}")
+                info.append(f"  Failed: {stats.get('failed_attempts', 0)}")
+            
+            # Debug log
+            debug_log = proc.get('debug_log')
+            if debug_log:
+                info.append("")
+                info.append(self._format_debug_log(debug_log))
+
         # History (last 5 commands)
         history = shape.attrs['history']
         if history:
@@ -997,14 +1016,31 @@ class CommandExecutor:
         # Handle different return types
         if isinstance(result, list):
             # Multiple shapes - add each individually
+            snapshot_count = 0
+            final_shape = None
+            
             for shape in result:
                 if shape.name in shapes:
                     raise ValueError(f"Shape '{shape.name}' already exists on {self.active_canvas_name} canvas")
                 shapes[shape.name] = shape
                 self.active_canvas.add_shape(shape)
+                
+                # Track snapshots vs final
+                if shape.attrs.get('procedure', {}).get('is_snapshot'):
+                    snapshot_count += 1
+                elif shape.attrs.get('procedure', {}).get('is_final'):
+                    snapshot_count += 1
+                    final_shape = shape
+                else:
+                    final_shape = shape
             
-            shape_names = ', '.join(s.name for s in result)
-            return f"Created {len(result)} shapes on {self.active_canvas_name}: {shape_names}"
+            if snapshot_count > 0:
+                return (f"Created {shape_name} with {snapshot_count} iteration snapshots on {self.active_canvas_name}\n"
+                        f"Use 'INFO {shape_name}' to see generation details\n"
+                        f"Snapshots: {shape_name}_iter_0 through {shape_name}_final")
+            else:
+                shape_names = ', '.join(s.name for s in result)
+                return f"Created {len(result)} shapes on {self.active_canvas_name}: {shape_names}"
         
         elif isinstance(result, (Polygon, Line, ShapeGroup)):
             # Single shape
@@ -1018,12 +1054,28 @@ class CommandExecutor:
             proc_info = result.attrs.get('procedure', {})
             if proc_info:
                 method_used = proc_info.get('method', method_name)
-                return f"Created {result.attrs['type']} '{shape_name}' using {method_used} on {self.active_canvas_name}"
+                stats = proc_info.get('statistics', {})
+                
+                msg = f"Created {result.attrs['type']} '{shape_name}' using {method_used} on {self.active_canvas_name}"
+                
+                # Add stats summary if available
+                if stats:
+                    successful = stats.get('successful_modifications', 0)
+                    total_attempts = successful + stats.get('failed_attempts', 0)
+                    msg += f"\n  Modifications: {successful} successful"
+                    if total_attempts > successful:
+                        msg += f" ({total_attempts - successful} failed attempts)"
+                
+                # Hint about verbose info
+                if proc_info.get('debug_log'):
+                    msg += f"\n  Use 'INFO {shape_name}' to see detailed generation log"
+                
+                return msg
             else:
                 return f"Created {result.attrs['type']} '{shape_name}' on {self.active_canvas_name}"
         
         else:
-            raise ValueError(f"Unexpected return type from {method_name}: {type(result)}")
+            raise ValueError(f"Unexpected return type from {method_name}: {type(result)}")    
     
     def _execute_list_preset(self, cmd_dict, command_text):
         """Execute LIST PRESET command - show presets for a method"""
@@ -1034,3 +1086,94 @@ class CommandExecutor:
         """Execute INFO PROC command - show details about a procedural method"""
         method_name = cmd_dict['method']
         return self.procedural_gen.get_method_info(method_name)
+    
+    def _format_debug_log(self, debug_log):
+        """Format debug log for display"""
+        verbose = debug_log.get('verbose_level', 0)
+        lines = []
+        
+        lines.append("=== PROCEDURAL GENERATION DEBUG LOG ===")
+        lines.append("")
+        
+        # Initial state
+        init = debug_log.get('initial_state', {})
+        lines.append("Initial State:")
+        lines.append(f"  Vertices: {init.get('vertex_count', '?')}")
+        lines.append(f"  Bounds: {init.get('bounds', '?')}")
+        if init.get('centroid'):
+            cx, cy = init['centroid']
+            lines.append(f"  Centroid: ({round(cx, 1)}, {round(cy, 1)})")
+        lines.append(f"  Connection: {init.get('connection_method', '?')}")
+        
+        if verbose >= 3 and init.get('points'):
+            lines.append(f"  Points: {init['points']}")
+        
+        lines.append("")
+        
+        # Iterations
+        iterations = debug_log.get('iterations', [])
+        for iter_data in iterations:
+            lines.append(f"--- Iteration {iter_data['iteration']} ---")
+            
+            # Selection
+            sel = iter_data.get('selection', {})
+            lines.append("Selection:")
+            lines.append(f"  Segment: {sel.get('segment_idx', '?')} (weight: {sel.get('segment_weight', '?'):.3f})")
+            if sel.get('segment_endpoints') and verbose >= 3:
+                lines.append(f"  Endpoints: {sel['segment_endpoints']}")
+            lines.append(f"  Length: {sel.get('segment_length', '?')}px")
+            if sel.get('selection_probability'):
+                lines.append(f"  Probability: {sel['selection_probability']:.1%}")
+            
+            lines.append("")
+            
+            # Operation
+            op = iter_data.get('operation', {})
+            lines.append(f"Operation: {op.get('name', '?')}")
+            lines.append(f"  Depth: {int(op.get('depth_pct', 0) * 100)}% ({op.get('depth_pixels', '?')}px offset)")
+            if op.get('direction'):
+                lines.append(f"  Direction: {op['direction']}")
+            if op.get('direction_vector') and verbose >= 3:
+                lines.append(f"  Direction vector: {op['direction_vector']}")
+            if op.get('new_point') and verbose >= 3:
+                lines.append(f"  New point: {op['new_point']}")
+            
+            lines.append("")
+            
+            # Result
+            res = iter_data.get('result', {})
+            lines.append("Result:")
+            lines.append(f"  Points: {res.get('points_before', '?')} -> {res.get('points_after', '?')}")
+            
+            # Build validation line with ASCII-safe symbols
+            validation_text = f"  Validation: {res.get('validation_result', '?')}"
+            if res.get('validation_result') == 'PASS':
+                validation_text += " [OK]"
+            else:
+                validation_text += " [FAIL]"
+            lines.append(validation_text)
+            
+            if res.get('validation_attempts', 1) > 1:
+                lines.append(f"  Attempts: {res['validation_attempts']}")
+            
+            if res.get('intersection_count') is not None:
+                lines.append(f"  Intersections: {res['intersection_count']}")
+            
+            if res.get('new_weights') and verbose >= 3:
+                lines.append(f"  New weights: {res['new_weights']}")
+            
+            lines.append("")
+        
+        # Summary
+        summary = debug_log.get('summary', {})
+        lines.append("Final Statistics:")
+        lines.append(f"  Successful modifications: {summary.get('successful_modifications', 0)}")
+        lines.append(f"  Failed attempts: {summary.get('failed_attempts', 0)}")
+        
+        ops_used = summary.get('operations_used', {})
+        if ops_used:
+            lines.append("  Operations used:")
+            for op, count in ops_used.items():
+                lines.append(f"    {op}: {count}")
+        
+        return "\n".join(lines)

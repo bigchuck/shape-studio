@@ -1,0 +1,45 @@
+# Dynamic Polygon Test Script
+# Tests various configurations of the procedural generation system
+
+# Test 1: Simple configuration
+CLEAR WIP ALL
+PROC dynamic_polygon simple1 VERTICES=5 BOUNDS=50,50,350,350 ITERATIONS=5 OPERATIONS=split_offset
+INFO simple1
+SAVE test_simple.png
+
+# Test 2: Using preset
+CLEAR WIP ALL
+PROC dynamic_polygon organic1 PRESET=organic BOUNDS=400,50,700,350
+INFO organic1
+SAVE test_organic.png
+
+# Test 3: Complex with all operations
+CLEAR WIP ALL
+PROC dynamic_polygon complex1 PRESET=complex BOUNDS=50,400,350,700
+INFO complex1
+SAVE test_complex.png
+
+# Test 4: Script-level randomization (for BATCH)
+CLEAR WIP ALL
+PROC dynamic_polygon random1 VERTICES=RAND(5,10) BOUNDS=400,400,700,700 ITERATIONS=RAND(10,20)
+INFO random1
+SAVE test_random.png
+
+# Test 5: Range parameters (method-level randomization)
+CLEAR WIP ALL
+PROC dynamic_polygon range1 VERTICES=6,9 BOUNDS=100,100,300,300 ITERATIONS=15 DEPTH_RANGE=0.3,0.8
+INFO range1
+
+# Test 6: Direction bias comparison
+CLEAR WIP ALL
+PROC dynamic_polygon inward VERTICES=6 BOUNDS=400,100,600,300 ITERATIONS=12 DIRECTION_BIAS=inward
+PROC dynamic_polygon outward VERTICES=6 BOUNDS=650,100,850,300 ITERATIONS=12 DIRECTION_BIAS=outward
+
+# Test 7: Single operation types
+CLEAR WIP ALL
+PROC dynamic_polygon saw VERTICES=6 BOUNDS=100,400,250,550 OPERATIONS=sawtooth ITERATIONS=10
+PROC dynamic_polygon square VERTICES=6 BOUNDS=300,400,450,550 OPERATIONS=squarewave ITERATIONS=10
+PROC dynamic_polygon split VERTICES=6 BOUNDS=500,400,650,550 OPERATIONS=split_offset ITERATIONS=10
+
+# Show all shapes
+LIST WIP
