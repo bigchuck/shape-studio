@@ -25,6 +25,7 @@ class ShapeStudioUI:
         self.command_counter = 0
         self.command_history = []
         self.history_index = -1
+        self.zoom_level = 1.0  # Default zoom level (100%)
         
         # Load help content BEFORE setting up UI
         self._load_help_content()
@@ -34,7 +35,6 @@ class ShapeStudioUI:
         # Give executor reference to root window for animation
         self.executor.ui_root = self.root
         self.executor.ui_instance = self
-
         
     def toggle_fullscreen(self, event=None):
         """Toggle fullscreen mode"""
@@ -154,6 +154,31 @@ For full documentation, place HELP.md in the project root directory.
         )
         self.grid_btn.pack(side=tk.LEFT, padx=5)
         
+        tk.Label(control_frame, text="  ").pack(side=tk.LEFT)
+
+        self.zoom_label = tk.Label(
+            control_frame, text="Zoom: 100%", font=('Arial', 9)
+        )
+        self.zoom_label.pack(side=tk.LEFT, padx=5)
+
+        self.zoom_out_btn = tk.Button(
+            control_frame, text="−", command=self._zoom_out,
+            font=('Arial', 12, 'bold'), width=2
+        )
+        self.zoom_out_btn.pack(side=tk.LEFT, padx=2)
+
+        self.zoom_in_btn = tk.Button(
+            control_frame, text="+", command=self._zoom_in,
+            font=('Arial', 12, 'bold'), width=2
+        )
+        self.zoom_in_btn.pack(side=tk.LEFT, padx=2)
+
+        self.zoom_reset_btn = tk.Button(
+            control_frame, text="100%", command=self._zoom_reset,
+            font=('Arial', 9), width=5
+        )
+        self.zoom_reset_btn.pack(side=tk.LEFT, padx=2)
+
         # Canvas display
         canvas_frame = tk.Frame(middle_frame, bg='gray')
         canvas_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
@@ -421,11 +446,42 @@ For full documentation, place HELP.md in the project root directory.
     def _update_canvas_display(self):
         """Update canvas display"""
         display_img = self.executor.active_canvas.get_display_image()
+        # Apply zoom if not 100%
+        if self.zoom_level != 1.0:
+            new_width = int(display_img.width * self.zoom_level)
+            new_height = int(display_img.height * self.zoom_level)
+            display_img = display_img.resize(
+                (new_width, new_height),
+                Image.Resampling.LANCZOS
+            )
         self.photo = ImageTk.PhotoImage(display_img)
         self.canvas_widget.delete("all")
         self.canvas_widget.create_image(0, 0, anchor=tk.NW, image=self.photo)
         self.canvas_widget.config(scrollregion=(0, 0, display_img.width, display_img.height))
         
+    def _zoom_in(self):
+        """Increase zoom level"""
+        if self.zoom_level < 3.0:  # Max 300%
+            self.zoom_level = min(3.0, self.zoom_level + 0.25)
+            self._update_zoom_display()
+
+    def _zoom_out(self):
+        """Decrease zoom level"""
+        if self.zoom_level > 0.25:  # Min 25%
+            self.zoom_level = max(0.25, self.zoom_level - 0.25)
+            self._update_zoom_display()
+
+    def _zoom_reset(self):
+        """Reset zoom to 100%"""
+        self.zoom_level = 1.0
+        self._update_zoom_display()
+
+    def _update_zoom_display(self):
+        """Update zoom label and redraw canvas"""
+        zoom_pct = int(self.zoom_level * 100)
+        self.zoom_label.config(text=f"Zoom: {zoom_pct}%")
+        self._update_canvas_display()
+
     def run(self):
         """Start the UI main loop"""
         self.root.mainloop()

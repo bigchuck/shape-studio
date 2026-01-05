@@ -43,6 +43,8 @@ class CommandParser:
             'FILL': self._parse_fill,
             'ALPHA': self._parse_alpha,
             'ZORDER': self._parse_zorder,
+            'EXIT': self._parse_exit,
+            'QUIT': self._parse_exit,
         }
         
     def parse(self, command_text):
@@ -754,4 +756,10 @@ class CommandParser:
             'command': 'ZORDER',
             'name': parts[1],
             'z_coord': int(parts[2])
+        }
+
+    def _parse_exit(self, parts):
+        """Parse EXIT or QUIT command: EXIT or QUIT"""
+        return {
+            'command': 'EXIT'
         }

@@ -102,6 +102,7 @@ class CommandExecutor:
             'FILL': self._execute_fill,
             'ALPHA': self._execute_alpha,
             'ZORDER': self._execute_zorder,
+            'EXIT': self._execute_exit,
         }
         
         if command in handlers:
@@ -801,6 +802,9 @@ class CommandExecutor:
         commands = []
         for line in lines:
             line = line.strip()
+            # Check for EOF marker
+            if line.upper() == 'EOF' or line.upper() == '# EOF':
+                break
             # Skip comments and blank lines
             if line and not line.startswith('#'):
                 commands.append(line)
@@ -839,6 +843,9 @@ class CommandExecutor:
         commands = []
         for line_num, line in enumerate(lines, 1):
             line = line.strip()
+            # Check for EOF marker
+            if line.upper() == 'EOF' or line.upper() == '# EOF':
+                break
             if line and not line.startswith('#'):
                 commands.append((line_num, line))
         
@@ -1348,3 +1355,10 @@ class CommandExecutor:
         self.active_canvas.redraw()
         
         return f"Set z-order of '{name}' to {z_coord}"
+    
+    def _execute_exit(self, cmd_dict, command_text):
+        """Execute EXIT command - quit the application"""
+        # Close the UI window if available
+        if hasattr(self, 'ui_root') and self.ui_root:
+            self.ui_root.quit()
+        return "Exiting Shape Studio..."
