@@ -1,0 +1,15 @@
+{
+  "quick_test": {
+    "description": "Quick test with a simple 5-vertex polygon",
+    "author": "Mr. Chuck",
+    "created": "2026-01-05",
+    "target_canvas": "WIP",
+    "comments": "This is a basic test to verify JSON execution is working. Creates a simple blue polygon.",
+    "commands": [
+      "CLEAR WIP ALL",
+      "PROC dynamic_polygon test VERTICES=5 BOUNDS=100,100,300,300 ITERATIONS=10",
+      "COLOR test blue",
+      "WIDTH test 3"
+    ]
+  }
+}

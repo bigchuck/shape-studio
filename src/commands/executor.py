@@ -787,8 +787,19 @@ class CommandExecutor:
         return f"Loaded project from {filepath} (WIP: {wip_count}, MAIN: {main_count}, Stash: {stash_count})"
     
     def _execute_run(self, cmd_dict, command_text):
-        """Execute RUN command - run commands from script file"""
+        """Execute RUN command - run commands from script file (.txt or .json)"""
         scriptfile = cmd_dict['scriptfile']
+        section_name = cmd_dict.get('section_name')
+        
+        # Determine file type and route accordingly
+        if scriptfile.endswith('.json'):
+            return self._execute_run_json(scriptfile, section_name)
+        else:
+            # Text file - existing logic (no changes)
+            return self._execute_run_text(scriptfile)    
+
+    def _execute_run_text(self, scriptfile):
+        """Execute RUN command - run commands from text script file"""
         filepath = self.scripts_dir / scriptfile
         
         if not filepath.exists():
@@ -798,13 +809,15 @@ class CommandExecutor:
         with open(filepath, 'r') as f:
             lines = f.readlines()
         
-        # Filter out comments and blank lines
+        # Filter out comments and blank lines, STOP at EOF marker
         commands = []
         for line in lines:
             line = line.strip()
+            
             # Check for EOF marker
             if line.upper() == 'EOF' or line.upper() == '# EOF':
                 break
+            
             # Skip comments and blank lines
             if line and not line.startswith('#'):
                 commands.append(line)
@@ -822,14 +835,57 @@ class CommandExecutor:
                 results.append(f"  [{i}] {cmd} → ERROR: {str(e)}")
         
         return f"Executed {len(commands)} commands from '{scriptfile}':\n" + "\n".join(results)
-    
+
+    def _execute_run_json(self, scriptfile, section_name=None):
+        """Execute RUN command with JSON script file"""
+        filepath = self.scripts_dir / scriptfile
+        
+        if not filepath.exists():
+            raise ValueError(f"Script file not found: {filepath}")
+        
+        # Load and validate JSON file
+        json_data = self._load_json_file(filepath)
+        
+        # Select section
+        section_data, actual_section_name = self._select_section(json_data, section_name, scriptfile)
+        
+        # Validate section
+        self._validate_section(section_data, actual_section_name)
+        
+        # Execute commands
+        commands = section_data['commands']
+        results = []
+        
+        # Display section info
+        results.append(f"Running section '{actual_section_name}' from {scriptfile}")
+        
+        if 'description' in section_data:
+            results.append(f"Description: {section_data['description']}")
+        
+        results.append("")
+        
+        # Execute each command
+        for i, cmd in enumerate(commands, 1):
+            try:
+                result = self.execute(cmd)
+                results.append(f"  [{i}] {cmd} → {result}")
+            except Exception as e:
+                results.append(f"  [{i}] {cmd} → ERROR: {str(e)}")
+        
+        return "\n".join(results)
+
     def _execute_batch(self, cmd_dict, command_text):
         """Execute BATCH command - generate multiple variations for LoRA training"""
         count = cmd_dict['count']
         scriptfile = cmd_dict['scriptfile']
+        section_name = cmd_dict.get('section_name')
         output_prefix = cmd_dict['output_prefix']
         target_canvas = cmd_dict['target_canvas']
         
+        # Route to JSON handler if JSON file
+        if scriptfile.endswith('.json'):
+            return self._execute_batch_json(count, scriptfile, section_name, output_prefix, target_canvas)
+
         filepath = self.scripts_dir / scriptfile
         
         if not filepath.exists():
@@ -908,6 +964,177 @@ class CommandExecutor:
         summary = f"BATCH complete: {successful}/{count} successful\n" + "\n".join(results)
         return summary
     
+    def _execute_batch_json(self, count, scriptfile, section_name, output_prefix, target_canvas):
+        """Execute BATCH command with JSON script file"""
+        filepath = self.scripts_dir / scriptfile
+        
+        if not filepath.exists():
+            raise ValueError(f"Script file not found: {filepath}")
+        
+        # Section name is required for JSON batch
+        if not section_name:
+            raise ValueError(f"Section name required for BATCH with JSON files")
+        
+        # Load and validate JSON file
+        json_data = self._load_json_file(filepath)
+        
+        # Select section
+        section_data, actual_section_name = self._select_section(json_data, section_name, scriptfile)
+        
+        # Validate section
+        self._validate_section(section_data, actual_section_name)
+        
+        # Switch to target canvas for the batch
+        original_canvas = self.active_canvas_name
+        if target_canvas != original_canvas:
+            self.execute(f"SWITCH {target_canvas}")
+        
+        # Get the canvas to save from
+        if target_canvas == 'WIP':
+            save_canvas = self.wip_canvas
+        else:
+            save_canvas = self.main_canvas
+        
+        # Execute batch iterations
+        commands = section_data['commands']
+        results = []
+        successful = 0
+        
+        results.append(f"Running section '{actual_section_name}' from {scriptfile} ({count} iterations)")
+        
+        if 'description' in section_data:
+            results.append(f"Description: {section_data['description']}")
+        
+        results.append("")
+        
+        for i in range(1, count + 1):
+            try:
+                # Execute all commands in section
+                for cmd in commands:
+                    try:
+                        self.execute(cmd)
+                    except Exception as e:
+                        # On error: randomly branch to a line in first 50% of script
+                        half_point = len(commands) // 2
+                        if half_point > 0:
+                            # Pick a random line from first half
+                            recovery_idx = random.randint(0, half_point - 1)
+                            
+                            # Continue from there
+                            for j in range(recovery_idx, len(commands)):
+                                try:
+                                    self.execute(commands[j])
+                                except:
+                                    pass  # Best effort recovery
+                        # If recovery fails or not possible, just continue with save
+                
+                # Save the current state
+                output_filename = f"{output_prefix}_{i:03d}.png"
+                output_path = Path('output') / output_filename
+                save_canvas.save(str(output_path))
+                
+                successful += 1
+                results.append(f"  [{i}/{count}] Generated {output_filename}")
+                
+            except Exception as e:
+                results.append(f"  [{i}/{count}] FAILED: {str(e)}")
+        
+        # Restore original canvas if changed
+        if target_canvas != original_canvas:
+            self.execute(f"SWITCH {original_canvas}")
+        
+        summary = f"\nBATCH complete: {successful}/{count} successful"
+        return "\n".join(results) + summary
+
+    def _load_json_file(self, filepath):
+        """Load and parse JSON file with basic validation"""
+        try:
+            with open(filepath, 'r') as f:
+                data = json.load(f)
+        except json.JSONDecodeError as e:
+            raise ValueError(f"Invalid JSON in {filepath.name}: {str(e)}")
+        
+        # Validate top level structure
+        if not isinstance(data, dict):
+            raise ValueError(f"JSON file must contain a dictionary at top level")
+        
+        if len(data) == 0:
+            raise ValueError(f"JSON file contains no sections")
+        
+        return data
+
+    def _select_section(self, json_data, section_name, scriptfile):
+        """Select a section from JSON data
+        
+        Args:
+            json_data: Loaded JSON dictionary
+            section_name: Name of section to select (None for auto-select)
+            scriptfile: Name of script file (for error messages)
+            
+        Returns:
+            Tuple of (section_data, actual_section_name)
+        """
+        available_sections = list(json_data.keys())
+        
+        # If no section specified
+        if section_name is None:
+            if len(available_sections) == 1:
+                # Auto-run single section
+                section_name = available_sections[0]
+                return json_data[section_name], section_name
+            else:
+                # Multiple sections - require explicit selection
+                sections_list = "\n     - ".join(available_sections)
+                raise ValueError(
+                    f"Multiple sections found. Specify which to run.\n"
+                    f"   Available sections:\n"
+                    f"     - {sections_list}\n"
+                    f"   Usage: RUN {scriptfile} <section_name>"
+                )
+        
+        # Section name specified - validate it exists
+        if section_name not in json_data:
+            sections_list = "\n     - ".join(available_sections)
+            raise ValueError(
+                f"Section '{section_name}' not found in {scriptfile}\n"
+                f"   Available sections:\n"
+                f"     - {sections_list}"
+            )
+        
+        return json_data[section_name], section_name
+
+    def _validate_section(self, section_data, section_name):
+        """Validate section structure
+        
+        Args:
+            section_data: Section dictionary
+            section_name: Name of section (for error messages)
+        """
+        if not isinstance(section_data, dict):
+            raise ValueError(f"Section '{section_name}' must be a dictionary")
+        
+        # Check for required 'commands' key
+        if 'commands' not in section_data:
+            raise ValueError(f"Section '{section_name}' missing required 'commands' array")
+        
+        commands = section_data['commands']
+        
+        # Validate commands is an array
+        if not isinstance(commands, list):
+            raise ValueError(f"Section '{section_name}' - 'commands' must be an array")
+        
+        # Validate array is not empty
+        if len(commands) == 0:
+            raise ValueError(f"Section '{section_name}' has empty commands array")
+        
+        # Validate all commands are strings (Phase 1 requirement)
+        for i, cmd in enumerate(commands):
+            if not isinstance(cmd, str):
+                raise ValueError(
+                    f"Section '{section_name}' - command {i+1} must be a string "
+                    f"(got {type(cmd).__name__})"
+                )
+
     def _serialize_shape(self, shape):
         """Convert shape to JSON-serializable dict"""
         data = {

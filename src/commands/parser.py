@@ -514,21 +514,34 @@ class CommandParser:
         }
     
     def _parse_run(self, parts):
-        """Parse RUN command: RUN <scriptfile>"""
+        """Parse RUN command: RUN <scriptfile> [section_name]
+        
+        For .txt files: RUN script.txt
+        For .json files: RUN script.json [section_name]
+        """
         if len(parts) < 2:
-            raise ValueError("RUN requires: RUN <scriptfile>")
+            raise ValueError("RUN requires: RUN <scriptfile> [section_name]")
         
         scriptfile = parts[1]
+        section_name = parts[2] if len(parts) >= 3 else None
         
         return {
             'command': 'RUN',
-            'scriptfile': scriptfile
-        }
-    
+            'scriptfile': scriptfile,
+            'section_name': section_name
+        }    
+
     def _parse_batch(self, parts):
-        """Parse BATCH command: BATCH <count> <scriptfile> <output_prefix> [WIP|MAIN]"""
+        """Parse BATCH command: BATCH <count> <scriptfile> [section_name] <output_prefix> [WIP|MAIN]
+        
+        For .txt files: BATCH <count> <scriptfile> <output_prefix> [WIP|MAIN]
+        For .json files: BATCH <count> <scriptfile> <section_name> <output_prefix> [WIP|MAIN]
+        
+        Note: For .json files, section_name is required and goes before output_prefix
+        """
         if len(parts) < 4:
-            raise ValueError("BATCH requires: BATCH <count> <scriptfile> <output_prefix> [WIP|MAIN]")
+            raise ValueError("BATCH requires: BATCH <count> <scriptfile> <output_prefix> [WIP|MAIN] "
+                            "(for .json add section_name before output_prefix)")
         
         try:
             count = int(parts[1])
@@ -539,19 +552,32 @@ class CommandParser:
             raise ValueError("BATCH count must be at least 1")
         
         scriptfile = parts[2]
-        output_prefix = parts[3]
         
-        # Optional target canvas (default MAIN)
-        target_canvas = 'MAIN'
-        if len(parts) >= 5:
-            target_canvas = parts[4].upper()
-            if target_canvas not in ['WIP', 'MAIN']:
-                raise ValueError("BATCH target canvas must be WIP or MAIN")
+        # Determine if this is a JSON file
+        is_json = scriptfile.endswith('.json')
+        
+        if is_json:
+            # JSON format: BATCH count file.json section_name output_prefix [canvas]
+            if len(parts) < 5:
+                raise ValueError("BATCH with .json requires: BATCH <count> <file.json> <section_name> <output_prefix> [WIP|MAIN]")
+            
+            section_name = parts[3]
+            output_prefix = parts[4]
+            target_canvas = parts[5].upper() if len(parts) >= 6 else 'MAIN'
+        else:
+            # Text format: BATCH count file.txt output_prefix [canvas]
+            section_name = None
+            output_prefix = parts[3]
+            target_canvas = parts[4].upper() if len(parts) >= 5 else 'MAIN'
+        
+        if target_canvas not in ['WIP', 'MAIN']:
+            raise ValueError("BATCH target canvas must be WIP or MAIN")
         
         return {
             'command': 'BATCH',
             'count': count,
             'scriptfile': scriptfile,
+            'section_name': section_name,
             'output_prefix': output_prefix,
             'target_canvas': target_canvas
         }

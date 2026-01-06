@@ -1,0 +1,93 @@
+{
+  "organic_template": {
+    "description": "Template for organic polygon generation - copy and modify for use",
+    "author": "Mr. Chuck",
+    "created": "2026-01-05",
+    "comments": "This is a template (note the word 'template' in the name). Not meant to be run directly. Copy this section and modify parameters for your specific needs.",
+    "commands": [
+      "PROC dynamic_polygon shape1 VERTICES=6,10 BOUNDS=100,100,600,600 ITERATIONS=15 OPERATIONS=sawtooth DIRECTION_BIAS=inward DEPTH_RANGE=0.3,0.8",
+      "COLOR shape1 #2C5F2D",
+      "FILL shape1 #97BC62"
+    ]
+  },
+  
+  "test_small": {
+    "description": "Small canvas test - good for quick iterations",
+    "author": "Mr. Chuck",
+    "created": "2026-01-05",
+    "target_canvas": "WIP",
+    "comments": "Quick test with small bounds. Good for seeing structure clearly.",
+    "commands": [
+      "CLEAR WIP ALL",
+      "PROC dynamic_polygon test VERTICES=5 BOUNDS=150,150,350,350 ITERATIONS=8 OPERATIONS=split_offset",
+      "COLOR test red",
+      "WIDTH test 2"
+    ]
+  },
+  
+  "organic_inward": {
+    "description": "Organic shape with inward bias - creates compact forms",
+    "author": "Mr. Chuck",
+    "created": "2026-01-05",
+    "modified": "2026-01-05",
+    "target_canvas": "WIP",
+    "comments": "Based on organic_template. Inward bias creates more compact, solid-feeling shapes.",
+    "commands": [
+      "CLEAR WIP ALL",
+      "PROC dynamic_polygon shape1 VERTICES=7 BOUNDS=100,100,600,600 ITERATIONS=15 OPERATIONS=sawtooth DIRECTION_BIAS=inward DEPTH_RANGE=0.3,0.8",
+      "COLOR shape1 #2C5F2D",
+      "FILL shape1 #97BC62",
+      "WIDTH shape1 3"
+    ]
+  },
+  
+  "organic_outward": {
+    "description": "Organic shape with outward bias - creates spiky, radiating forms",
+    "author": "Mr. Chuck",
+    "created": "2026-01-05",
+    "target_canvas": "WIP",
+    "comments": "Based on organic_template but with outward bias. Creates more aggressive, pointed shapes.",
+    "commands": [
+      "CLEAR WIP ALL",
+      "PROC dynamic_polygon shape1 VERTICES=7 BOUNDS=100,100,600,600 ITERATIONS=15 OPERATIONS=sawtooth DIRECTION_BIAS=outward DEPTH_RANGE=0.3,0.8",
+      "COLOR shape1 #8B4513",
+      "FILL shape1 #D2691E",
+      "WIDTH shape1 3"
+    ]
+  },
+  
+  "complex_layered": {
+    "description": "Complex layered composition with multiple shapes",
+    "author": "Mr. Chuck",
+    "created": "2026-01-05",
+    "target_canvas": "WIP",
+    "comments": "Creates a background shape and foreground shape with z-ordering. Good test of composition.",
+    "commands": [
+      "CLEAR WIP ALL",
+      "PROC dynamic_polygon bg VERTICES=8 BOUNDS=0,0,768,768 ITERATIONS=20 OPERATIONS=split_offset,sawtooth DIRECTION_BIAS=random",
+      "COLOR bg #CCCCCC",
+      "FILL bg #F0F0F0",
+      "ZORDER bg -10",
+      "PROC dynamic_polygon fg VERTICES=6 BOUNDS=200,200,500,500 ITERATIONS=12 OPERATIONS=sawtooth DIRECTION_BIAS=inward",
+      "COLOR fg #CC0000",
+      "FILL fg #FF6666",
+      "ZORDER fg 10",
+      "WIDTH fg 4"
+    ]
+  },
+  
+  "batch_random_template": {
+    "description": "Template for batch generation with randomization",
+    "author": "Mr. Chuck",
+    "created": "2026-01-05",
+    "target_canvas": "MAIN",
+    "comments": "Uses RAND() for variation across batch iterations. Perfect for dataset generation.",
+    "commands": [
+      "CLEAR MAIN ALL",
+      "PROC dynamic_polygon shape VERTICES=RAND(5,8) BOUNDS=100,100,600,600 ITERATIONS=RAND(10,20) OPERATIONS=sawtooth,split_offset DIRECTION_BIAS=random DEPTH_RANGE=RAND(0.2,0.5),RAND(0.6,0.9)",
+      "COLOR shape #336699",
+      "FILL shape #6699CC",
+      "WIDTH shape RAND(2,4)"
+    ]
+  }
+}
