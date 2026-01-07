@@ -1,0 +1,311 @@
+{
+  "dataset_organic_varied": {
+    "description": "Dataset generation with maximum variation - for LoRA training",
+    "author": "Mr. Chuck",
+    "created": "2026-01-06",
+    "target_canvas": "MAIN",
+    "comments": "Use: BATCH 200 datasets_phase2.json dataset_organic_varied organic_dataset",
+    "commands": [
+      "CLEAR MAIN ALL",
+      {
+        "_comment": "Randomize everything for maximum variation",
+        "command": "PROC",
+        "method": "dynamic_polygon",
+        "name": "varied_organic",
+        "params": {
+          "VERTICES": "RAND(5,12)",
+          "BOUNDS": [100, 100, 600, 600],
+          "ITERATIONS": "RAND(15,35)",
+          "OPERATIONS": "sawtooth,split_offset,squarewave",
+          "DIRECTION_BIAS": "random",
+          "DEPTH_RANGE": "RAND(0.2,0.5),RAND(0.5,0.9)",
+          "WEIGHT_DECAY": "RAND(0.3,0.7)",
+          "REMOVE_PROB": "RAND(0.0,0.25)",
+          "DISTORT_PROB": "RAND(0.0,0.15)"
+        }
+      },
+      "PROMOTE varied_organic"
+    ]
+  },
+
+  "dataset_geometric_clean": {
+    "description": "Clean geometric shapes with consistent parameters",
+    "author": "Mr. Chuck",
+    "created": "2026-01-06",
+    "target_canvas": "MAIN",
+    "comments": "Use: BATCH 100 datasets_phase2.json dataset_geometric_clean geometric_dataset",
+    "commands": [
+      "CLEAR MAIN ALL",
+      {
+        "_comment": "Limited randomization for more predictable results",
+        "command": "PROC",
+        "method": "dynamic_polygon",
+        "name": "geometric",
+        "params": {
+          "VERTICES": "RAND(5,8)",
+          "BOUNDS": [150, 150, 550, 550],
+          "ITERATIONS": "RAND(8,15)",
+          "OPERATIONS": "split_offset",
+          "DIRECTION_BIAS": "outward",
+          "DEPTH_RANGE": [0.3, 0.6],
+          "WEIGHT_DECAY": 0.5
+        }
+      },
+      "PROMOTE geometric"
+    ]
+  },
+
+  "explore_vertices_5": {
+    "description": "Exploration: 5 vertices with varying iterations",
+    "author": "Mr. Chuck",
+    "created": "2026-01-06",
+    "comments": "Fixed vertices, vary iterations to see evolution impact",
+    "commands": [
+      "CLEAR WIP ALL",
+      {
+        "command": "PROC",
+        "method": "dynamic_polygon",
+        "name": "v5_shape",
+        "params": {
+          "VERTICES": 5,
+          "BOUNDS": [100, 100, 600, 600],
+          "ITERATIONS": "RAND(10,30)",
+          "OPERATIONS": "sawtooth",
+          "DIRECTION_BIAS": "inward",
+          "DEPTH_RANGE": [0.4, 0.7]
+        }
+      },
+      "COLOR v5_shape #e67e22",
+      "FILL v5_shape #f39c12"
+    ]
+  },
+
+  "explore_vertices_8": {
+    "description": "Exploration: 8 vertices with varying iterations",
+    "author": "Mr. Chuck",
+    "created": "2026-01-06",
+    "comments": "Same parameters as v5 but with 8 vertices - compare results",
+    "commands": [
+      "CLEAR WIP ALL",
+      {
+        "command": "PROC",
+        "method": "dynamic_polygon",
+        "name": "v8_shape",
+        "params": {
+          "VERTICES": 8,
+          "BOUNDS": [100, 100, 600, 600],
+          "ITERATIONS": "RAND(10,30)",
+          "OPERATIONS": "sawtooth",
+          "DIRECTION_BIAS": "inward",
+          "DEPTH_RANGE": [0.4, 0.7]
+        }
+      },
+      "COLOR v8_shape #27ae60",
+      "FILL v8_shape #2ecc71"
+    ]
+  },
+
+  "explore_vertices_12": {
+    "description": "Exploration: 12 vertices with varying iterations",
+    "author": "Mr. Chuck",
+    "created": "2026-01-06",
+    "comments": "Higher vertex count - more complex base shape",
+    "commands": [
+      "CLEAR WIP ALL",
+      {
+        "command": "PROC",
+        "method": "dynamic_polygon",
+        "name": "v12_shape",
+        "params": {
+          "VERTICES": 12,
+          "BOUNDS": [100, 100, 600, 600],
+          "ITERATIONS": "RAND(10,30)",
+          "OPERATIONS": "sawtooth",
+          "DIRECTION_BIAS": "inward",
+          "DEPTH_RANGE": [0.4, 0.7]
+        }
+      },
+      "COLOR v12_shape #8e44ad",
+      "FILL v12_shape #9b59b6"
+    ]
+  },
+
+  "explore_depth_shallow": {
+    "description": "Depth exploration: shallow depth range (0.1-0.3)",
+    "author": "Mr. Chuck",
+    "created": "2026-01-06",
+    "comments": "Shallow depths create subtle, gentle modifications",
+    "commands": [
+      "CLEAR WIP ALL",
+      {
+        "command": "PROC",
+        "method": "dynamic_polygon",
+        "name": "shallow",
+        "params": {
+          "VERTICES": [6, 9],
+          "BOUNDS": [100, 100, 600, 600],
+          "ITERATIONS": 20,
+          "OPERATIONS": "sawtooth,split_offset",
+          "DEPTH_RANGE": [0.1, 0.3]
+        }
+      },
+      "COLOR shallow #3498db",
+      "FILL shallow #5dade2"
+    ]
+  },
+
+  "explore_depth_medium": {
+    "description": "Depth exploration: medium depth range (0.4-0.6)",
+    "author": "Mr. Chuck",
+    "created": "2026-01-06",
+    "comments": "Medium depths - balanced modification intensity",
+    "commands": [
+      "CLEAR WIP ALL",
+      {
+        "command": "PROC",
+        "method": "dynamic_polygon",
+        "name": "medium",
+        "params": {
+          "VERTICES": [6, 9],
+          "BOUNDS": [100, 100, 600, 600],
+          "ITERATIONS": 20,
+          "OPERATIONS": "sawtooth,split_offset",
+          "DEPTH_RANGE": [0.4, 0.6]
+        }
+      },
+      "COLOR medium #f39c12",
+      "FILL medium #f8c471"
+    ]
+  },
+
+  "explore_depth_deep": {
+    "description": "Depth exploration: deep depth range (0.7-0.9)",
+    "author": "Mr. Chuck",
+    "created": "2026-01-06",
+    "comments": "Deep depths create dramatic, aggressive modifications",
+    "commands": [
+      "CLEAR WIP ALL",
+      {
+        "command": "PROC",
+        "method": "dynamic_polygon",
+        "name": "deep",
+        "params": {
+          "VERTICES": [6, 9],
+          "BOUNDS": [100, 100, 600, 600],
+          "ITERATIONS": 20,
+          "OPERATIONS": "sawtooth,split_offset",
+          "DEPTH_RANGE": [0.7, 0.9]
+        }
+      },
+      "COLOR deep #e74c3c",
+      "FILL deep #ec7063"
+    ]
+  },
+
+  "layered_composition_structured": {
+    "description": "Complex multi-layer composition with all structured commands",
+    "author": "Mr. Chuck",
+    "created": "2026-01-06",
+    "comments": "Creates a three-layer composition. All commands in structured format for maximum clarity.",
+    "commands": [
+      "CLEAR WIP ALL",
+      {
+        "_comment": "Layer 1: Far background - large, subtle",
+        "command": "PROC",
+        "method": "dynamic_polygon",
+        "name": "far_bg",
+        "params": {
+          "VERTICES": [12, 16],
+          "BOUNDS": [0, 0, 768, 768],
+          "ITERATIONS": 40,
+          "OPERATIONS": "split_offset",
+          "DIRECTION_BIAS": "random",
+          "DEPTH_RANGE": [0.1, 0.3]
+        }
+      },
+      {
+        "command": "COLOR",
+        "name": "far_bg",
+        "color": "#ecf0f1"
+      },
+      {
+        "command": "FILL",
+        "name": "far_bg",
+        "fill": "#f8f9fa"
+      },
+      {
+        "command": "ZORDER",
+        "name": "far_bg",
+        "z_coord": -20
+      },
+      {
+        "_comment": "Layer 2: Middle ground - medium size, moderate detail",
+        "command": "PROC",
+        "method": "dynamic_polygon",
+        "name": "mid_ground",
+        "params": {
+          "VERTICES": [8, 10],
+          "BOUNDS": [100, 100, 650, 650],
+          "ITERATIONS": 25,
+          "OPERATIONS": "sawtooth,split_offset",
+          "DIRECTION_BIAS": "inward",
+          "DEPTH_RANGE": [0.3, 0.6]
+        }
+      },
+      {
+        "command": "COLOR",
+        "name": "mid_ground",
+        "color": "#3498db"
+      },
+      {
+        "command": "FILL",
+        "name": "mid_ground",
+        "fill": "#85c1e9"
+      },
+      {
+        "command": "ALPHA",
+        "name": "mid_ground",
+        "alpha": 0.7
+      },
+      {
+        "command": "ZORDER",
+        "name": "mid_ground",
+        "z_coord": 0
+      },
+      {
+        "_comment": "Layer 3: Foreground - small, detailed, bold",
+        "command": "PROC",
+        "method": "dynamic_polygon",
+        "name": "fore_ground",
+        "params": {
+          "VERTICES": [5, 7],
+          "BOUNDS": [250, 250, 500, 500],
+          "ITERATIONS": 15,
+          "OPERATIONS": "sawtooth",
+          "DIRECTION_BIAS": "outward",
+          "DEPTH_RANGE": [0.5, 0.8]
+        }
+      },
+      {
+        "command": "COLOR",
+        "name": "fore_ground",
+        "color": "#e74c3c"
+      },
+      {
+        "command": "FILL",
+        "name": "fore_ground",
+        "fill": "#f1948a"
+      },
+      {
+        "command": "WIDTH",
+        "name": "fore_ground",
+        "width": 4
+      },
+      {
+        "command": "ZORDER",
+        "name": "fore_ground",
+        "z_coord": 20
+      }
+    ]
+  }
+}

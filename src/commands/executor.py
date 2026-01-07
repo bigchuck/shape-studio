@@ -863,14 +863,27 @@ class CommandExecutor:
             results.append(f"Description: {section_data['description']}")
         
         results.append("")
-        
-        # Execute each command
+
+        # Execute each command (string or dict)
         for i, cmd in enumerate(commands, 1):
             try:
-                result = self.execute(cmd)
-                results.append(f"  [{i}] {cmd} → {result}")
+                if isinstance(cmd, str):
+                    # String command - parse and execute as before
+                    result = self.execute(cmd)
+                    results.append(f"  [{i}] {cmd} → {result}")
+                elif isinstance(cmd, dict):
+                    # Structured command - convert and execute
+                    cmd_display = self._format_structured_command(cmd)
+                    result = self._execute_structured_command(cmd)
+                    results.append(f"  [{i}] {cmd_display} → {result}")
+                else:
+                    results.append(f"  [{i}] ERROR: Command must be string or dict, got {type(cmd).__name__}")
             except Exception as e:
-                results.append(f"  [{i}] {cmd} → ERROR: {str(e)}")
+                if isinstance(cmd, str):
+                    results.append(f"  [{i}] {cmd} → ERROR: {str(e)}")
+                else:
+                    cmd_display = self._format_structured_command(cmd)
+                    results.append(f"  [{i}] {cmd_display} → ERROR: {str(e)}")
         
         return "\n".join(results)
 
@@ -1009,21 +1022,27 @@ class CommandExecutor:
         
         for i in range(1, count + 1):
             try:
-                # Execute all commands in section
+                # Execute all commands in section (string or dict)
                 for cmd in commands:
                     try:
-                        self.execute(cmd)
+                        if isinstance(cmd, str):
+                            self.execute(cmd)
+                        elif isinstance(cmd, dict):
+                            self._execute_structured_command(cmd)
                     except Exception as e:
                         # On error: randomly branch to a line in first 50% of script
                         half_point = len(commands) // 2
                         if half_point > 0:
-                            # Pick a random line from first half
                             recovery_idx = random.randint(0, half_point - 1)
                             
                             # Continue from there
                             for j in range(recovery_idx, len(commands)):
                                 try:
-                                    self.execute(commands[j])
+                                    cmd_to_run = commands[j]
+                                    if isinstance(cmd_to_run, str):
+                                        self.execute(cmd_to_run)
+                                    else:
+                                        self._execute_structured_command(cmd_to_run)
                                 except:
                                     pass  # Best effort recovery
                         # If recovery fails or not possible, just continue with save
@@ -1104,7 +1123,7 @@ class CommandExecutor:
         return json_data[section_name], section_name
 
     def _validate_section(self, section_data, section_name):
-        """Validate section structure
+        """Validate section structure (Phase 2: supports string and dict commands)
         
         Args:
             section_data: Section dictionary
@@ -1127,14 +1146,29 @@ class CommandExecutor:
         if len(commands) == 0:
             raise ValueError(f"Section '{section_name}' has empty commands array")
         
-        # Validate all commands are strings (Phase 1 requirement)
+        # Phase 2: Validate commands are strings or dicts
         for i, cmd in enumerate(commands):
-            if not isinstance(cmd, str):
+            if not isinstance(cmd, (str, dict)):
                 raise ValueError(
-                    f"Section '{section_name}' - command {i+1} must be a string "
+                    f"Section '{section_name}' - command {i+1} must be a string or dict "
                     f"(got {type(cmd).__name__})"
                 )
-
+            
+            # If dict, validate basic structure
+            if isinstance(cmd, dict):
+                # Skip underscore fields (comments)
+                if not any(k for k in cmd.keys() if not k.startswith('_')):
+                    raise ValueError(
+                        f"Section '{section_name}' - command {i+1} has only underscore fields "
+                        f"(all fields ignored)"
+                    )
+                
+                # Must have 'command' field
+                if 'command' not in cmd:
+                    raise ValueError(
+                        f"Section '{section_name}' - command {i+1} (dict) missing 'command' field"
+                    )
+            
     def _serialize_shape(self, shape):
         """Convert shape to JSON-serializable dict"""
         data = {
@@ -1589,3 +1623,272 @@ class CommandExecutor:
         if hasattr(self, 'ui_root') and self.ui_root:
             self.ui_root.quit()
         return "Exiting Shape Studio..."
+    
+    def _execute_structured_command(self, cmd_dict):
+        """Execute a structured command (dictionary format)
+        
+        Args:
+            cmd_dict: Dictionary with command structure matching parser output
+            
+        Returns:
+            Result string from command execution
+        """
+        # Filter out underscore fields (comments)
+        filtered_dict = {k: v for k, v in cmd_dict.items() if not k.startswith('_')}
+        
+        # Normalize command name (uppercase)
+        if 'command' not in filtered_dict:
+            raise ValueError("Structured command missing 'command' field")
+        
+        filtered_dict['command'] = filtered_dict['command'].upper()
+        
+        # Process RAND() in all string values
+        filtered_dict = self._process_rand_in_dict(filtered_dict)
+        
+        # Convert flexible types (arrays, numbers) to strings
+        filtered_dict = self._convert_param_types(filtered_dict)
+        
+        # Pass to existing command handlers via execute dispatcher
+        return self._execute_from_dict(filtered_dict)
+
+    def _execute_from_dict(self, cmd_dict):
+        """Execute command directly from dictionary (bypassing parser)
+        
+        Args:
+            cmd_dict: Dictionary matching parser output format
+            
+        Returns:
+            Result string from command execution
+        """
+        command = cmd_dict['command']
+        
+        # Create a dummy command_text for history tracking
+        command_text = self._format_structured_command(cmd_dict)
+        
+        # Route to existing handlers (same as execute method)
+        handlers = {
+            'LINE': self._execute_line,
+            'POLY': self._execute_poly,
+            'MOVE': self._execute_move,
+            'ROTATE': self._execute_rotate,
+            'SCALE': self._execute_scale,
+            'RESIZE': self._execute_resize,
+            'GROUP': self._execute_group,
+            'UNGROUP': self._execute_ungroup,
+            'EXTRACT': self._execute_extract,
+            'DELETE': self._execute_delete,
+            'SWITCH': self._execute_switch,
+            'PROMOTE': self._execute_promote,
+            'UNPROMOTE': self._execute_unpromote,
+            'STASH': self._execute_stash,
+            'UNSTASH': self._execute_unstash,
+            'STORE': self._execute_store,
+            'LOAD': self._execute_load,
+            'SAVE_PROJECT': self._execute_save_project,
+            'LOAD_PROJECT': self._execute_load_project,
+            'CLEAR': self._execute_clear,
+            'LIST': self._execute_list,
+            'INFO': self._execute_info,
+            'SAVE': self._execute_save,
+            'RUN': self._execute_run,
+            'BATCH': self._execute_batch,
+            'PROC': self._execute_proc,
+            'ANIMATE': self._execute_animate,
+            'COLOR': self._execute_color,
+            'WIDTH': self._execute_width,
+            'FILL': self._execute_fill,
+            'ALPHA': self._execute_alpha,
+            'ZORDER': self._execute_zorder,
+            'EXIT': self._execute_exit,
+        }
+        
+        if command in handlers:
+            return handlers[command](cmd_dict, command_text)
+        else:
+            raise ValueError(f"Unknown command: {command}")
+
+    def _process_rand_in_dict(self, cmd_dict):
+        """Recursively process RAND() functions in all string values
+        
+        Args:
+            cmd_dict: Command dictionary
+            
+        Returns:
+            Dictionary with RAND() functions evaluated
+        """
+        import re
+        
+        result = {}
+        for key, value in cmd_dict.items():
+            if isinstance(value, str):
+                # Process RAND() in string values
+                result[key] = self.parser._process_rand_functions(value)
+            elif isinstance(value, dict):
+                # Recurse into nested dicts
+                result[key] = self._process_rand_in_dict(value)
+            else:
+                # Keep other types as-is
+                result[key] = value
+        
+        return result
+
+    def _convert_param_types(self, cmd_dict):
+        """Convert flexible parameter types to proper formats
+        
+        Handles:
+        - Nested arrays (POLY points) [[x,y], [x,y]] -> [(x,y), (x,y)]
+        - Flat arrays [1,2,3] -> "1,2,3" 
+        - Coordinate pairs (start, end, delta) [x, y] -> (x, y)
+        - String lists (members) -> KEEP AS LIST
+        - PROC params dict -> all values to strings
+        - Other numbers/booleans -> KEEP AS-IS
+        - Filters underscore fields (comments) at all levels
+        
+        Args:
+            cmd_dict: Command dictionary
+            
+        Returns:
+            Dictionary with converted values (underscore fields removed)
+        """
+        result = {}
+        
+        for key, value in cmd_dict.items():
+            # Skip underscore fields (comments) at any level
+            if key.startswith('_'):
+                continue
+                
+            # Don't convert the 'command' field itself
+            if key == 'command':
+                result[key] = value
+                continue
+            
+            # Special handling for PROC params - convert everything to strings
+            if key == 'params' and isinstance(value, dict):
+                result[key] = self._convert_params_to_strings(value)
+                continue
+            
+            # Handle arrays
+            if isinstance(value, list):
+                if len(value) > 0 and isinstance(value[0], list):
+                    # Nested array -> list of tuples for coordinates
+                    result[key] = [tuple(coord) for coord in value]
+                elif len(value) == 2 and key.lower() in ['start', 'end', 'delta']:
+                    # Coordinate pair -> tuple (x, y)
+                    result[key] = tuple(value)
+                elif key.lower() in ['members']:
+                    # String lists that should stay as lists
+                    result[key] = value
+                else:
+                    # Flat array -> comma-separated string
+                    result[key] = ','.join(str(v) for v in value)
+            
+            # Handle nested dicts (recurse - will filter underscores recursively)
+            elif isinstance(value, dict):
+                result[key] = self._convert_param_types(value)
+            
+            # Keep numbers and booleans as-is for non-PROC params
+            else:
+                result[key] = value
+        
+        return result
+
+    def _convert_params_to_strings(self, params_dict):
+        """Convert all values in PROC params dict to strings
+        
+        PROC params go through param_converters which expect strings.
+        
+        Args:
+            params_dict: Dictionary of PROC parameters
+            
+        Returns:
+            Dictionary with all values as strings (underscore fields removed)
+        """
+        result = {}
+        
+        for key, value in params_dict.items():
+            # Skip underscore fields
+            if key.startswith('_'):
+                continue
+            
+            # Convert booleans FIRST (before int check, since bool is subclass of int)
+            if isinstance(value, bool):
+                result[key] = str(value).lower()  # true/false
+            # Convert arrays to comma-separated strings
+            elif isinstance(value, list):
+                # Round floats to integers for bounds/coordinates
+                if key.upper() in ['BOUNDS', 'VERTICES']:
+                    result[key] = ','.join(str(int(round(v))) if isinstance(v, float) else str(v) for v in value)
+                else:
+                    result[key] = ','.join(str(v) for v in value)
+            # Convert floats to rounded ints for specific params
+            elif isinstance(value, float) and key.upper() in ['VERTICES', 'ITERATIONS', 'MAX_RETRIES', 'SNAPSHOT_INTERVAL', 'VERBOSE']:
+                result[key] = str(int(round(value)))
+            # Convert numbers to strings
+            elif isinstance(value, (int, float)):
+                result[key] = str(value)
+            # Keep strings as-is
+            else:
+                result[key] = value
+        
+        return result
+
+    def _format_structured_command(self, cmd_dict):
+        """Format structured command for display (compact representation)
+        
+        Args:
+            cmd_dict: Command dictionary
+            
+        Returns:
+            String representation for logging
+        """
+        # Filter underscore fields
+        filtered = {k: v for k, v in cmd_dict.items() if not k.startswith('_')}
+        
+        command = filtered.get('command', '?').upper()
+        
+        # Format based on command type
+        if command == 'PROC':
+            method = filtered.get('method', '?')
+            name = filtered.get('name', '?')
+            params = filtered.get('params', {})
+            param_str = ' '.join(f"{k}={v}" for k, v in params.items() if not k.startswith('_'))
+            return f"PROC {method} {name} {param_str}"
+        
+        elif command == 'POLY':
+            name = filtered.get('name', '?')
+            points = filtered.get('points', [])
+            return f"POLY {name} ({len(points)} points)"
+        
+        elif command == 'LINE':
+            name = filtered.get('name', '?')
+            start = filtered.get('start', '?')
+            end = filtered.get('end', '?')
+            return f"LINE {name} {start} {end}"
+        
+        elif command == 'COLOR':
+            name = filtered.get('name', '?')
+            color = filtered.get('color', '?')
+            return f"COLOR {name} {color}"
+        
+        elif command == 'FILL':
+            name = filtered.get('name', '?')
+            fill = filtered.get('fill', '?')
+            return f"FILL {name} {fill}"
+        
+        elif command == 'WIDTH':
+            name = filtered.get('name', '?')
+            width = filtered.get('width', '?')
+            return f"WIDTH {name} {width}"
+        
+        elif command in ['MOVE', 'ROTATE', 'SCALE', 'RESIZE']:
+            name = filtered.get('name', '?')
+            return f"{command} {name} ..."
+        
+        else:
+            # Generic format
+            parts = [command]
+            for k, v in filtered.items():
+                if k != 'command' and not isinstance(v, dict):
+                    parts.append(f"{v}")
+            return ' '.join(parts)
+        

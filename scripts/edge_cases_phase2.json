@@ -1,0 +1,435 @@
+{
+  "minimal_proc": {
+    "description": "Minimal PROC with only required parameters",
+    "author": "Mr. Chuck",
+    "created": "2026-01-06",
+    "comments": "Tests bare minimum parameters. Everything else uses defaults.",
+    "commands": [
+      "CLEAR WIP ALL",
+      {
+        "command": "PROC",
+        "method": "dynamic_polygon",
+        "name": "minimal",
+        "params": {
+          "VERTICES": 5,
+          "BOUNDS": [100, 100, 300, 300]
+        }
+      }
+    ]
+  },
+
+  "maximal_proc": {
+    "description": "PROC with ALL possible parameters specified",
+    "author": "Mr. Chuck",
+    "created": "2026-01-06",
+    "comments": "Tests every parameter. Good reference for what's available.",
+    "commands": [
+      "CLEAR WIP ALL",
+      {
+        "command": "PROC",
+        "method": "dynamic_polygon",
+        "name": "maximal",
+        "params": {
+          "VERTICES": [8, 12],
+          "BOUNDS": [100, 100, 600, 600],
+          "ITERATIONS": 25,
+          "CONNECT": "angle_sort",
+          "OPERATIONS": "split_offset,sawtooth,squarewave",
+          "DEPTH_RANGE": [0.3, 0.7],
+          "WEIGHT_DECAY": 0.5,
+          "MAX_RETRIES": 10,
+          "DIRECTION_BIAS": "random",
+          "RETURN_MODE": "single",
+          "VERBOSE": 0,
+          "SAVE_ITERATIONS": false,
+          "SNAPSHOT_INTERVAL": 1,
+          "REMOVE_PROB": 0.1,
+          "DISTORT_PROB": 0.05
+        }
+      }
+    ]
+  },
+
+  "float_precision": {
+    "description": "Testing float precision in parameters",
+    "author": "Mr. Chuck",
+    "created": "2026-01-06",
+    "comments": "Floats with varying precision levels.",
+    "commands": [
+      "CLEAR WIP ALL",
+      {
+        "command": "PROC",
+        "method": "dynamic_polygon",
+        "name": "precise",
+        "params": {
+          "VERTICES": 7,
+          "BOUNDS": [100.123, 100.456, 600.789, 600.012],
+          "DEPTH_RANGE": [0.333333, 0.666667],
+          "WEIGHT_DECAY": 0.5
+        }
+      },
+      {
+        "command": "ALPHA",
+        "name": "precise",
+        "alpha": 0.85
+      }
+    ]
+  },
+
+  "boundary_values": {
+    "description": "Testing boundary and extreme values",
+    "author": "Mr. Chuck",
+    "created": "2026-01-06",
+    "comments": "Min/max values for various parameters.",
+    "commands": [
+      "CLEAR WIP ALL",
+      {
+        "_comment": "Minimum vertices (3 for polygon, but PROC starts with initial vertices)",
+        "command": "PROC",
+        "method": "dynamic_polygon",
+        "name": "min_v",
+        "params": {
+          "VERTICES": 3,
+          "BOUNDS": [100, 100, 300, 300],
+          "ITERATIONS": 1,
+          "DEPTH_RANGE": [0.1, 0.2]
+        }
+      },
+      "COLOR min_v red",
+      {
+        "_comment": "Maximum vertices (reasonable limit)",
+        "command": "PROC",
+        "method": "dynamic_polygon",
+        "name": "max_v",
+        "params": {
+          "VERTICES": 20,
+          "BOUNDS": [400, 400, 650, 650],
+          "ITERATIONS": 50,
+          "DEPTH_RANGE": [0.8, 0.95]
+        }
+      },
+      "COLOR max_v blue"
+    ]
+  },
+
+  "zero_and_negative": {
+    "description": "Testing zero and negative values where valid",
+    "author": "Mr. Chuck",
+    "created": "2026-01-06",
+    "comments": "Some params accept 0 or negative values (z-order, positions).",
+    "commands": [
+      "CLEAR WIP ALL",
+      {
+        "command": "POLY",
+        "name": "centered",
+        "points": [
+          [-50, -50],
+          [50, -50],
+          [50, 50],
+          [-50, 50]
+        ]
+      },
+      {
+        "_comment": "Move to visible area",
+        "command": "MOVE",
+        "name": "centered",
+        "delta": [400, 400]
+      },
+      {
+        "_comment": "Zero alpha = invisible",
+        "command": "ALPHA",
+        "name": "centered",
+        "alpha": 0.0
+      },
+      {
+        "_comment": "Negative z-order = send to back",
+        "command": "ZORDER",
+        "name": "centered",
+        "z_coord": -100
+      }
+    ]
+  },
+
+  "string_vs_numeric_bounds": {
+    "description": "Comparing string and numeric bounds (both should work)",
+    "author": "Mr. Chuck",
+    "created": "2026-01-06",
+    "comments": "Testing that strings and arrays both work for bounds.",
+    "commands": [
+      "CLEAR WIP ALL",
+      {
+        "command": "PROC",
+        "method": "dynamic_polygon",
+        "name": "numeric_bounds",
+        "params": {
+          "VERTICES": 5,
+          "BOUNDS": [100, 100, 300, 300]
+        }
+      },
+      "COLOR numeric_bounds blue",
+      {
+        "command": "PROC",
+        "method": "dynamic_polygon",
+        "name": "string_bounds",
+        "params": {
+          "VERTICES": 5,
+          "BOUNDS": "400,400,600,600"
+        }
+      },
+      "COLOR string_bounds green"
+    ]
+  },
+
+  "nested_groups_structured": {
+    "description": "Creating and manipulating groups with structured commands",
+    "author": "Mr. Chuck",
+    "created": "2026-01-06",
+    "comments": "Groups, subgroups, and group operations.",
+    "commands": [
+      "CLEAR WIP ALL",
+      {
+        "command": "LINE",
+        "name": "line1",
+        "start": [100, 100],
+        "end": [200, 100]
+      },
+      {
+        "command": "LINE",
+        "name": "line2",
+        "start": [100, 150],
+        "end": [200, 150]
+      },
+      {
+        "command": "POLY",
+        "name": "tri1",
+        "points": [[100, 200], [150, 250], [100, 250]]
+      },
+      {
+        "command": "GROUP",
+        "name": "lines_group",
+        "members": ["line1", "line2"]
+      },
+      {
+        "command": "GROUP",
+        "name": "all_shapes",
+        "members": ["lines_group", "tri1"]
+      },
+      {
+        "command": "MOVE",
+        "name": "all_shapes",
+        "delta": [300, 100]
+      }
+    ]
+  },
+
+  "color_formats_all": {
+    "description": "Testing all supported color formats in structured commands",
+    "author": "Mr. Chuck",
+    "created": "2026-01-06",
+    "comments": "Named colors, hex, RGB, HSV - all should work.",
+    "commands": [
+      "CLEAR WIP ALL",
+      {
+        "command": "POLY",
+        "name": "p1",
+        "points": [[100, 100], [200, 100], [200, 200], [100, 200]]
+      },
+      {
+        "command": "COLOR",
+        "name": "p1",
+        "color": "red"
+      },
+      {
+        "command": "POLY",
+        "name": "p2",
+        "points": [[250, 100], [350, 100], [350, 200], [250, 200]]
+      },
+      {
+        "command": "COLOR",
+        "name": "p2",
+        "color": "#3498db"
+      },
+      {
+        "command": "POLY",
+        "name": "p3",
+        "points": [[400, 100], [500, 100], [500, 200], [400, 200]]
+      },
+      "COLOR p3 rgb(231,76,60)"
+    ]
+  },
+
+  "canvas_operations": {
+    "description": "Canvas switching and shape promotion with structured format",
+    "author": "Mr. Chuck",
+    "created": "2026-01-06",
+    "comments": "Shows canvas operations can use structured format too.",
+    "commands": [
+      {
+        "command": "CLEAR",
+        "target": "WIP",
+        "all": true
+      },
+      {
+        "command": "PROC",
+        "method": "dynamic_polygon",
+        "name": "shape1",
+        "params": {
+          "VERTICES": 6,
+          "BOUNDS": [100, 100, 600, 600],
+          "ITERATIONS": 15
+        }
+      },
+      {
+        "command": "COLOR",
+        "name": "shape1",
+        "color": "#2ecc71"
+      },
+      {
+        "command": "PROMOTE",
+        "name": "shape1",
+        "mode": "move"
+      },
+      {
+        "command": "SWITCH",
+        "target": "MAIN"
+      }
+    ]
+  },
+
+  "save_operations": {
+    "description": "Save and storage operations in structured format",
+    "author": "Mr. Chuck",
+    "created": "2026-01-06",
+    "comments": "SAVE, STORE, LOAD commands with structured syntax.",
+    "commands": [
+      {
+        "command": "CLEAR",
+        "target": "WIP",
+        "all": true
+      },
+      {
+        "command": "PROC",
+        "method": "dynamic_polygon",
+        "name": "to_store",
+        "params": {
+          "VERTICES": 7,
+          "BOUNDS": [100, 100, 600, 600],
+          "ITERATIONS": 12
+        }
+      },
+      {
+        "command": "STORE",
+        "name": "to_store",
+        "scope": "project"
+      },
+      "PROMOTE to_store",
+      {
+        "command": "SWITCH",
+        "target": "MAIN"
+      },
+      {
+        "command": "SAVE",
+        "filename": "test_output.png"
+      }
+    ]
+  },
+
+  "animation_with_structured": {
+    "description": "Creating animated snapshots using structured format",
+    "author": "Mr. Chuck",
+    "created": "2026-01-06",
+    "comments": "SAVE_ITERATIONS in structured format for animation debugging.",
+    "commands": [
+      "CLEAR WIP ALL",
+      {
+        "command": "PROC",
+        "method": "dynamic_polygon",
+        "name": "animated",
+        "params": {
+          "VERTICES": 6,
+          "BOUNDS": [100, 100, 600, 600],
+          "ITERATIONS": 20,
+          "OPERATIONS": "sawtooth",
+          "SAVE_ITERATIONS": true,
+          "SNAPSHOT_INTERVAL": 2
+        }
+      }
+    ]
+  },
+
+  "verbose_debugging": {
+    "description": "Using VERBOSE parameter for debugging PROC generation",
+    "author": "Mr. Chuck",
+    "created": "2026-01-06",
+    "comments": "VERBOSE levels: 0=silent, 1=summary, 2=detailed, 3=full geometry.",
+    "commands": [
+      "CLEAR WIP ALL",
+      {
+        "command": "PROC",
+        "method": "dynamic_polygon",
+        "name": "debug_shape",
+        "params": {
+          "VERTICES": 6,
+          "BOUNDS": [100, 100, 600, 600],
+          "ITERATIONS": 10,
+          "OPERATIONS": "sawtooth,split_offset",
+          "VERBOSE": 2,
+          "REMOVE_PROB": 0.2
+        }
+      }
+    ]
+  },
+
+  "mixed_string_formats_in_params": {
+    "description": "Mixing string and array formats within same params dict",
+    "author": "Mr. Chuck",
+    "created": "2026-01-06",
+    "comments": "Some params as strings, others as arrays - all valid.",
+    "commands": [
+      "CLEAR WIP ALL",
+      {
+        "command": "PROC",
+        "method": "dynamic_polygon",
+        "name": "mixed",
+        "params": {
+          "VERTICES": [5, 8],
+          "BOUNDS": "100,100,600,600",
+          "ITERATIONS": 15,
+          "OPERATIONS": "sawtooth,split_offset",
+          "DEPTH_RANGE": [0.3, 0.7],
+          "DIRECTION_BIAS": "inward"
+        }
+      }
+    ]
+  },
+
+  "operations_list_variations": {
+    "description": "Different ways to specify operations list",
+    "author": "Mr. Chuck",
+    "created": "2026-01-06",
+    "comments": "OPERATIONS can be comma-separated string or array.",
+    "commands": [
+      "CLEAR WIP ALL",
+      {
+        "command": "PROC",
+        "method": "dynamic_polygon",
+        "name": "ops_string",
+        "params": {
+          "VERTICES": 6,
+          "BOUNDS": [100, 100, 300, 300],
+          "OPERATIONS": "sawtooth,split_offset"
+        }
+      },
+      {
+        "command": "PROC",
+        "method": "dynamic_polygon",
+        "name": "ops_array",
+        "params": {
+          "VERTICES": 6,
+          "BOUNDS": [400, 400, 600, 600],
+          "OPERATIONS": ["sawtooth", "split_offset"]
+        }
+      }
+    ]
+  }
+}
