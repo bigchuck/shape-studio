@@ -45,6 +45,7 @@ class CommandParser:
             'ZORDER': self._parse_zorder,
             'EXIT': self._parse_exit,
             'QUIT': self._parse_exit,
+            'VALIDATE': self._parse_validate,        
         }
         
     def parse(self, command_text):
@@ -514,34 +515,26 @@ class CommandParser:
         }
     
     def _parse_run(self, parts):
-        """Parse RUN command: RUN <scriptfile> [section_name]
-        
-        For .txt files: RUN script.txt
-        For .json files: RUN script.json [section_name]
-        """
+        """Parse RUN command: RUN <scriptfile> [executable_name|--ALL]"""
         if len(parts) < 2:
-            raise ValueError("RUN requires: RUN <scriptfile> [section_name]")
+            raise ValueError("RUN requires: RUN <scriptfile> [executable_name|--ALL]")
         
         scriptfile = parts[1]
-        section_name = parts[2] if len(parts) >= 3 else None
+        executable = None
+        
+        if len(parts) >= 3:
+            executable = parts[2]
         
         return {
             'command': 'RUN',
             'scriptfile': scriptfile,
-            'section_name': section_name
-        }    
-
+            'executable': executable
+        }
+    
     def _parse_batch(self, parts):
-        """Parse BATCH command: BATCH <count> <scriptfile> [section_name] <output_prefix> [WIP|MAIN]
-        
-        For .txt files: BATCH <count> <scriptfile> <output_prefix> [WIP|MAIN]
-        For .json files: BATCH <count> <scriptfile> <section_name> <output_prefix> [WIP|MAIN]
-        
-        Note: For .json files, section_name is required and goes before output_prefix
-        """
+        """Parse BATCH command: BATCH <count> <scriptfile> [executable_name] <output_prefix> [WIP|MAIN]"""
         if len(parts) < 4:
-            raise ValueError("BATCH requires: BATCH <count> <scriptfile> <output_prefix> [WIP|MAIN] "
-                            "(for .json add section_name before output_prefix)")
+            raise ValueError("BATCH requires: BATCH <count> <scriptfile> [executable_name] <output_prefix> [WIP|MAIN]")
         
         try:
             count = int(parts[1])
@@ -553,35 +546,46 @@ class CommandParser:
         
         scriptfile = parts[2]
         
-        # Determine if this is a JSON file
-        is_json = scriptfile.endswith('.json')
-        
-        if is_json:
-            # JSON format: BATCH count file.json section_name output_prefix [canvas]
-            if len(parts) < 5:
-                raise ValueError("BATCH with .json requires: BATCH <count> <file.json> <section_name> <output_prefix> [WIP|MAIN]")
-            
-            section_name = parts[3]
+        # Determine if executable name is provided (for new format)
+        # If 4th param is all caps, it's the canvas target (old format)
+        # Otherwise it's either executable name or output prefix
+        if len(parts) == 4:
+            # BATCH count script prefix
+            # Old format - no executable
+            output_prefix = parts[3]
+            executable = None
+            target_canvas = 'MAIN'
+        elif len(parts) == 5:
+            # Could be:
+            # BATCH count script prefix canvas (old)
+            # BATCH count script executable prefix (new)
+            if parts[4].upper() in ['WIP', 'MAIN']:
+                # Old format with canvas
+                output_prefix = parts[3]
+                executable = None
+                target_canvas = parts[4].upper()
+            else:
+                # New format: executable + prefix
+                executable = parts[3]
+                output_prefix = parts[4]
+                target_canvas = 'MAIN'
+        else:  # len >= 6
+            # BATCH count script executable prefix canvas
+            executable = parts[3]
             output_prefix = parts[4]
             target_canvas = parts[5].upper() if len(parts) >= 6 else 'MAIN'
-        else:
-            # Text format: BATCH count file.txt output_prefix [canvas]
-            section_name = None
-            output_prefix = parts[3]
-            target_canvas = parts[4].upper() if len(parts) >= 5 else 'MAIN'
-        
-        if target_canvas not in ['WIP', 'MAIN']:
-            raise ValueError("BATCH target canvas must be WIP or MAIN")
+            if target_canvas not in ['WIP', 'MAIN']:
+                raise ValueError("BATCH target canvas must be WIP or MAIN")
         
         return {
             'command': 'BATCH',
             'count': count,
             'scriptfile': scriptfile,
-            'section_name': section_name,
+            'executable': executable,
             'output_prefix': output_prefix,
             'target_canvas': target_canvas
         }
-    
+        
     def _parse_proc(self, parts):
         """Parse PROC command: PROC <method> <name> [PARAM=value ...]
         
@@ -788,4 +792,61 @@ class CommandParser:
         """Parse EXIT or QUIT command: EXIT or QUIT"""
         return {
             'command': 'EXIT'
+        }
+    
+    def _parse_validate(self, parts):
+        """Parse VALIDATE command: VALIDATE <scriptfile>"""
+        if len(parts) < 2:
+            raise ValueError("VALIDATE requires: VALIDATE <scriptfile>")
+        
+        scriptfile = parts[1]
+        
+        return {
+            'command': 'VALIDATE',
+            'scriptfile': scriptfile
+        }
+    
+    def _parse_list(self, parts):
+        """Parse LIST command: LIST [WIP|MAIN|STASH|STORE|GLOBAL|PROC|PRESET|EXECUTABLES]
+        
+        LIST PROC - List available procedural methods
+        LIST PRESET <method> - List presets for a method  
+        LIST EXECUTABLES <scriptfile> - List executables in template script
+        """
+        target = None
+        method_name = None
+        scriptfile = None
+        
+        if len(parts) >= 2:
+            target = parts[1].upper()
+            
+            # Handle LIST PRESET <method>
+            if target == 'PRESET':
+                if len(parts) < 3:
+                    raise ValueError("LIST PRESET requires method name")
+                method_name = parts[2]
+                return {
+                    'command': 'LIST_PRESET',
+                    'method': method_name
+                }
+            
+            # Handle LIST EXECUTABLES <scriptfile>
+            if target == 'EXECUTABLES':
+                if len(parts) < 3:
+                    raise ValueError("LIST EXECUTABLES requires scriptfile")
+                scriptfile = parts[2]
+                return {
+                    'command': 'LIST',
+                    'target': target,
+                    'scriptfile': scriptfile
+                }
+            
+            # Validate target
+            if target not in ['WIP', 'MAIN', 'STASH', 'STORE', 'GLOBAL', 'PROC']:
+                raise ValueError("LIST target must be WIP, MAIN, STASH, STORE, GLOBAL, PROC, or EXECUTABLES <file>")
+        
+        return {
+            'command': 'LIST',
+            'target': target,  # None means active canvas
+            'scriptfile': scriptfile
         }

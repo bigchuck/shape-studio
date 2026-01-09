@@ -1,0 +1,144 @@
+{
+  "version": "1.0",
+  "description": "Abstract composition generator for LoRA training datasets",
+  "template_libraries": [
+    "templates/library.json"
+  ],
+  "global_params": {
+    "canvas_size": "768",
+    "full_canvas": "0,0,768,768",
+    "center_region": "200,200,568,568"
+  },
+  "executables": {
+    "simple_two_layer": {
+      "description": "Simple two-layer composition with background and focal element",
+      "commands": [
+        {
+          "template": "bg_shape",
+          "params": {
+            "name": "background",
+            "bounds": "${full_canvas}",
+            "complexity": "20",
+            "fill": "#E8F4F8"
+          }
+        },
+        {
+          "template": "focal_shape",
+          "params": {
+            "name": "focal",
+            "bounds": "${center_region}",
+            "color": "#2C3E50",
+            "iters": "15"
+          }
+        }
+      ]
+    },
+    
+    "varied_composition": {
+      "description": "Multi-element composition with randomization for dataset generation",
+      "randomization": {
+        "bg_complexity": [15, 35],
+        "bg_fill": ["#E8F4F8", "#F0E8F8", "#F8F0E8", "#F8E8E8"],
+        "focal_bounds": ["100,100,400,400", "200,150,568,550", "150,200,550,568", "250,250,518,518"],
+        "focal_color": ["#2C3E50", "#E74C3C", "#3498DB", "#27AE60", "#8E44AD"],
+        "focal_iters": [10, 18]
+      },
+      "commands": [
+        {
+          "template": "bg_shape",
+          "params": {
+            "name": "bg",
+            "bounds": "${full_canvas}",
+            "complexity": "${bg_complexity}",
+            "fill": "${bg_fill}"
+          }
+        },
+        {
+          "template": "focal_shape",
+          "params": {
+            "name": "focal1",
+            "bounds": "${focal_bounds}",
+            "color": "${focal_color}",
+            "iters": "${focal_iters}"
+          }
+        }
+      ]
+    },
+    
+    "complex_layered": {
+      "description": "Complex multi-layer composition with textures and accents",
+      "randomization": {
+        "texture_fill": ["#3498DB", "#E74C3C", "#F39C12", "#9B59B6", "#1ABC9C"],
+        "texture_alpha": [0.4, 0.7],
+        "accent_y": [100, 668]
+      },
+      "commands": [
+        {
+          "template": "bg_shape",
+          "params": {
+            "name": "bg",
+            "bounds": "${full_canvas}",
+            "complexity": "30",
+            "fill": "#2C3E50",
+            "alpha": "0.2"
+          }
+        },
+        {
+          "template": "textured_shape",
+          "params": {
+            "name": "texture1",
+            "bounds": "100,100,400,400",
+            "fill": "${texture_fill}",
+            "alpha": "${texture_alpha}",
+            "zorder": "5"
+          }
+        },
+        {
+          "template": "textured_shape",
+          "params": {
+            "name": "texture2",
+            "bounds": "368,368,668,668",
+            "fill": "${texture_fill}",
+            "alpha": "${texture_alpha}",
+            "zorder": "5"
+          }
+        },
+        {
+          "template": "focal_shape",
+          "params": {
+            "name": "focal",
+            "bounds": "${center_region}",
+            "color": "#ECF0F1",
+            "width": "4",
+            "iters": "20"
+          }
+        },
+        {
+          "template": "accent_line",
+          "params": {
+            "name": "accent",
+            "start": "50,${accent_y}",
+            "end": "718,${accent_y}",
+            "color": "#E74C3C",
+            "width": "5"
+          }
+        }
+      ]
+    },
+    
+    "minimal_test": {
+      "description": "Minimal composition for quick testing",
+      "commands": [
+        {
+          "template": "focal_shape",
+          "params": {
+            "name": "test_shape",
+            "bounds": "200,200,568,568",
+            "verts": "6",
+            "iters": "10"
+          }
+        }
+      ]
+    }
+  }
+}

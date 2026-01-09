@@ -12,6 +12,7 @@ from datetime import datetime
 from src.core.shape import Line, Polygon, ShapeGroup
 from src.commands.parser import CommandParser
 from src.core.procedural import ProceduralGenerators
+from src.core.templates import TemplateLibrary, TemplateExecutor
 
 class CommandExecutor:
     """Execute commands on WIP or Main canvas"""
@@ -23,7 +24,9 @@ class CommandExecutor:
         self.active_canvas_name = 'WIP'
         
         self.parser = CommandParser()
-        self.procedural_gen = ProceduralGenerators()  # NEW: Procedural generation system
+        self.procedural_gen = ProceduralGenerators() 
+        self.template_library = TemplateLibrary(project_root='.')
+        self.template_executor = TemplateExecutor(self.template_library, self)
         
         # Separate shape registries for each canvas
         self.wip_shapes = {}
@@ -103,6 +106,7 @@ class CommandExecutor:
             'ALPHA': self._execute_alpha,
             'ZORDER': self._execute_zorder,
             'EXIT': self._execute_exit,
+            'VALIDATE': self._execute_validate,
         }
         
         if command in handlers:
@@ -787,16 +791,74 @@ class CommandExecutor:
         return f"Loaded project from {filepath} (WIP: {wip_count}, MAIN: {main_count}, Stash: {stash_count})"
     
     def _execute_run(self, cmd_dict, command_text):
-        """Execute RUN command - run commands from script file (.txt or .json)"""
+        """Execute RUN command - supports both old format and templated executables"""
         scriptfile = cmd_dict['scriptfile']
-        section_name = cmd_dict.get('section_name')
+        filepath = self.scripts_dir / scriptfile
         
-        # Determine file type and route accordingly
-        if scriptfile.endswith('.json'):
-            return self._execute_run_json(scriptfile, section_name)
-        else:
-            # Text file - existing logic (no changes)
-            return self._execute_run_text(scriptfile)    
+        if not filepath.exists():
+            raise ValueError(f"Script file not found: {filepath}")
+        
+        # Try to load as JSON to detect format
+        try:
+            with open(filepath, 'r') as f:
+                first_char = f.read(1)
+                f.seek(0)
+                
+                # If starts with '[', it's old format (array)
+                if first_char == '[':
+                    # Old format - execute as plain commands
+                    lines = f.readlines()
+                    commands = []
+                    for line in lines:
+                        line = line.strip()
+                        if line and not line.startswith('#'):
+                            commands.append(line)
+                    
+                    if not commands:
+                        return f"Script '{scriptfile}' contains no commands"
+                    
+                    results = []
+                    for i, cmd in enumerate(commands, 1):
+                        try:
+                            result = self.execute(cmd)
+                            results.append(f"  [{i}] {cmd} → {result}")
+                        except Exception as e:
+                            results.append(f"  [{i}] {cmd} → ERROR: {str(e)}")
+                    
+                    return f"Executed {len(commands)} commands from '{scriptfile}':\n" + "\n".join(results)
+                
+                # New format - check for executables
+                elif first_char == '{':
+                    import json
+                    data = json.load(f)
+                    
+                    if 'executables' not in data:
+                        raise ValueError(
+                            f"Script {scriptfile} appears to be JSON but has no 'executables' key.\n"
+                            f"Expected format: {{ \"executables\": {{...}} }}"
+                        )
+                    
+                    # Template format - need executable name
+                    if 'executable' not in cmd_dict or not cmd_dict['executable']:
+                        raise ValueError(
+                            f"Script {scriptfile} uses template format.\n"
+                            f"Specify executable: RUN {scriptfile} <executable_name>\n"
+                            f"Or use: RUN {scriptfile} --ALL\n"
+                            f"Use 'LIST EXECUTABLES {scriptfile}' to see available executables."
+                        )
+                    
+                    # Execute using template system
+                    executable_name = cmd_dict['executable']
+                    results = self.template_executor.execute_script(
+                        filepath, executable_name
+                    )
+                    return '\n'.join(results)
+                
+                else:
+                    raise ValueError(f"Script {scriptfile} has invalid format (must start with '[' or '{{')")
+                    
+        except json.JSONDecodeError as e:
+            raise ValueError(f"Script {scriptfile} is not valid JSON: {e}")
 
     def _execute_run_text(self, scriptfile):
         """Execute RUN command - run commands from text script file"""
@@ -888,78 +950,156 @@ class CommandExecutor:
         return "\n".join(results)
 
     def _execute_batch(self, cmd_dict, command_text):
-        """Execute BATCH command - generate multiple variations for LoRA training"""
+        """Execute BATCH command - supports templated executables with randomization"""
         count = cmd_dict['count']
         scriptfile = cmd_dict['scriptfile']
-        section_name = cmd_dict.get('section_name')
         output_prefix = cmd_dict['output_prefix']
         target_canvas = cmd_dict['target_canvas']
+        executable_name = cmd_dict.get('executable')
         
-        # Route to JSON handler if JSON file
-        if scriptfile.endswith('.json'):
-            return self._execute_batch_json(count, scriptfile, section_name, output_prefix, target_canvas)
-
         filepath = self.scripts_dir / scriptfile
         
         if not filepath.exists():
             raise ValueError(f"Script file not found: {filepath}")
         
-        # Read script file
+        # Check if this is templated script
         with open(filepath, 'r') as f:
-            lines = f.readlines()
+            first_char = f.read(1)
         
-        # Filter out comments and blank lines
-        commands = []
-        for line_num, line in enumerate(lines, 1):
-            line = line.strip()
-            # Check for EOF marker
-            if line.upper() == 'EOF' or line.upper() == '# EOF':
-                break
-            if line and not line.startswith('#'):
-                commands.append((line_num, line))
+        if first_char == '{':
+            # Templated format
+            if not executable_name:
+                raise ValueError(
+                    f"Script {scriptfile} uses template format.\n"
+                    f"Specify executable: BATCH <count> {scriptfile} <executable_name> <prefix>"
+                )
+            
+            return self._execute_batch_templated(
+                count, filepath, executable_name, output_prefix, target_canvas
+            )
+        else:
+            # Old format - existing behavior
+            return self._execute_batch_legacy(
+                count, filepath, output_prefix, target_canvas
+            )
+
+    def _execute_batch_templated(self, count, filepath, executable_name, 
+                                 output_prefix, target_canvas):
+        """Execute BATCH with templated script"""
+        # Load script to get executable
+        import json
+        with open(filepath, 'r') as f:
+            data = json.load(f)
         
-        if not commands:
-            raise ValueError(f"Script '{scriptfile}' contains no commands")
+        executables = data.get('executables', {})
+        if executable_name not in executables:
+            available = ', '.join(executables.keys())
+            raise ValueError(
+                f"Executable '{executable_name}' not found in {filepath}\n"
+                f"Available: {available}"
+            )
         
-        # Switch to target canvas for the batch
+        executable = executables[executable_name]
+        
+        # Switch to target canvas
         original_canvas = self.active_canvas_name
         if target_canvas != original_canvas:
             self.execute(f"SWITCH {target_canvas}")
         
-        # Get the canvas to save from
-        if target_canvas == 'WIP':
-            save_canvas = self.wip_canvas
-        else:
-            save_canvas = self.main_canvas
+        save_canvas = self.wip_canvas if target_canvas == 'WIP' else self.main_canvas
         
-        # Execute batch iterations
         results = []
         successful = 0
         
         for i in range(1, count + 1):
             try:
-                # Execute all commands in script
+                # Generate randomization values for this iteration
+                randomization = self.template_executor.generate_randomization(executable)
+                
+                # Execute the script with randomization
+                self.template_executor.execute_script(
+                    filepath, executable_name,
+                    batch_mode=True,
+                    randomization_values=randomization
+                )
+                
+                # Save output
+                output_filename = f"{output_prefix}_{i:03d}.png"
+                output_path = Path('output') / output_filename
+                save_canvas.save(str(output_path))
+                
+                successful += 1
+                results.append(f"  [{i}/{count}] Generated {output_filename}")
+                
+                # Clear canvas for next iteration
+                save_canvas.clear()
+                shapes_dict = self.wip_shapes if target_canvas == 'WIP' else self.main_shapes
+                shapes_dict.clear()
+                
+            except Exception as e:
+                # Fail immediately with explanation
+                error_msg = (
+                    f"BATCH failed at iteration {i}/{count}:\n"
+                    f"  Error: {str(e)}\n"
+                    f"  Completed: {successful} successful iterations\n"
+                    f"  Output files in: output/"
+                )
+                results.append(f"  [{i}/{count}] FAILED: {str(e)}")
+                
+                # Restore canvas
+                if target_canvas != original_canvas:
+                    self.execute(f"SWITCH {original_canvas}")
+                
+                raise ValueError(error_msg)
+        
+        # Restore original canvas
+        if target_canvas != original_canvas:
+            self.execute(f"SWITCH {original_canvas}")
+        
+        summary = f"BATCH complete: {successful}/{count} successful\n" + "\n".join(results)
+        return summary
+
+    def _execute_batch_legacy(self, count, filepath, output_prefix, target_canvas):
+        """Execute BATCH with old-style script (existing behavior)"""
+        # This is the original BATCH implementation for backwards compatibility
+        with open(filepath, 'r') as f:
+            lines = f.readlines()
+        
+        commands = []
+        for line_num, line in enumerate(lines, 1):
+            line = line.strip()
+            if line and not line.startswith('#'):
+                commands.append((line_num, line))
+        
+        if not commands:
+            raise ValueError(f"Script '{filepath}' contains no commands")
+        
+        original_canvas = self.active_canvas_name
+        if target_canvas != original_canvas:
+            self.execute(f"SWITCH {target_canvas}")
+        
+        save_canvas = self.wip_canvas if target_canvas == 'WIP' else self.main_canvas
+        
+        results = []
+        successful = 0
+        
+        for i in range(1, count + 1):
+            try:
                 for line_num, cmd in commands:
                     try:
                         self.execute(cmd)
                     except Exception as e:
-                        # On error: randomly branch to a line in first 50% of script
                         half_point = len(commands) // 2
                         if half_point > 0:
-                            # Pick a random line from first half
                             recovery_idx = random.randint(0, half_point - 1)
                             recovery_line_num, recovery_cmd = commands[recovery_idx]
-                            
-                            # Continue from there
                             for j in range(recovery_idx, len(commands)):
                                 try:
                                     _, cmd_to_run = commands[j]
                                     self.execute(cmd_to_run)
                                 except:
-                                    pass  # Best effort recovery
-                        # If recovery fails or not possible, just continue with save
+                                    pass
                 
-                # Save the current state
                 output_filename = f"{output_prefix}_{i:03d}.png"
                 output_path = Path('output') / output_filename
                 save_canvas.save(str(output_path))
@@ -970,13 +1110,13 @@ class CommandExecutor:
             except Exception as e:
                 results.append(f"  [{i}/{count}] FAILED: {str(e)}")
         
-        # Restore original canvas if changed
         if target_canvas != original_canvas:
             self.execute(f"SWITCH {original_canvas}")
         
         summary = f"BATCH complete: {successful}/{count} successful\n" + "\n".join(results)
         return summary
-    
+
+
     def _execute_batch_json(self, count, scriptfile, section_name, output_prefix, target_canvas):
         """Execute BATCH command with JSON script file"""
         filepath = self.scripts_dir / scriptfile
@@ -1214,10 +1354,22 @@ class CommandExecutor:
     
     def _execute_list(self, cmd_dict, command_text):
         """Execute LIST command - extended to include stores and PROC"""
+        """Execute LIST command - extended to include EXECUTABLES"""
         target = cmd_dict['target']
         
         if target is None:
             target = self.active_canvas_name
+        
+        if target == 'EXECUTABLES':
+            scriptfile = cmd_dict.get('scriptfile')
+            if not scriptfile:
+                raise ValueError("LIST EXECUTABLES requires scriptfile")
+            
+            filepath = self.scripts_dir / scriptfile
+            if not filepath.exists():
+                raise ValueError(f"Script file not found: {filepath}")
+            
+            return self.template_executor.list_executables(filepath)
         
         if target == 'WIP':
             shapes = self.wip_shapes
@@ -1892,3 +2044,20 @@ class CommandExecutor:
                     parts.append(f"{v}")
             return ' '.join(parts)
         
+    def _execute_validate(self, cmd_dict, command_text):
+        """Execute VALIDATE command - validate script without executing"""
+        scriptfile = cmd_dict['scriptfile']
+        filepath = self.scripts_dir / scriptfile
+        
+        if not filepath.exists():
+            raise ValueError(f"Script file not found: {filepath}")
+        
+        # Validate using template executor
+        is_valid, messages = self.template_executor.validate_script(filepath)
+        
+        result = f"Validation of '{scriptfile}':\n" + '\n'.join(messages)
+        
+        if not is_valid:
+            raise ValueError(result)
+        
+        return result
