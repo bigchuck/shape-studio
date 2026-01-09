@@ -27,20 +27,27 @@ class ProceduralGenerators:
                     'vertices': (5, 8),
                     'iterations': 5,
                     'operations': ['split_offset'],
-                    'depth_range': (0.2, 0.6),
+                    'break_margin': 0.2,
+                    'break_width_max': 0.3,
+                    'projection_max': 1.5,
                 },
                 'complex': {
                     'vertices': (8, 12),
                     'iterations': 20,
                     'operations': ['split_offset', 'sawtooth', 'squarewave'],
-                    'depth_range': (0.3, 0.9),
-                    'weight_decay': 0.3,
+                    'break_margin': 0.15,
+                    'break_width_max': 0.6,
+                    'projection_max': 2.5,
+                    'squarewave_independent_directions': True,
+                    'squarewave_opposite_direction_prob': 0.3,
                 },
                 'organic': {
                     'vertices': (6, 10),
-                    'iterations': 15,
+                    'iterations': 12,
                     'operations': ['sawtooth'],
-                    'depth_range': (0.3, 0.8),
+                    'break_margin': 0.2,
+                    'break_width_max': 0.5,
+                    'projection_max': 2.0,
                     'direction_bias': 'inward',
                 },
             },
@@ -79,17 +86,41 @@ class ProceduralGenerators:
                     'default': ['split_offset', 'sawtooth'],
                     'description': 'Allowed modification operations (comma-separated)'
                 },
-                'depth_range': {
-                    'type': 'float_or_range',
+                'break_margin': {
+                    'type': 'float',
                     'required': False,
-                    'default': (0.2, 0.8),
-                    'description': 'Depth as percentage (float) or range (min,max)'
+                    'default': 0.15,
+                    'description': 'Minimum distance from segment endpoints (0.0-0.5)'
                 },
-                'weight_decay': {
+                'break_width_max': {
                     'type': 'float',
                     'required': False,
                     'default': 0.5,
-                    'description': 'Multiplier for split segment weights (0.0-1.0)'
+                    'description': 'Maximum break width as fraction of segment length (0.0-1.0)'
+                },
+                'projection_max': {
+                    'type': 'float',
+                    'required': False,
+                    'default': 2.0,
+                    'description': 'Maximum projection distance multiplier (0.5-5.0)'
+                },
+                'min_segment_length': {
+                    'type': 'int',
+                    'required': False,
+                    'default': 10,
+                    'description': 'Minimum segment length to consider for modification (pixels)'
+                },
+                'squarewave_independent_directions': {
+                    'type': 'bool',
+                    'required': False,
+                    'default': False,
+                    'description': 'Allow independent projection directions in squarewave'
+                },
+                'squarewave_opposite_direction_prob': {
+                    'type': 'float',
+                    'required': False,
+                    'default': 0.2,
+                    'description': 'Probability of opposite direction in squarewave (0.0-1.0)'
                 },
                 'max_retries': {
                     'type': 'int',
@@ -313,8 +344,11 @@ class ProceduralGenerators:
     
     def dynamic_polygon(self, name, vertices, bounds, iterations=10,
                        connect='angle_sort', operations=None,
-                       depth_range=(0.2, 0.8), weight_decay=0.5,
-                       max_retries=10, direction_bias='random',
+                       break_margin=0.15, break_width_max=0.5, projection_max=2.0,
+                       max_retries=15, direction_bias='random',
+                       squarewave_independent_directions=False,
+                       squarewave_opposite_direction_prob=0.2,
+                       min_segment_length=10,
                        return_mode='single', verbose=0,
                        save_iterations=False, snapshot_interval=1,
                        remove_prob=0.0, distort_prob=0.0):
@@ -340,7 +374,6 @@ class ProceduralGenerators:
             connect: Initial connection method ('angle_sort' or 'convex_hull')
             operations: List of allowed operations
             depth_range: Depth as percentage (float) or range (tuple)
-            weight_decay: Multiplier for split segment weights (0.0-1.0)
             max_retries: Max attempts per modification
             direction_bias: Preferred direction ('inward', 'outward', 'random')
             return_mode: How to return ('single', 'group', 'individual')
@@ -390,8 +423,7 @@ class ProceduralGenerators:
                 }
             }
         
-        # PHASE 3: Initialize segment weights (all segments start equal)
-        segment_weights = [1.0] * len(connected_points)
+        # PHASE 3: Evolution loop (segment selection now based on length)        
         
         # PHASE 4: Evolution loop
         stats = {
@@ -418,11 +450,8 @@ class ProceduralGenerators:
             snapshots.append(snapshot)
         
         for iteration in range(iterations):
-            # Choose depth for this iteration
-            depth_pct = random.uniform(*depth_range) if isinstance(depth_range, tuple) else depth_range
-            
-            # Select a segment using weighted random selection
-            segment_idx = self._select_segment(segment_weights)
+            # Select a segment using length-based selection (skip too-short segments)
+            segment_idx = self._select_segment(current_points, min_segment_length)
             
             # PROBABILITY-BASED OPERATION SELECTION
             # Check probabilities first, then fall back to regular operations
@@ -443,44 +472,49 @@ class ProceduralGenerators:
                 p1 = current_points[segment_idx]
                 p2 = current_points[(segment_idx + 1) % n]
                 seg_length = math.sqrt((p2[0] - p1[0])**2 + (p2[1] - p1[1])**2)
-                total_weight = sum(segment_weights)
+                
+                # Compute total perimeter for probability calculation
+                total_perimeter = sum(
+                    math.sqrt((current_points[i][0] - current_points[(i+1)%n][0])**2 +
+                             (current_points[i][1] - current_points[(i+1)%n][1])**2)
+                    for i in range(n)
+                )
                 
                 iter_log = {
                     'iteration': iteration + 1,
                     'selection': {
                         'segment_idx': segment_idx,
                         'segment_endpoints': [p1, p2] if verbose >= 3 else None,
-                        'segment_weight': segment_weights[segment_idx],
                         'segment_length': round(seg_length, 1),
-                        'selection_probability': round(segment_weights[segment_idx] / total_weight, 3) if total_weight > 0 else 0
+                        'selection_probability': round(seg_length / total_perimeter, 3) if total_perimeter > 0 else 0
                     },
                     'operation': {
                         'name': operation,
-                        'depth_pct': round(depth_pct, 2),
-                        'depth_pixels': round(seg_length * depth_pct, 1),
                     }
                 }
-            
+
             # Attempt modification with retries
             success = False
             attempt_count = 0
+            points_before_op = len(current_points)
             
             for attempt in range(max_retries):
                 attempt_count += 1
                 try:
-                    # Apply the operation (returns triple)
-                    new_points, new_weights, new_distortable = self._apply_operation(
-                        current_points, segment_weights, segment_idx,
-                        operation, depth_pct, direction_bias, centroid, weight_decay,
-                        bounds, distortable_points
+                    # Apply the operation (returns pair)
+                    new_points, new_distortable = self._apply_operation(
+                        current_points, segment_idx,
+                        operation, break_margin, break_width_max, projection_max,
+                        direction_bias, centroid, bounds, distortable_points,
+                        squarewave_independent_directions, squarewave_opposite_direction_prob
                     )
                     
                     # Validate: check for self-intersections
                     if self._is_valid_polygon(new_points):
                         # Success! Update state
                         current_points = new_points
-                        segment_weights = new_weights
                         distortable_points = new_distortable
+
                         centroid = self._compute_centroid(current_points)  # Update centroid
                         stats['successful_modifications'] += 1
                         stats['operations_used'][operation] += 1
@@ -492,6 +526,14 @@ class ProceduralGenerators:
                             if operation == 'split_offset':
                                 new_point = current_points[segment_idx + 1]
                                 iter_log['operation']['new_point'] = new_point if verbose >= 3 else None
+                            
+                            # Add result info
+                            if verbose >= 3:
+                                iter_log['result'] = {
+                                    'point_count': len(new_points),
+                                    'validation': 'PASS',
+                                    'new_points': new_points[:] if verbose >= 3 else None,
+                                }                        
                             
                             # Add direction info
                             n = len(current_points) - (len(current_points) - len(new_points))
@@ -525,14 +567,12 @@ class ProceduralGenerators:
             
             # Log iteration result
             if verbose >= 2 and iter_log:
-                points_before = len(current_points) - (len(current_points) - len(connected_points)) if not success else len(current_points) - 1
                 iter_log['result'] = {
-                    'points_before': points_before if success else len(current_points),
+                    'points_before': points_before_op if success else len(current_points),
                     'points_after': len(current_points),
                     'validation_attempts': attempt_count,
                     'validation_result': 'PASS' if success else 'FAIL',
                     'intersection_count': 0 if success else '?',
-                    'new_weights': new_weights[:] if verbose >= 3 and success else None
                 }
                 debug_log['iterations'].append(iter_log)
             
@@ -564,8 +604,12 @@ class ProceduralGenerators:
                 'iterations': iterations,
                 'operations': operations,
                 'connect': connect,
-                'depth_range': depth_range,
-                'weight_decay': weight_decay,
+                'break_margin': break_margin,
+                'break_width_max': break_width_max,
+                'projection_max': projection_max,
+                'min_segment_length': min_segment_length,
+                'squarewave_independent_directions': squarewave_independent_directions,
+                'squarewave_opposite_direction_prob': squarewave_opposite_direction_prob,
                 'direction_bias': direction_bias,
                 'verbose': verbose,
                 'save_iterations': save_iterations,
@@ -677,98 +721,135 @@ class ProceduralGenerators:
         cy = sum(p[1] for p in points) / len(points)
         return (cx, cy)
     
-    def _select_segment(self, weights):
-        """Select a segment index using weighted random selection.
+    def _select_segment(self, points, min_segment_length=10):
+        """Select a segment index using length-based weighted random selection.
         
-        Segments with higher weights are more likely to be selected.
+        Longer segments are more likely to be selected, creating natural
+        spreading behavior as long segments get split into shorter ones.
+        Segments shorter than min_segment_length are excluded from selection.
         
         Args:
-            weights: List of segment weights
+            points: List of (x, y) polygon vertices
+            min_segment_length: Minimum segment length to consider (pixels)
             
         Returns:
             Selected segment index (0 to len-1)
+            
+        Raises:
+            ValueError: If no segments meet minimum length requirement
         """
-        total_weight = sum(weights)
-        if total_weight == 0:
-            # All weights are zero - uniform random
-            return random.randint(0, len(weights) - 1)
+        # Compute all segment lengths
+        n = len(points)
+        lengths = []
+        eligible_indices = []
         
-        # Weighted random selection
-        r = random.uniform(0, total_weight)
+        for i in range(n):
+            p1 = points[i]
+            p2 = points[(i + 1) % n]
+            length = math.sqrt((p2[0] - p1[0])**2 + (p2[1] - p1[1])**2)
+            lengths.append(length)
+            
+            # Track segments that meet minimum length
+            if length >= min_segment_length:
+                eligible_indices.append(i)
+        
+        # If no segments meet minimum, use all segments
+        if not eligible_indices:
+            eligible_indices = list(range(n))
+        
+        # Weighted random selection by length (only from eligible segments)
+        eligible_lengths = [lengths[i] for i in eligible_indices]
+        total_length = sum(eligible_lengths)
+        
+        if total_length == 0:
+            # All segments have zero length (degenerate case)
+            return random.randint(0, n - 1)
+        
+        r = random.uniform(0, total_length)
         cumulative = 0
-        for i, weight in enumerate(weights):
-            cumulative += weight
+        for idx, length in zip(eligible_indices, eligible_lengths):
+            cumulative += length
             if r <= cumulative:
-                return i
+                return idx
         
-        # Fallback (shouldn't reach here due to floating point)
-        return len(weights) - 1
+        # Fallback
+        return eligible_indices[-1] if eligible_indices else n - 1
     
-    def _apply_operation(self, points, weights, segment_idx, operation,
-                        depth_pct, direction_bias, centroid, weight_decay, bounds=None,
-                        distortable_points=None):
+    def _apply_operation(self, points, segment_idx, operation,
+                        break_margin, break_width_max, projection_max,
+                        direction_bias, centroid, bounds=None,
+                        distortable_points=None,
+                        squarewave_independent_directions=False,
+                        squarewave_opposite_prob=0.2):
         """Apply a modification operation to a segment.
         
         Args:
             points: Current polygon points
-            weights: Current segment weights
             segment_idx: Index of segment to modify
             operation: Operation name
-            depth_pct: Depth percentage (0.0-1.0)
+            break_margin: Minimum distance from endpoints (0.0-0.5)
+            break_width_max: Maximum break width as fraction of segment
+            projection_max: Maximum projection distance multiplier
             direction_bias: 'inward', 'outward', or 'random'
             centroid: Polygon centroid (cx, cy)
-            weight_decay: Multiplier for new segment weights
             bounds: Bounding box (x1, y1, x2, y2) for validation
             distortable_points: List of original vertices (for distort_original)
+            squarewave_independent_directions: Allow independent directions in squarewave
+            squarewave_opposite_prob: Probability of opposite direction
             
         Returns:
-            (new_points, new_weights, new_distortable_points) tuple
+            (new_points, new_distortable_points) tuple
         """
         if operation == 'split_offset':
-            new_points, new_weights = self._op_split_offset(points, weights, segment_idx, depth_pct,
-                                        direction_bias, centroid, weight_decay, bounds)
-            return new_points, new_weights, distortable_points  # Unchanged
+            new_points = self._op_split_offset(points, segment_idx, 
+                                        break_margin, break_width_max, projection_max,
+                                        direction_bias, centroid, bounds)
+            return new_points, distortable_points
             
         elif operation == 'sawtooth':
-            new_points, new_weights = self._op_sawtooth(points, weights, segment_idx, depth_pct,
-                                    direction_bias, centroid, weight_decay, bounds)
-            return new_points, new_weights, distortable_points  # Unchanged
+            new_points = self._op_sawtooth(points, segment_idx,
+                                    break_margin, break_width_max, projection_max,
+                                    direction_bias, centroid, bounds)
+            return new_points, distortable_points
             
         elif operation == 'squarewave':
-            new_points, new_weights = self._op_squarewave(points, weights, segment_idx, depth_pct,
-                                      direction_bias, centroid, weight_decay, bounds)
-            return new_points, new_weights, distortable_points  # Unchanged
-            
+            new_points = self._op_squarewave(points, segment_idx,
+                                      break_margin, break_width_max, projection_max,
+                                      direction_bias, centroid, bounds,
+                                      squarewave_independent_directions,
+                                      squarewave_opposite_prob)
+            return new_points, distortable_points
+        
         elif operation == 'remove_point':
-            return self._op_remove_point(points, weights, segment_idx, depth_pct,
-                                         direction_bias, centroid, weight_decay, bounds,
+            return self._op_remove_point(points, segment_idx, 
+                                         break_margin, break_width_max, projection_max,
+                                         direction_bias, centroid, bounds,
                                          distortable_points)
                                          
         elif operation == 'distort_original':
-            return self._op_distort_original(points, weights, segment_idx, depth_pct,
-                                             direction_bias, centroid, weight_decay, bounds,
+            return self._op_distort_original(points, segment_idx,
+                                             break_margin, break_width_max, projection_max,
+                                             direction_bias, centroid, bounds,
                                              distortable_points)
-        else:
-            raise ValueError(f"Unknown operation: {operation}")
     
-    def _op_split_offset(self, points, weights, idx, depth_pct,
-                        direction_bias, centroid, weight_decay, bounds=None):
-        """Split segment and offset midpoint perpendicular to segment.
+    def _op_split_offset(self, points, idx, break_margin, break_width_max, 
+                        projection_max, direction_bias, centroid, bounds=None):
+        """Split segment and offset a random point perpendicular to segment.
         
-        Operation: A---B becomes A---M---B where M is offset perpendicular
+        Operation: A---B becomes A---M---B where M is at random position, offset perpendicular
         
         Args:
             points: Current polygon points
-            weights: Current segment weights
             idx: Segment index to modify
-            depth_pct: How far to offset (percentage of segment length)
+            break_margin: Minimum distance from endpoints (0.0-0.5)
+            break_width_max: Maximum break width as fraction of segment (unused for single point)
+            projection_max: Maximum projection distance multiplier
             direction_bias: Direction preference
             centroid: Polygon centroid
-            weight_decay: Weight multiplier for new segments
             bounds: Optional bounding box (x1, y1, x2, y2) for validation
             
         Returns:
-            (new_points, new_weights) tuple
+            new_points list
             
         Raises:
             ValueError: If new point is outside bounds
@@ -777,22 +858,26 @@ class ProceduralGenerators:
         p1 = points[idx]
         p2 = points[(idx + 1) % n]
         
-        # Compute midpoint
-        mx = (p1[0] + p2[0]) / 2
-        my = (p1[1] + p2[1]) / 2
+        # Compute segment length
+        seg_length = math.sqrt((p2[0] - p1[0])**2 + (p2[1] - p1[1])**2)
+        
+        # Random break position (respecting margins)
+        t = random.uniform(break_margin, 1.0 - break_margin)
+        break_x = p1[0] + t * (p2[0] - p1[0])
+        break_y = p1[1] + t * (p2[1] - p1[1])
         
         # Get perpendicular direction
         perp_x, perp_y = self._get_perpendicular_direction(p1, p2, direction_bias, centroid)
         
-        # Compute segment length
-        seg_length = math.sqrt((p2[0] - p1[0])**2 + (p2[1] - p1[1])**2)
+        # Random break width (for depth calculation)
+        break_width = random.uniform(0, break_width_max * seg_length)
         
-        # Offset distance
-        offset_dist = seg_length * depth_pct
+        # Random projection distance (up to projection_max times break_width)
+        offset_dist = random.uniform(0, projection_max * max(break_width, seg_length * 0.1))
         
-        # New midpoint (as float for calculation)
-        new_x = mx + perp_x * offset_dist
-        new_y = my + perp_y * offset_dist
+        # New point offset perpendicular from break position
+        new_x = break_x + perp_x * offset_dist
+        new_y = break_y + perp_y * offset_dist
         new_point = (new_x, new_y)
         
         # Round to integer pixel coordinates
@@ -805,90 +890,31 @@ class ProceduralGenerators:
         # Insert new point
         new_points = points[:idx+1] + [new_point] + points[idx+1:]
         
-        # Update weights: original segment split into two
-        old_weight = weights[idx]
-        new_weight = old_weight * weight_decay
-        new_weights = weights[:idx] + [new_weight, new_weight] + weights[idx+1:]
-        
-        return new_points, new_weights
+        return new_points
     
-    def _op_sawtooth(self, points, weights, idx, depth_pct,
-                    direction_bias, centroid, weight_decay, bounds=None):
-        """Create sawtooth pattern on segment.
+    def _op_sawtooth(self, points, idx, break_margin, break_width_max,
+                    projection_max, direction_bias, centroid, bounds=None):
+        """Create sawtooth pattern with randomized position, width, and depth.
         
-        Operation: A---B becomes A-/\-B (triangular protrusion)
+        Operation: triangular protrusion with variable characteristics
+        
+        Creates a triangular tooth with:
+        - Random center position (within margins)
+        - Random base width (up to break_width_max)
+        - Random peak projection (up to projection_max * break_width)
         
         Args:
             points: Current polygon points
-            weights: Current segment weights
             idx: Segment index to modify
-            depth_pct: How far to offset peak
-            direction_bias: Direction preference
-            centroid: Polygon centroid
-            weight_decay: Weight multiplier for new segments
+            break_margin: Minimum distance from endpoints (0.0-0.5)
+            break_width_max: Maximum break width as fraction of segment length
+            projection_max: Maximum projection distance multiplier
+            direction_bias: Direction preference ('inward', 'outward', 'random')
+            centroid: Polygon centroid (cx, cy)
             bounds: Optional bounding box (x1, y1, x2, y2) for validation
             
         Returns:
-            (new_points, new_weights) tuple
-            
-        Raises:
-            ValueError: If new point is outside bounds
-        """
-        n = len(points)
-        p1 = points[idx]
-        p2 = points[(idx + 1) % n]
-        
-        # Midpoint for peak
-        mx = (p1[0] + p2[0]) / 2
-        my = (p1[1] + p2[1]) / 2
-        
-        # Get perpendicular direction
-        perp_x, perp_y = self._get_perpendicular_direction(p1, p2, direction_bias, centroid)
-        
-        # Segment length
-        seg_length = math.sqrt((p2[0] - p1[0])**2 + (p2[1] - p1[1])**2)
-        offset_dist = seg_length * depth_pct
-        
-        # Peak point
-        peak_x = mx + perp_x * offset_dist
-        peak_y = my + perp_y * offset_dist
-        new_point = (peak_x, peak_y)
-        
-        # Round to integer pixel coordinates
-        new_point = self._round_point(new_point)
-        
-        # Check bounds if provided
-        if bounds and not self._is_within_bounds(new_point, bounds):
-            raise ValueError(f"Point {new_point} outside bounds {bounds}")
-        
-        # Insert peak at midpoint
-        new_points = points[:idx+1] + [new_point] + points[idx+1:]
-        
-        # Update weights
-        old_weight = weights[idx]
-        new_weight = old_weight * weight_decay
-        new_weights = weights[:idx] + [new_weight, new_weight] + weights[idx+1:]
-        
-        return new_points, new_weights
-    
-    def _op_squarewave(self, points, weights, idx, depth_pct,
-                      direction_bias, centroid, weight_decay, bounds=None):
-        """Create square wave pattern on segment.
-        
-        Operation: A---B becomes A-|_|-B (rectangular protrusion)
-        
-        Args:
-            points: Current polygon points
-            weights: Current segment weights
-            idx: Segment index to modify
-            depth_pct: How far to offset the parallel segment
-            direction_bias: Direction preference
-            centroid: Polygon centroid
-            weight_decay: Weight multiplier for new segments
-            bounds: Optional bounding box (x1, y1, x2, y2) for validation
-            
-        Returns:
-            (new_points, new_weights) tuple
+            new_points list
             
         Raises:
             ValueError: If any new point is outside bounds
@@ -897,56 +923,187 @@ class ProceduralGenerators:
         p1 = points[idx]
         p2 = points[(idx + 1) % n]
         
-        # Compute 1/4 and 3/4 points along segment
-        quarter_x = p1[0] + (p2[0] - p1[0]) / 4
-        quarter_y = p1[1] + (p2[1] - p1[1]) / 4
+        # Compute segment length
+        seg_length = math.sqrt((p2[0] - p1[0])**2 + (p2[1] - p1[1])**2)
         
-        three_quarter_x = p1[0] + 3 * (p2[0] - p1[0]) / 4
-        three_quarter_y = p1[1] + 3 * (p2[1] - p1[1]) / 4
+        # Random break center position (respecting margins)
+        t_center = random.uniform(break_margin, 1.0 - break_margin)
+        center_x = p1[0] + t_center * (p2[0] - p1[0])
+        center_y = p1[1] + t_center * (p2[1] - p1[1])
+        
+        # Random break width (clamped to available space)
+        max_width = min(break_width_max * seg_length, 
+                       min(t_center, 1.0 - t_center) * seg_length * 2)
+        break_width = random.uniform(0, max_width)
+        half_width = break_width / 2
+        
+        # Base points at center +/- half_width
+        # Convert half_width to parametric distance
+        t_delta = half_width / seg_length
+        t_left = t_center - t_delta
+        t_right = t_center + t_delta
+        
+        base_left_x = p1[0] + t_left * (p2[0] - p1[0])
+        base_left_y = p1[1] + t_left * (p2[1] - p1[1])
+        base_left = (base_left_x, base_left_y)
+        
+        base_right_x = p1[0] + t_right * (p2[0] - p1[0])
+        base_right_y = p1[1] + t_right * (p2[1] - p1[1])
+        base_right = (base_right_x, base_right_y)
         
         # Get perpendicular direction
         perp_x, perp_y = self._get_perpendicular_direction(p1, p2, direction_bias, centroid)
         
-        # Segment length
-        seg_length = math.sqrt((p2[0] - p1[0])**2 + (p2[1] - p1[1])**2)
-        offset_dist = seg_length * depth_pct
+        # Random projection distance (up to projection_max * break_width)
+        # Ensure minimum projection even with small break_width
+        min_projection = seg_length * 0.05
+        max_projection = projection_max * max(break_width, min_projection)
+        offset_dist = random.uniform(min_projection, max_projection)
         
-        # Offset the middle segment
-        offset_x = perp_x * offset_dist
-        offset_y = perp_y * offset_dist
-        
-        # Create four corner points
-        point1 = (quarter_x, quarter_y)
-        point2 = (quarter_x + offset_x, quarter_y + offset_y)
-        point3 = (three_quarter_x + offset_x, three_quarter_y + offset_y)
-        point4 = (three_quarter_x, three_quarter_y)
+        # Peak point (offset perpendicular from center)
+        peak_x = center_x + perp_x * offset_dist
+        peak_y = center_y + perp_y * offset_dist
+        peak = (peak_x, peak_y)
         
         # Round all points to integer pixel coordinates
-        point1 = self._round_point(point1)
-        point2 = self._round_point(point2)
-        point3 = self._round_point(point3)
-        point4 = self._round_point(point4)
+        base_left = self._round_point(base_left)
+        peak = self._round_point(peak)
+        base_right = self._round_point(base_right)
         
         # Check bounds if provided
         if bounds:
-            for point in [point1, point2, point3, point4]:
+            for point in [base_left, peak, base_right]:
                 if not self._is_within_bounds(point, bounds):
                     raise ValueError(f"Point {point} outside bounds {bounds}")
         
-        # Insert all four corner points
-        new_points = points[:idx+1] + [point1, point2, point3, point4] + points[idx+1:]
+        # Insert THREE points: left base, peak, right base
+        new_points = points[:idx+1] + [base_left, peak, base_right] + points[idx+1:]
         
-        # Update weights: one segment becomes five
-        old_weight = weights[idx]
-        new_weight = old_weight * weight_decay
-        new_weights = (weights[:idx] + 
-                      [new_weight, new_weight, new_weight, new_weight, new_weight] + 
-                      weights[idx+1:])
-        
-        return new_points, new_weights
+        return new_points
     
-    def _op_remove_point(self, points, weights, idx, depth_pct,
-                        direction_bias, centroid, weight_decay, bounds=None,
+    def _op_squarewave(self, points, idx, break_margin, break_width_max,
+                      projection_max, direction_bias, centroid, bounds=None,
+                      independent_directions=False, opposite_prob=0.2):
+        """Create square wave pattern with randomized characteristics and optional asymmetry.
+        
+        Operation: A---B becomes A--[_]--B (rectangular/trapezoidal protrusion)
+        
+        Creates a rectangular or trapezoidal shape with:
+        - Random center position (within margins)
+        - Random base width (up to break_width_max)
+        - Two independent projection points (optionally different directions/depths)
+        
+        The top points are connected to the nearest base points, preventing self-intersection.
+        
+        Args:
+            points: Current polygon points
+            idx: Segment index to modify
+            break_margin: Minimum distance from endpoints (0.0-0.5)
+            break_width_max: Maximum break width as fraction of segment length
+            projection_max: Maximum projection distance multiplier
+            direction_bias: Direction preference (baseline for both projections)
+            centroid: Polygon centroid (cx, cy)
+            bounds: Optional bounding box (x1, y1, x2, y2) for validation
+            independent_directions: If True, each projection can have different direction
+            opposite_prob: Probability of opposite direction when independent (0.0-1.0)
+            
+        Returns:
+            new_points list
+            
+        Raises:
+            ValueError: If any new point is outside bounds
+        """
+        n = len(points)
+        p1 = points[idx]
+        p2 = points[(idx + 1) % n]
+        
+        # Compute segment length
+        seg_length = math.sqrt((p2[0] - p1[0])**2 + (p2[1] - p1[1])**2)
+        
+        # Random break center position (respecting margins)
+        t_center = random.uniform(break_margin, 1.0 - break_margin)
+        center_x = p1[0] + t_center * (p2[0] - p1[0])
+        center_y = p1[1] + t_center * (p2[1] - p1[1])
+        
+        # Random break width (clamped to available space)
+        max_width = min(break_width_max * seg_length, 
+                       min(t_center, 1.0 - t_center) * seg_length * 2)
+        break_width = random.uniform(0, max_width)
+        half_width = break_width / 2
+        
+        # Base points at center +/- half_width
+        t_delta = half_width / seg_length
+        t_left = t_center - t_delta
+        t_right = t_center + t_delta
+        
+        base_left_x = p1[0] + t_left * (p2[0] - p1[0])
+        base_left_y = p1[1] + t_left * (p2[1] - p1[1])
+        
+        base_right_x = p1[0] + t_right * (p2[0] - p1[0])
+        base_right_y = p1[1] + t_right * (p2[1] - p1[1])
+        
+        # Get base perpendicular direction
+        perp_x, perp_y = self._get_perpendicular_direction(p1, p2, direction_bias, centroid)
+        
+        # Determine directions for each projection
+        if independent_directions:
+            # Left projection direction
+            if random.random() < opposite_prob:
+                left_perp_x, left_perp_y = -perp_x, -perp_y
+            else:
+                left_perp_x, left_perp_y = perp_x, perp_y
+            
+            # Right projection direction
+            if random.random() < opposite_prob:
+                right_perp_x, right_perp_y = -perp_x, -perp_y
+            else:
+                right_perp_x, right_perp_y = perp_x, perp_y
+        else:
+            # Both projections use same direction
+            left_perp_x, left_perp_y = perp_x, perp_y
+            right_perp_x, right_perp_y = perp_x, perp_y
+        
+        # Random projection distances (independent for each side)
+        min_projection = seg_length * 0.05
+        max_projection = projection_max * max(break_width, min_projection)
+        
+        left_offset = random.uniform(min_projection, max_projection)
+        right_offset = random.uniform(min_projection, max_projection)
+        
+        # Projected points
+        top_left_x = base_left_x + left_perp_x * left_offset
+        top_left_y = base_left_y + left_perp_y * left_offset
+        
+        top_right_x = base_right_x + right_perp_x * right_offset
+        top_right_y = base_right_y + right_perp_y * right_offset
+        
+        # Create all four corner points
+        # Order: base_left -> top_left -> top_right -> base_right
+        # This creates proper connections (left base to left top, right top to right base)
+        base_left = (base_left_x, base_left_y)
+        top_left = (top_left_x, top_left_y)
+        top_right = (top_right_x, top_right_y)
+        base_right = (base_right_x, base_right_y)
+        
+        # Round all points to integer pixel coordinates
+        base_left = self._round_point(base_left)
+        top_left = self._round_point(top_left)
+        top_right = self._round_point(top_right)
+        base_right = self._round_point(base_right)
+        
+        # Check bounds if provided
+        if bounds:
+            for point in [base_left, top_left, top_right, base_right]:
+                if not self._is_within_bounds(point, bounds):
+                    raise ValueError(f"Point {point} outside bounds {bounds}")
+        
+        # Insert all four corner points in proper order
+        new_points = points[:idx+1] + [base_left, top_left, top_right, base_right] + points[idx+1:]
+        
+        return new_points
+    
+    def _op_remove_point(self, points, idx, break_margin, break_width_max, projection_max,
+                        direction_bias, centroid, bounds=None,
                         distortable_points=None):
         """Remove a vertex, merging two adjacent segments into one.
         
@@ -954,17 +1111,15 @@ class ProceduralGenerators:
         
         Args:
             points: Current polygon points
-            weights: Current segment weights
             idx: Vertex index to remove (selected by weighted random)
             depth_pct: Unused (for signature compatibility)
             direction_bias: Unused (for signature compatibility)
             centroid: Unused (for signature compatibility)
-            weight_decay: Unused (for signature compatibility)
             bounds: Unused (for signature compatibility)
             distortable_points: List of original vertices (will be updated if removed point is original)
             
         Returns:
-            (new_points, new_weights, new_distortable_points) tuple
+            (new_points, new_distortable_points) tuple
             
         Raises:
             ValueError: If polygon would have too few vertices
@@ -978,26 +1133,15 @@ class ProceduralGenerators:
         # Remove the vertex from points
         new_points = points[:idx] + points[idx+1:]
         
-        # Merge weights: the two adjacent segments become one
-        # The new segment gets the average weight
-        n = len(weights)
-        prev_idx = (idx - 1) % n
-        
-        # Average the two weights that are being merged
-        new_weight = (weights[prev_idx] + weights[idx]) / 2
-        
-        # Build new weights list
-        new_weights = weights[:prev_idx] + [new_weight] + weights[idx+1:]
-        
         # Update distortable_points if this was an original vertex
         new_distortable = distortable_points[:] if distortable_points else []
         if removed_point in new_distortable:
             new_distortable.remove(removed_point)
         
-        return new_points, new_weights, new_distortable
+        return new_points, new_distortable
     
-    def _op_distort_original(self, points, weights, idx, depth_pct,
-                            direction_bias, centroid, weight_decay, bounds=None,
+    def _op_distort_original(self, points, idx, break_margin, break_width_max, projection_max,
+                            direction_bias, centroid, bounds=None,
                             distortable_points=None):
         """Move an original vertex toward or away from centroid.
         
@@ -1006,17 +1150,17 @@ class ProceduralGenerators:
         
         Args:
             points: Current polygon points
-            weights: Current segment weights
             idx: IGNORED - we select randomly from distortable_points instead
-            depth_pct: How far to move (percentage of distance to centroid)
+            break_margin: IGNORED - not applicable to this operation
+            break_width_max: IGNORED - not applicable to this operation
+            projection_max: Controls movement distance (as fraction of centroid distance)
             direction_bias: 'inward' (toward centroid) or 'outward' (away from centroid)
             centroid: Polygon centroid
-            weight_decay: Unused (for signature compatibility)
             bounds: Bounding box (x1, y1, x2, y2) for validation
             distortable_points: List of original vertices (REQUIRED)
             
         Returns:
-            (new_points, new_weights, new_distortable_points) tuple
+            (new_points, new_distortable_points) tuple
             
         Raises:
             ValueError: If no distortable points available or new point outside bounds
@@ -1040,14 +1184,16 @@ class ProceduralGenerators:
         
         if distance == 0:
             # Point is at centroid - can't move
-            return points[:], weights[:], distortable_points[:]
+            return points[:], distortable_points[:]
         
         # Normalize direction
         dir_x = dx / distance
         dir_y = dy / distance
         
-        # Movement distance
-        move_dist = distance * depth_pct
+        # Movement distance - use projection_max to control distortion amount
+        # Scale by random factor (10-30% of distance) times projection_max
+        move_fraction = random.uniform(0.1, 0.3) * projection_max
+        move_dist = distance * move_fraction
         
         # Apply direction bias
         if direction_bias == 'inward':
@@ -1069,16 +1215,14 @@ class ProceduralGenerators:
             raise ValueError(f"Point {new_coord} outside bounds {bounds}")
         
         # Update points list
-        new_points = points[:point_idx] + [new_coord] + points[point_idx+1:]
-        
-        # Weights unchanged
-        new_weights = weights[:]
-        
+        new_points = list(points)
+        new_points[point_idx] = new_coord
+
         # Update distortable_points - replace old coord with new coord
         distort_idx = distortable_points.index(old_coord)
         new_distortable = distortable_points[:distort_idx] + [new_coord] + distortable_points[distort_idx+1:]
         
-        return new_points, new_weights, new_distortable
+        return new_points, new_distortable
     
     def _is_valid_polygon(self, points):
         """Check if polygon is valid (no self-intersections).

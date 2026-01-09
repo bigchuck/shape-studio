@@ -1544,19 +1544,18 @@ class CommandExecutor:
             # Selection
             sel = iter_data.get('selection', {})
             lines.append("Selection:")
-            lines.append(f"  Segment: {sel.get('segment_idx', '?')} (weight: {sel.get('segment_weight', '?'):.3f})")
+            lines.append(f"  Segment: {sel.get('segment_idx', '?')}")
             if sel.get('segment_endpoints') and verbose >= 3:
                 lines.append(f"  Endpoints: {sel['segment_endpoints']}")
             lines.append(f"  Length: {sel.get('segment_length', '?')}px")
             if sel.get('selection_probability'):
-                lines.append(f"  Probability: {sel['selection_probability']:.1%}")
+                lines.append(f"  Probability: {sel['selection_probability']:.1%}")            
             
             lines.append("")
             
             # Operation
             op = iter_data.get('operation', {})
             lines.append(f"Operation: {op.get('name', '?')}")
-            lines.append(f"  Depth: {int(op.get('depth_pct', 0) * 100)}% ({op.get('depth_pixels', '?')}px offset)")
             if op.get('direction'):
                 lines.append(f"  Direction: {op['direction']}")
             if op.get('direction_vector') and verbose >= 3:
