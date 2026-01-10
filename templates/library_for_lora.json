@@ -43,7 +43,8 @@
         "bounds": "100,100,668,668",
         "iters": "15",
         "break_width": "0.4",
-        "projection": "1.5",
+        "_projection": "1.5",
+        "projection": "0.5",
         "color": "black",
         "width": "2",
         "connect": "angle_sort"

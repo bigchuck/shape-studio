@@ -23,17 +23,17 @@
           "params": {
             "name": "shape1",
             "_verts": "6",
-            "verts": "17",
+            "verts": "40,50",
             "bounds": "150,150,618,618",
-            "_iters": "12",
-            "iters": "0",
+            "iters": "12",
             "break_width": "0.4",
-            "projection": "1.5",
+            "_projection": "0.5,1.5",
+            "projection": "0.5",
             "color": "black",
             "_width": "2",
             "width": "4",
             "connect": "convex_hull",
-            "ops": [["split_offset",1]]
+            "ops": "split_offset:1"
           }
         }
       ]
@@ -61,7 +61,7 @@
             "_width": "2",
             "width": "4",
             "connect": "convex_hull",
-            "ops": [["sawtooth",1]]
+            "ops": "sawtooth:1"
           }
         }
       ]
