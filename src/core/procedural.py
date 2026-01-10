@@ -26,7 +26,7 @@ class ProceduralGenerators:
                 'simple': {
                     'vertices': (5, 8),
                     'iterations': 5,
-                    'operations': ['split_offset'],
+                    'operations': [['split_offset', 1]],
                     'break_margin': 0.2,
                     'break_width_max': 0.3,
                     'projection_max': 1.5,
@@ -34,7 +34,7 @@ class ProceduralGenerators:
                 'complex': {
                     'vertices': (8, 12),
                     'iterations': 20,
-                    'operations': ['split_offset', 'sawtooth', 'squarewave', 'remove_point', 'distort_original'],
+                    'operations': [['split_offset', 1], ['sawtooth', 1], ['squarewave', 1]],
                     'break_margin': 0.15,
                     'break_width_max': 0.6,
                     'projection_max': 2.5,
@@ -44,7 +44,7 @@ class ProceduralGenerators:
                 'organic': {
                     'vertices': (6, 10),
                     'iterations': 12,
-                    'operations': ['sawtooth'],
+                    'operations': [['sawtooth', 1]],
                     'break_margin': 0.2,
                     'break_width_max': 0.5,
                     'projection_max': 2.0,
@@ -81,10 +81,10 @@ class ProceduralGenerators:
                     'description': 'Method for connecting initial vertices'
                 },
                 'operations': {
-                    'type': 'list',
-                    'required': False,
-                    'default': ['split_offset', 'sawtooth'],
-                    'description': 'Allowed modification operations (comma-separated)'
+                    'type': 'weighted_list',
+                    'default': [['split_offset', 1], ['sawtooth', 1], ['squarewave', 0], ['remove_point', 0], ['distort_original', 0]],
+                    'choices': ['split_offset', 'sawtooth', 'squarewave', 'remove_point', 'distort_original'],
+                    'description': 'List of operations with optional weights [[op, weight], ...]'
                 },
                 'break_margin': {
                     'type': 'float',
@@ -159,18 +159,6 @@ class ProceduralGenerators:
                     'required': False,
                     'default': 1,
                     'description': 'Save every Nth iteration (use with save_iterations)'
-                },
-                'remove_prob': {
-                    'type': 'float',
-                    'required': False,
-                    'default': 0.0,
-                    'description': 'Probability of remove_point operation per iteration (0.0-1.0)'
-                },
-                'distort_prob': {
-                    'type': 'float',
-                    'required': False,
-                    'default': 0.0,
-                    'description': 'Probability of distort_original operation per iteration (0.0-1.0)'
                 },
             },
         }
@@ -350,8 +338,7 @@ class ProceduralGenerators:
                        squarewave_opposite_direction_prob=0.2,
                        min_segment_length=10,
                        return_mode='single', verbose=0,
-                       save_iterations=False, snapshot_interval=1,
-                       remove_prob=0.0, distort_prob=0.0):
+                       save_iterations=False, snapshot_interval=1):
         """
         Generate evolved polygon through iterative segment modification.
         
@@ -429,7 +416,7 @@ class ProceduralGenerators:
         stats = {
             'successful_modifications': 0,
             'failed_attempts': 0,
-            'operations_used': {op: 0 for op in operations}
+            'operations_used': {op: 0 for op, weight in operations}
         }
         
         current_points = connected_points[:]
@@ -453,18 +440,19 @@ class ProceduralGenerators:
             # Select a segment using length-based selection (skip too-short segments)
             segment_idx = self._select_segment(current_points, min_segment_length)
             
-            # PROBABILITY-BASED OPERATION SELECTION
-            # Check probabilities first, then fall back to regular operations
-            rand_val = random.random()
-            
-            if remove_prob > 0 and rand_val < remove_prob:
-                operation = 'remove_point'
-            elif distort_prob > 0 and rand_val < (remove_prob + distort_prob):
-                operation = 'distort_original'
-            else:
-                # Use regular operations list
-                operation = random.choice(operations)
-            
+            # WEIGHTED OPERATION SELECTION
+            # operations is now a list of [operation_name, weight] pairs
+            # Filter to only operations with positive weights
+            eligible_ops = [(op, weight) for op, weight in operations if weight > 0]
+
+            if not eligible_ops:
+                raise ValueError("No operations with positive weights available")
+
+            # Weighted random selection
+            op_names = [op for op, weight in eligible_ops]
+            op_weights = [weight for op, weight in eligible_ops]
+            operation = random.choices(op_names, weights=op_weights)[0]
+
             # Prepare iteration log entry
             iter_log = None
             if verbose >= 2:

@@ -22,13 +22,46 @@
           "template": "organic_outline_template",
           "params": {
             "name": "shape1",
-            "verts": "6",
+            "_verts": "6",
+            "verts": "17",
             "bounds": "150,150,618,618",
-            "iters": "12",
+            "_iters": "12",
+            "iters": "0",
             "break_width": "0.4",
             "projection": "1.5",
             "color": "black",
-            "width": "2"
+            "_width": "2",
+            "width": "4",
+            "connect": "convex_hull",
+            "ops": [["split_offset",1]]
+          }
+        }
+      ]
+    },
+
+    "test_double": {
+      "description": "Single test image - simple organic outline",
+      "author": "Mr. Chuck",
+      "created": "2026-01-09",
+      "target_canvas": "MAIN",
+      "comments": "Quick test using organic_outline_template with specific parameters",
+      "commands": [
+        {
+          "template": "organic_outline_template",
+          "params": {
+            "name": "shape2",
+            "_verts": "6",
+            "verts": "17",
+            "bounds": "0,0,150,150",
+            "_iters": "12",
+            "iters": "0",
+            "break_width": "0.4",
+            "projection": "1.5",
+            "color": "black",
+            "_width": "2",
+            "width": "4",
+            "connect": "convex_hull",
+            "ops": [["sawtooth",1]]
           }
         }
       ]
