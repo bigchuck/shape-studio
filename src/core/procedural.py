@@ -34,7 +34,7 @@ class ProceduralGenerators:
                 'complex': {
                     'vertices': (8, 12),
                     'iterations': 20,
-                    'operations': ['split_offset', 'sawtooth', 'squarewave'],
+                    'operations': ['split_offset', 'sawtooth', 'squarewave', 'remove_point', 'distort_original'],
                     'break_margin': 0.15,
                     'break_width_max': 0.6,
                     'projection_max': 2.5,

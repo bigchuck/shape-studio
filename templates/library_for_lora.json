@@ -1,0 +1,186 @@
+{
+  "version": "1.0",
+  "description": "Template library for LoRA training dataset - single polygon outlines",
+  "author": "Mr. Chuck",
+  "created": "2026-01-09",
+  "comments": "Reusable templates for procedural polygon generation. All shapes are outline-only (no fill) for LoRA training. Copy and customize parameters in executables.",
+  
+  "templates": {
+    
+    "simple_outline_template": {
+      "description": "Basic polygon outline - simple geometry",
+      "target_canvas": "MAIN",
+      "comments": "Template for simple outlines with minimal complexity. Good starting point.",
+      "commands": [
+        "CLEAR MAIN ALL",
+        "PROC dynamic_polygon ${name} vertices=${verts} bounds=${bounds} iterations=${iters} operations=split_offset",
+        "COLOR ${name} ${color}",
+        "WIDTH ${name} ${width}"
+      ],
+      "required_params": ["name"],
+      "optional_params": {
+        "verts": "5,7",
+        "bounds": "100,100,668,668",
+        "iters": "8",
+        "color": "black",
+        "width": "2"
+      }
+    },
+    
+    "organic_outline_template": {
+      "description": "Organic polygon outline - flowing natural forms",
+      "target_canvas": "MAIN",
+      "comments": "Template for organic shapes using sawtooth operations and inward bias. Creates smooth, flowing outlines.",
+      "commands": [
+        "CLEAR MAIN ALL",
+        "PROC dynamic_polygon ${name} vertices=${verts} bounds=${bounds} iterations=${iters} operations=sawtooth direction_bias=inward break_width_max=${break_width} projection_max=${projection}",
+        "COLOR ${name} ${color}",
+        "WIDTH ${name} ${width}"
+      ],
+      "required_params": ["name"],
+      "optional_params": {
+        "verts": "6,10",
+        "bounds": "100,100,668,668",
+        "iters": "15",
+        "break_width": "0.4",
+        "projection": "1.5",
+        "color": "black",
+        "width": "2"
+      }
+    },
+    
+    "geometric_outline_template": {
+      "description": "Geometric polygon outline - angular precise forms",
+      "target_canvas": "MAIN",
+      "comments": "Template for geometric shapes using squarewave operations and outward bias. Creates sharp, angular outlines.",
+      "commands": [
+        "CLEAR MAIN ALL",
+        "PROC dynamic_polygon ${name} vertices=${verts} bounds=${bounds} iterations=${iters} operations=squarewave direction_bias=outward break_width_max=${break_width} projection_max=${projection}",
+        "COLOR ${name} ${color}",
+        "WIDTH ${name} ${width}"
+      ],
+      "required_params": ["name"],
+      "optional_params": {
+        "verts": "4,6",
+        "bounds": "100,100,668,668",
+        "iters": "12",
+        "break_width": "0.5",
+        "projection": "2.0",
+        "color": "black",
+        "width": "3"
+      }
+    },
+    
+    "complex_outline_template": {
+      "description": "Complex polygon outline - multiple operations for variety",
+      "target_canvas": "MAIN",
+      "comments": "Template for complex shapes using multiple operations. Creates intricate, detailed outlines.",
+      "commands": [
+        "CLEAR MAIN ALL",
+        "PROC dynamic_polygon ${name} vertices=${verts} bounds=${bounds} iterations=${iters} operations=split_offset,sawtooth,squarewave direction_bias=random break_width_max=${break_width} projection_max=${projection}",
+        "COLOR ${name} ${color}",
+        "WIDTH ${name} ${width}"
+      ],
+      "required_params": ["name"],
+      "optional_params": {
+        "verts": "8,12",
+        "bounds": "100,100,668,668",
+        "iters": "20",
+        "break_width": "0.6",
+        "projection": "2.5",
+        "color": "black",
+        "width": "2"
+      }
+    },
+    
+    "random_outline_batch_template": {
+      "description": "Randomized polygon outline - for BATCH generation with RAND()",
+      "target_canvas": "MAIN",
+      "comments": "Template specifically for BATCH operations. Uses RAND() for variation across iterations. All parameters randomized for maximum dataset diversity.",
+      "commands": [
+        "CLEAR MAIN ALL",
+        "PROC dynamic_polygon shape VERTICES=RAND(5,10) BOUNDS=100,100,668,668 ITERATIONS=RAND(10,25) OPERATIONS=split_offset,sawtooth DIRECTION_BIAS=random DEPTH_RANGE=RAND(0.2,0.5),RAND(0.6,0.9)",
+        "COLOR shape black",
+        "WIDTH shape RAND(2,4)"
+      ],
+      "required_params": [],
+      "optional_params": {}
+    },
+    
+    "centered_outline_template": {
+      "description": "Centered polygon outline - shape centered in canvas",
+      "target_canvas": "MAIN",
+      "comments": "Template for centered shapes with equal margins. Good for consistent framing in dataset.",
+      "commands": [
+        "CLEAR MAIN ALL",
+        "PROC dynamic_polygon ${name} vertices=${verts} bounds=184,184,584,584 iterations=${iters} operations=${ops} direction_bias=${bias}",
+        "COLOR ${name} ${color}",
+        "WIDTH ${name} ${width}"
+      ],
+      "required_params": ["name"],
+      "optional_params": {
+        "verts": "6,9",
+        "iters": "12",
+        "ops": "sawtooth",
+        "bias": "inward",
+        "color": "black",
+        "width": "2"
+      }
+    },
+    
+    "preset_simple_template": {
+      "description": "Simple configuration - basic geometry",
+      "target_canvas": "MAIN",
+      "comments": "Template with simple configuration. Fast and reliable.",
+      "commands": [
+        "CLEAR MAIN ALL",
+        "PROC dynamic_polygon ${name} vertices=5,8 bounds=${bounds} iterations=5 operations=split_offset",
+        "COLOR ${name} ${color}",
+        "WIDTH ${name} ${width}"
+      ],
+      "required_params": ["name"],
+      "optional_params": {
+        "bounds": "100,100,668,668",
+        "color": "black",
+        "width": "2"
+      }
+    },
+    
+    "preset_organic_template": {
+      "description": "Organic configuration - natural flowing forms",
+      "target_canvas": "MAIN",
+      "comments": "Template with organic configuration. Creates flowing, natural shapes.",
+      "commands": [
+        "CLEAR MAIN ALL",
+        "PROC dynamic_polygon ${name} vertices=6,10 bounds=${bounds} iterations=15 operations=sawtooth direction_bias=inward",
+        "COLOR ${name} ${color}",
+        "WIDTH ${name} ${width}"
+      ],
+      "required_params": ["name"],
+      "optional_params": {
+        "bounds": "100,100,668,668",
+        "color": "black",
+        "width": "2"
+      }
+    },
+    
+    "preset_complex_template": {
+      "description": "Complex configuration - intricate detailed forms",
+      "target_canvas": "MAIN",
+      "comments": "Template with complex configuration. Creates detailed, intricate shapes.",
+      "commands": [
+        "CLEAR MAIN ALL",
+        "PROC dynamic_polygon ${name} vertices=8,12 bounds=${bounds} iterations=20 operations=split_offset,sawtooth,squarewave",
+        "COLOR ${name} ${color}",
+        "WIDTH ${name} ${width}"
+      ],
+      "required_params": ["name"],
+      "optional_params": {
+        "bounds": "100,100,668,668",
+        "color": "black",
+        "width": "2"
+      }
+    }
+    
+  }
+}

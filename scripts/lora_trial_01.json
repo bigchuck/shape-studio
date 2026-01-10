@@ -1,0 +1,263 @@
+{
+  "version": "1.0",
+  "description": "LoRA Training Trial Executables - Single polygon outline generation",
+  "author": "Mr. Chuck",
+  "created": "2026-01-09",
+  "comments": "Executable scripts for generating LoRA training images. References templates from library_for_lora.json",
+  
+  "template_libraries": [
+    "library_for_lora.json"
+  ],
+  
+  "executables": {
+    
+    "test_single": {
+      "description": "Single test image - simple organic outline",
+      "author": "Mr. Chuck",
+      "created": "2026-01-09",
+      "target_canvas": "MAIN",
+      "comments": "Quick test using organic_outline_template with specific parameters",
+      "commands": [
+        {
+          "template": "organic_outline_template",
+          "params": {
+            "name": "shape1",
+            "verts": "6",
+            "bounds": "150,150,618,618",
+            "iters": "12",
+            "break_width": "0.4",
+            "projection": "1.5",
+            "color": "black",
+            "width": "2"
+          }
+        }
+      ]
+    },
+    
+    
+    "test_geometric": {
+      "description": "Single test image - geometric angular outline",
+      "author": "Mr. Chuck",
+      "created": "2026-01-09",
+      "target_canvas": "MAIN",
+      "comments": "Test using geometric_outline_template",
+      "commands": [
+        {
+          "template": "geometric_outline_template",
+          "params": {
+            "name": "shape1",
+            "verts": "5",
+            "bounds": "150,150,618,618",
+            "iters": "10",
+            "break_width": "0.5",
+            "projection": "2.0",
+            "color": "black",
+            "width": "3"
+          }
+        }
+      ]
+    },
+    
+    
+    "test_complex": {
+      "description": "Single test image - complex multi-operation outline",
+      "author": "Mr. Chuck",
+      "created": "2026-01-09",
+      "target_canvas": "MAIN",
+      "comments": "Test using complex_outline_template",
+      "commands": [
+        {
+          "template": "complex_outline_template",
+          "params": {
+            "name": "shape1",
+            "verts": "8",
+            "bounds": "150,150,618,618",
+            "iters": "18",
+            "break_width": "0.6",
+            "projection": "2.5",
+            "color": "black",
+            "width": "2"
+          }
+        }
+      ]
+    },
+    
+    "test_preset_simple": {
+      "description": "Single test image - using preset_simple_template",
+      "author": "Mr. Chuck",
+      "created": "2026-01-09",
+      "target_canvas": "MAIN",
+      "comments": "Test using built-in preset=simple",
+      "commands": [
+        {
+          "template": "preset_simple_template",
+          "params": {
+            "name": "shape1",
+            "bounds": "150,150,618,618",
+            "color": "black",
+            "width": "2"
+          }
+        }
+      ]
+    },
+    
+    "test_preset_organic": {
+      "description": "Single test image - using preset_organic_template",
+      "author": "Mr. Chuck",
+      "created": "2026-01-09",
+      "target_canvas": "MAIN",
+      "comments": "Test using built-in preset=organic",
+      "commands": [
+        {
+          "template": "preset_organic_template",
+          "params": {
+            "name": "shape1",
+            "bounds": "150,150,618,618",
+            "color": "black",
+            "width": "2"
+          }
+        }
+      ]
+    },
+    
+    "test_preset_complex": {
+      "description": "Single test image - using preset_complex_template",
+      "author": "Mr. Chuck",
+      "created": "2026-01-09",
+      "target_canvas": "MAIN",
+      "comments": "Test using built-in preset=complex",
+      "commands": [
+        {
+          "template": "preset_complex_template",
+          "params": {
+            "name": "shape1",
+            "bounds": "150,150,618,618",
+            "color": "black",
+            "width": "2"
+          }
+        }
+      ]
+    },
+    
+    
+    "batch_ready_organic": {
+      "description": "Ready for BATCH - organic style with randomization",
+      "author": "Mr. Chuck",
+      "created": "2026-01-09",
+      "target_canvas": "MAIN",
+      "comments": "Uses randomization for batch generation. Run with: BATCH 100 lora_trial_01.json batch_ready_organic dataset_organic",
+      "randomization": {
+        "verts": [6, 10],
+        "iters": [12, 20],
+        "break_width": [0.3, 0.5],
+        "projection": [1.2, 1.8],
+        "width": [2, 3]
+      },
+      "commands": [
+        {
+          "template": "organic_outline_template",
+          "params": {
+            "name": "shape",
+            "verts": "${verts}",
+            "bounds": "150,150,618,618",
+            "iters": "${iters}",
+            "break_width": "${break_width}",
+            "projection": "${projection}",
+            "color": "black",
+            "width": "${width}"
+          }
+        }
+      ]
+    },
+    
+    
+    "batch_ready_geometric": {
+      "description": "Ready for BATCH - geometric style with randomization",
+      "author": "Mr. Chuck",
+      "created": "2026-01-09",
+      "target_canvas": "MAIN",
+      "comments": "Geometric angular style. Run with: BATCH 100 lora_trial_01.json batch_ready_geometric dataset_geometric",
+      "randomization": {
+        "verts": [4, 7],
+        "iters": [8, 15],
+        "break_width": [0.4, 0.6],
+        "projection": [1.5, 2.5],
+        "width": [2, 4]
+      },
+      "commands": [
+        {
+          "template": "geometric_outline_template",
+          "params": {
+            "name": "shape",
+            "verts": "${verts}",
+            "bounds": "150,150,618,618",
+            "iters": "${iters}",
+            "break_width": "${break_width}",
+            "projection": "${projection}",
+            "color": "black",
+            "width": "${width}"
+          }
+        }
+      ]
+    },
+    
+    
+    "batch_ready_mixed": {
+      "description": "Ready for BATCH - complex mixed operations",
+      "author": "Mr. Chuck",
+      "created": "2026-01-09",
+      "target_canvas": "MAIN",
+      "comments": "Maximum variety with all operations. Run with: BATCH 100 lora_trial_01.json batch_ready_mixed dataset_mixed",
+      "randomization": {
+        "verts": [5, 10],
+        "iters": [10, 25],
+        "break_width": [0.3, 0.7],
+        "projection": [1.0, 3.0],
+        "width": [2, 4]
+      },
+      "commands": [
+        {
+          "template": "complex_outline_template",
+          "params": {
+            "name": "shape",
+            "verts": "${verts}",
+            "bounds": "150,150,618,618",
+            "iters": "${iters}",
+            "break_width": "${break_width}",
+            "projection": "${projection}",
+            "color": "black",
+            "width": "${width}"
+          }
+        }
+      ]
+    },
+    
+    
+    "batch_ready_centered": {
+      "description": "Ready for BATCH - centered composition",
+      "author": "Mr. Chuck",
+      "created": "2026-01-09",
+      "target_canvas": "MAIN",
+      "comments": "Centered shapes with consistent framing. Run with: BATCH 100 lora_trial_01.json batch_ready_centered dataset_centered",
+      "randomization": {
+        "verts": [6, 9],
+        "iters": [12, 18]
+      },
+      "commands": [
+        {
+          "template": "centered_outline_template",
+          "params": {
+            "name": "shape",
+            "verts": "${verts}",
+            "iters": "${iters}",
+            "ops": "sawtooth",
+            "bias": "inward",
+            "color": "black",
+            "width": "2"
+          }
+        }
+      ]
+    }
+    
+  }
+}
