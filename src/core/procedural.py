@@ -862,12 +862,12 @@ class ProceduralGenerators:
         
         # Random projection distance (up to projection_max times break_width)
         offset_dist = random.uniform(0, projection_max * max(break_width, seg_length * 0.1))
-        
+
         # New point offset perpendicular from break position
         new_x = break_x + perp_x * offset_dist
         new_y = break_y + perp_y * offset_dist
         new_point = (new_x, new_y)
-        
+
         # Round to integer pixel coordinates
         new_point = self._round_point(new_point)
         

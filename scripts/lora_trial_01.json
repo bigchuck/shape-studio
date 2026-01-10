@@ -23,17 +23,18 @@
           "params": {
             "name": "shape1",
             "_verts": "6",
-            "verts": "40,50",
+            "verts": "6,10",
             "bounds": "150,150,618,618",
-            "iters": "12",
+            "iters": "20",
             "break_width": "0.4",
             "_projection": "0.5,1.5",
-            "projection": "0.5",
+            "projection": "5",
             "color": "black",
             "_width": "2",
-            "width": "4",
+            "width": "3",
             "connect": "convex_hull",
-            "ops": "split_offset:1"
+            "ops": "split_offset:10,sawtooth:5,squarewave:5,remove_point:1,distort_original:1",
+            "bias": "random"
           }
         }
       ]

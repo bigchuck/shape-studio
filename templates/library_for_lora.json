@@ -33,7 +33,7 @@
       "comments": "Template for organic shapes using sawtooth operations and inward bias. Creates smooth, flowing outlines.",
       "commands": [
         "CLEAR MAIN ALL",
-        "PROC dynamic_polygon ${name} vertices=${verts} bounds=${bounds} iterations=${iters} operations=${ops} direction_bias=inward break_width_max=${break_width} projection_max=${projection} connect=${connect}",
+        "PROC dynamic_polygon ${name} vertices=${verts} bounds=${bounds} iterations=${iters} operations=${ops} direction_bias=${bias} break_width_max=${break_width} projection_max=${projection} connect=${connect}",
         "COLOR ${name} ${color}",
         "WIDTH ${name} ${width}"
       ],
@@ -47,7 +47,8 @@
         "projection": "0.5",
         "color": "black",
         "width": "2",
-        "connect": "angle_sort"
+        "connect": "angle_sort",
+        "bias": "inward"
       }
     },
     
