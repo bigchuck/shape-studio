@@ -36,3 +36,5 @@ htmlcov/
 *.bak
 projects/
 shapes/
+scripts/
+templates/
