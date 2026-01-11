@@ -1,5 +1,8 @@
 # Generated output images
 output/
+# project files
+scripts/
+templates/
 
 # Python
 __pycache__/
@@ -36,5 +39,3 @@ htmlcov/
 *.bak
 projects/
 shapes/
-scripts/
-templates/
