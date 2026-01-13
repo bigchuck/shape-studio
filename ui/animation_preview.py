@@ -6,6 +6,7 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 from PIL import Image, ImageDraw
 import copy
+from src.config import config
 
 
 class AnimationPreview(tk.Toplevel):
@@ -32,7 +33,7 @@ class AnimationPreview(tk.Toplevel):
         self.ui_instance = ui_instance 
         self.current_frame = 0
         self.playing = False
-        self.fps = fps
+        self.fps = fps if fps is not None else config.animation.default_fps
         self.loop = loop
         self.timer_id = None
         
@@ -91,17 +92,19 @@ class AnimationPreview(tk.Toplevel):
         
         max_dim = max(width, height)
         
+        preview_size = config.animation.preview_size
+
         # Scale to fit in 512x512
-        if max_dim > 512:
-            scale = 512 / max_dim
+        if max_dim > preview_size:
+            scale = preview_size / max_dim
         else:
             scale = 1.0  # Don't upscale if smaller
         
         # Calculate offset to center in canvas
         scaled_width = width * scale
         scaled_height = height * scale
-        offset_x = (512 - scaled_width) / 2 - x1 * scale
-        offset_y = (512 - scaled_height) / 2 - y1 * scale
+        offset_x = (preview_size - scaled_width) / 2 - x1 * scale
+        offset_y = (preview_size - scaled_height) / 2 - y1 * scale
         
         return scale, (offset_x, offset_y)
     
@@ -116,7 +119,7 @@ class AnimationPreview(tk.Toplevel):
         canvas_frame.pack(pady=(0, 10))
         
         # Create PIL canvas for drawing
-        self.canvas_size = 512
+        self.canvas_size = preview_size
         self.canvas_image = Image.new('RGB', (self.canvas_size, self.canvas_size), 'white')
         self.canvas_draw = ImageDraw.Draw(self.canvas_image)
         

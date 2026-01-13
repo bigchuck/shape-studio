@@ -6,6 +6,7 @@ import json
 import random
 import re
 from pathlib import Path
+from src.config import config
 
 
 class TemplateLibrary:
@@ -675,7 +676,7 @@ class TemplateExecutor:
             )
         
         # Rejection sampling with retry limit
-        max_retries = 1000
+        max_retries = config.randomization.normal_distribution.max_sampling_attempts
         for attempt in range(max_retries):
             value = random.gauss(mean, std)
             
@@ -686,7 +687,17 @@ class TemplateExecutor:
                     return round(value)
                 else:
                     return value
-        
+        if config.randomization.normal_distribution.fallback_to_uniform:
+            # Fall back to uniform distribution
+            value = random.uniform(min_val, max_val)
+        else:
+            # Raise error
+            raise ValueError(f"Normal distribution sampling failed after {max_retries} attempts")
+
+        if config.randomization.normal_distribution.warn_on_failures:
+            import warnings
+            warnings.warn(f"Normal distribution sampling required {max_retries} attempts")
+
         # Failed to generate valid value after max retries
         raise ValueError(
             f"Normal distribution for '{key}' failed after {max_retries} attempts\n"

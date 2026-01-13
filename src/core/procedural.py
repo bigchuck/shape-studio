@@ -6,6 +6,7 @@ import random
 import math
 from src.core.shape import Polygon, Line, ShapeGroup
 from src.core.param_converters import CONVERTERS, choice_converter
+from src.config import config
 
 
 class ProceduralGenerators:
@@ -70,18 +71,19 @@ class ProceduralGenerators:
                 'iterations': {
                     'type': 'int',
                     'required': False,
-                    'default': 10,
+                    'default': None,
                     'description': 'Number of evolution iterations'
                 },
                 'connect': {
                     'type': 'choice',
                     'choices': ['angle_sort', 'convex_hull'],
                     'required': False,
-                    'default': 'angle_sort',
+                    'default': None,
                     'description': 'Method for connecting initial vertices'
                 },
                 'operations': {
                     'type': 'weighted_list',
+                    'required': False,
                     'default': [['split_offset', 1], ['sawtooth', 1], ['squarewave', 0], ['remove_point', 0], ['distort_original', 0]],
                     'choices': ['split_offset', 'sawtooth', 'squarewave', 'remove_point', 'distort_original'],
                     'description': 'List of operations with optional weights [[op, weight], ...]'
@@ -89,50 +91,50 @@ class ProceduralGenerators:
                 'break_margin': {
                     'type': 'float',
                     'required': False,
-                    'default': 0.15,
+                    'default': None,
                     'description': 'Minimum distance from segment endpoints (0.0-0.5)'
                 },
                 'break_width_max': {
                     'type': 'float',
                     'required': False,
-                    'default': 0.5,
+                    'default': None,
                     'description': 'Maximum break width as fraction of segment length (0.0-1.0)'
                 },
                 'projection_max': {
                     'type': 'float',
                     'required': False,
-                    'default': 2.0,
+                    'default': None,
                     'description': 'Maximum projection distance multiplier (0.5-5.0)'
                 },
                 'min_segment_length': {
                     'type': 'int',
                     'required': False,
-                    'default': 10,
+                    'default': None,
                     'description': 'Minimum segment length to consider for modification (pixels)'
                 },
                 'squarewave_independent_directions': {
                     'type': 'bool',
                     'required': False,
-                    'default': False,
+                    'default': None,
                     'description': 'Allow independent projection directions in squarewave'
                 },
                 'squarewave_opposite_direction_prob': {
                     'type': 'float',
                     'required': False,
-                    'default': 0.2,
+                    'default': None,
                     'description': 'Probability of opposite direction in squarewave (0.0-1.0)'
                 },
                 'max_retries': {
                     'type': 'int',
                     'required': False,
-                    'default': 10,
+                    'default': None,
                     'description': 'Max attempts per modification before skipping'
                 },
                 'direction_bias': {
                     'type': 'choice',
                     'choices': ['inward', 'outward', 'random'],
                     'required': False,
-                    'default': 'random',
+                    'default': None,
                     'description': 'Preferred direction for modifications'
                 },
                 'return_mode': {
@@ -330,15 +332,15 @@ class ProceduralGenerators:
     # PROCEDURAL METHOD IMPLEMENTATIONS
     # ========================================================================
     
-    def dynamic_polygon(self, name, vertices, bounds, iterations=10,
-                       connect='angle_sort', operations=None,
-                       break_margin=0.15, break_width_max=0.5, projection_max=2.0,
-                       max_retries=15, direction_bias='random',
-                       squarewave_independent_directions=False,
-                       squarewave_opposite_direction_prob=0.2,
-                       min_segment_length=10,
-                       return_mode='single', verbose=0,
-                       save_iterations=False, snapshot_interval=1):
+    def dynamic_polygon(self, name, vertices, bounds, iterations=None,
+                   connect=None, operations=None,
+                   break_margin=None, break_width_max=None, projection_max=None,
+                   max_retries=None, direction_bias=None,
+                   squarewave_independent_directions=None,
+                   squarewave_opposite_direction_prob=None,
+                   min_segment_length=None,
+                   return_mode='single', verbose=None,
+                   save_iterations=None, snapshot_interval=None):
         """
         Generate evolved polygon through iterative segment modification.
         
@@ -371,6 +373,23 @@ class ProceduralGenerators:
         Returns:
             Polygon object or list of Polygons (if save_iterations=True)
         """
+        iterations = iterations if iterations is not None else config.procedural.defaults.iterations
+        max_retries = max_retries if max_retries is not None else config.procedural.defaults.max_retries
+        connect = connect if connect is not None else config.procedural.defaults.connect
+        direction_bias = direction_bias if direction_bias is not None else config.procedural.defaults.direction_bias
+        
+        break_margin = break_margin if break_margin is not None else config.procedural.operations.break_margin
+        break_width_max = break_width_max if break_width_max is not None else config.procedural.operations.break_width_max
+        projection_max = projection_max if projection_max is not None else config.procedural.operations.projection_max
+        min_segment_length = min_segment_length if min_segment_length is not None else config.procedural.operations.min_segment_length
+        
+        squarewave_independent_directions = squarewave_independent_directions if squarewave_independent_directions is not None else config.procedural.squarewave.independent_directions
+        squarewave_opposite_direction_prob = squarewave_opposite_direction_prob if squarewave_opposite_direction_prob is not None else config.procedural.squarewave.opposite_direction_prob
+        
+        verbose = verbose if verbose is not None else config.procedural.debug.verbose_default
+        save_iterations = save_iterations if save_iterations is not None else config.procedural.debug.save_iterations_default
+        snapshot_interval = snapshot_interval if snapshot_interval is not None else config.procedural.debug.snapshot_interval_default
+
         if operations is None:
             operations = ['split_offset', 'sawtooth']
         
@@ -497,53 +516,65 @@ class ProceduralGenerators:
                         squarewave_independent_directions, squarewave_opposite_direction_prob
                     )
                     
-                    # Validate: check for self-intersections
-                    if self._is_valid_polygon(new_points):
-                        # Success! Update state
-                        current_points = new_points
-                        distortable_points = new_distortable
-
-                        centroid = self._compute_centroid(current_points)  # Update centroid
-                        stats['successful_modifications'] += 1
-                        stats['operations_used'][operation] += 1
-                        success = True
+                    # Validate: check for self-intersections and quality
+                    if not self._is_valid_polygon(new_points):
+                        continue  # Self-intersection detected
                         
-                        # Log successful operation details
-                        if verbose >= 2 and iter_log:
-                            # Get the new point(s) that were added
-                            if operation == 'split_offset':
-                                new_point = current_points[segment_idx + 1]
-                                iter_log['operation']['new_point'] = new_point if verbose >= 3 else None
+                    # Additional quality checks (if validation enabled)
+                    if config.procedural.validation.enabled and config.procedural.validation.validate_each_retry:
+                        # Check segment clearance
+                        if not self._check_segment_clearance(new_points):
+                            continue  # Segments too close (pinch effect)
+                        
+                        # Check angles
+                        if not self._check_angles(new_points):
+                            continue  # Angle too acute (pinch/needle)
+
+                    # Success! Update state
+                    current_points = new_points
+                    distortable_points = new_distortable
+
+                    centroid = self._compute_centroid(current_points)  # Update centroid
+                    stats['successful_modifications'] += 1
+                    stats['operations_used'][operation] += 1
+                    success = True
+                    
+                    # Log successful operation details
+                    if verbose >= 2 and iter_log:
+                        # Get the new point(s) that were added
+                        if operation == 'split_offset':
+                            new_point = current_points[segment_idx + 1]
+                            iter_log['operation']['new_point'] = new_point if verbose >= 3 else None
+                        
+                        # Add result info
+                        if verbose >= 3:
+                            iter_log['result'] = {
+                                'point_count': len(new_points),
+                                'validation': 'PASS',
+                                'new_points': new_points[:] if verbose >= 3 else None,
+                            }                        
                             
-                            # Add result info
+                        # Add direction info
+                        n = len(current_points) - (len(current_points) - len(new_points))
+                        if segment_idx < len(current_points) - 1:
+                            perp_x, perp_y = self._get_perpendicular_direction(
+                                current_points[segment_idx], 
+                                current_points[segment_idx + 1],
+                                direction_bias, 
+                                centroid
+                            )
+                            # Determine if it's inward or outward
+                            p1 = current_points[segment_idx]
+                            p2 = current_points[segment_idx + 1]
+                            mx = (p1[0] + p2[0]) / 2
+                            my = (p1[1] + p2[1]) / 2
+                            to_mid_x = mx - centroid[0]
+                            to_mid_y = my - centroid[1]
+                            dot = perp_x * to_mid_x + perp_y * to_mid_y
+                            
+                            iter_log['operation']['direction'] = 'outward' if dot > 0 else 'inward'
                             if verbose >= 3:
-                                iter_log['result'] = {
-                                    'point_count': len(new_points),
-                                    'validation': 'PASS',
-                                    'new_points': new_points[:] if verbose >= 3 else None,
-                                }                        
-                            
-                            # Add direction info
-                            n = len(current_points) - (len(current_points) - len(new_points))
-                            if segment_idx < len(current_points) - 1:
-                                perp_x, perp_y = self._get_perpendicular_direction(
-                                    current_points[segment_idx], 
-                                    current_points[segment_idx + 1],
-                                    direction_bias, 
-                                    centroid
-                                )
-                                # Determine if it's inward or outward
-                                p1 = current_points[segment_idx]
-                                p2 = current_points[segment_idx + 1]
-                                mx = (p1[0] + p2[0]) / 2
-                                my = (p1[1] + p2[1]) / 2
-                                to_mid_x = mx - centroid[0]
-                                to_mid_y = my - centroid[1]
-                                dot = perp_x * to_mid_x + perp_y * to_mid_y
-                                
-                                iter_log['operation']['direction'] = 'outward' if dot > 0 else 'inward'
-                                if verbose >= 3:
-                                    iter_log['operation']['direction_vector'] = (round(perp_x, 2), round(perp_y, 2))
+                                iter_log['operation']['direction_vector'] = (round(perp_x, 2), round(perp_y, 2))
                         
                         break
                     else:
@@ -958,6 +989,12 @@ class ProceduralGenerators:
         peak = self._round_point(peak)
         base_right = self._round_point(base_right)
         
+        # Check aspect ratio (if validation enabled)
+        if config.procedural.validation.enabled:
+            base_points = [base_left, base_right]
+            if not self._check_aspect_ratio(base_points, peak):
+                raise ValueError(f"Aspect ratio too small (needle-like protrusion)")
+
         # Check bounds if provided
         if bounds:
             for point in [base_left, peak, base_right]:
@@ -1079,6 +1116,13 @@ class ProceduralGenerators:
         top_right = self._round_point(top_right)
         base_right = self._round_point(base_right)
         
+        # Check aspect ratio (if validation enabled)
+        if config.procedural.validation.enabled:
+            base_points = [base_left, base_right]
+            peak_points = [top_left, top_right]
+            if not self._check_aspect_ratio(base_points, peak_points):
+                raise ValueError(f"Aspect ratio too small (needle-like protrusion)")
+
         # Check bounds if provided
         if bounds:
             for point in [base_left, top_left, top_right, base_right]:
@@ -1346,3 +1390,216 @@ class ProceduralGenerators:
         x, y = point
         x1, y1, x2, y2 = bounds
         return x1 <= x <= x2 and y1 <= y <= y2
+    
+    def _check_segment_clearance(self, points, min_distance=None):
+        """
+        Check minimum distance between non-adjacent segments.
+        
+        Args:
+            points: Polygon vertices
+            min_distance: Minimum clearance (pixels), or use config
+            
+        Returns:
+            True if all segments have sufficient clearance
+        """
+        if not config.procedural.validation.enabled:
+            return True
+        
+        min_dist = min_distance if min_distance is not None else \
+                config.procedural.validation.min_segment_clearance
+        
+        n = len(points)
+        if n < 3:
+            return True
+        
+        # Check each segment against all non-adjacent segments
+        for i in range(n):
+            p1 = points[i]
+            p2 = points[(i + 1) % n]
+            
+            for j in range(i + 2, n):
+                # Skip if checking last edge against first (adjacent)
+                if i == 0 and j == n - 1:
+                    continue
+                
+                p3 = points[j]
+                p4 = points[(j + 1) % n]
+                
+                # Calculate minimum distance between segments
+                dist = self._segment_to_segment_distance(p1, p2, p3, p4)
+                
+                if dist < min_dist:
+                    return False
+        
+        return True
+
+
+    def _segment_to_segment_distance(self, p1, p2, p3, p4):
+        """
+        Calculate minimum distance between two line segments.
+        
+        Args:
+            p1, p2: Endpoints of first segment
+            p3, p4: Endpoints of second segment
+            
+        Returns:
+            Minimum distance in pixels
+        """
+        # Point to segment distance helper
+        def point_to_segment_distance(px, py, x1, y1, x2, y2):
+            # Vector from segment start to point
+            dx = px - x1
+            dy = py - y1
+            
+            # Vector along segment
+            sx = x2 - x1
+            sy = y2 - y1
+            
+            # Segment length squared
+            seg_len_sq = sx * sx + sy * sy
+            
+            if seg_len_sq == 0:
+                # Degenerate segment (point)
+                return math.sqrt(dx * dx + dy * dy)
+            
+            # Project point onto line (parameter t)
+            t = max(0, min(1, (dx * sx + dy * sy) / seg_len_sq))
+            
+            # Closest point on segment
+            closest_x = x1 + t * sx
+            closest_y = y1 + t * sy
+            
+            # Distance to closest point
+            dist_x = px - closest_x
+            dist_y = py - closest_y
+            return math.sqrt(dist_x * dist_x + dist_y * dist_y)
+        
+        # Check all point-to-segment combinations
+        distances = [
+            point_to_segment_distance(p1[0], p1[1], p3[0], p3[1], p4[0], p4[1]),
+            point_to_segment_distance(p2[0], p2[1], p3[0], p3[1], p4[0], p4[1]),
+            point_to_segment_distance(p3[0], p3[1], p1[0], p1[1], p2[0], p2[1]),
+            point_to_segment_distance(p4[0], p4[1], p1[0], p1[1], p2[0], p2[1]),
+        ]
+        
+        return min(distances)
+
+
+    def _check_angles(self, points, min_angle=None):
+        """
+        Check minimum interior angles at all vertices.
+        
+        Args:
+            points: Polygon vertices
+            min_angle: Minimum angle in degrees, or use config
+            
+        Returns:
+            True if all angles meet minimum threshold
+        """
+        if not config.procedural.validation.enabled:
+            return True
+        
+        min_ang = min_angle if min_angle is not None else \
+                config.procedural.validation.min_angle
+        
+        n = len(points)
+        if n < 3:
+            return True
+        
+        for i in range(n):
+            # Three consecutive vertices
+            p_prev = points[(i - 1) % n]
+            p_curr = points[i]
+            p_next = points[(i + 1) % n]
+            
+            # Vectors from current vertex
+            v1_x = p_prev[0] - p_curr[0]
+            v1_y = p_prev[1] - p_curr[1]
+            v2_x = p_next[0] - p_curr[0]
+            v2_y = p_next[1] - p_curr[1]
+            
+            # Normalize vectors
+            len1 = math.sqrt(v1_x * v1_x + v1_y * v1_y)
+            len2 = math.sqrt(v2_x * v2_x + v2_y * v2_y)
+            
+            if len1 == 0 or len2 == 0:
+                continue  # Degenerate case
+            
+            v1_x /= len1
+            v1_y /= len1
+            v2_x /= len2
+            v2_y /= len2
+            
+            # Dot product for angle
+            dot = v1_x * v2_x + v1_y * v2_y
+            dot = max(-1.0, min(1.0, dot))  # Clamp for numerical stability
+            
+            angle_rad = math.acos(dot)
+            angle_deg = math.degrees(angle_rad)
+            
+            if angle_deg < min_ang:
+                return False
+        
+        return True
+
+
+    def _check_aspect_ratio(self, base_points, peak_point, min_ratio=None):
+        """
+        Check aspect ratio of a protrusion (base width vs height).
+        
+        Args:
+            base_points: List of base points (2 for sawtooth, 2-4 for squarewave)
+            peak_point: The protruding point (or list of peak points)
+            min_ratio: Minimum width/height ratio, or use config
+            
+        Returns:
+            True if aspect ratio meets minimum threshold
+        """
+        if not config.procedural.validation.enabled:
+            return True
+        
+        min_r = min_ratio if min_ratio is not None else \
+                config.procedural.validation.min_aspect_ratio
+        
+        # Calculate base width (distance between first and last base points)
+        if len(base_points) < 2:
+            return True  # Can't calculate ratio
+        
+        base_start = base_points[0]
+        base_end = base_points[-1]
+        base_width = math.sqrt((base_end[0] - base_start[0])**2 + 
+                            (base_end[1] - base_start[1])**2)
+        
+        if base_width == 0:
+            return False  # Degenerate base
+        
+        # Calculate height (perpendicular distance from peak to base line)
+        # Handle single peak or multiple peaks
+        peaks = [peak_point] if not isinstance(peak_point, list) else peak_point
+        
+        for peak in peaks:
+            # Perpendicular distance from point to line
+            # Line: base_start to base_end
+            # Point: peak
+            
+            dx = base_end[0] - base_start[0]
+            dy = base_end[1] - base_start[1]
+            
+            # Perpendicular distance formula
+            numerator = abs(dy * peak[0] - dx * peak[1] + 
+                        base_end[0] * base_start[1] - 
+                        base_end[1] * base_start[0])
+            denominator = math.sqrt(dx * dx + dy * dy)
+            
+            if denominator == 0:
+                continue
+            
+            height = numerator / denominator
+            
+            # Check ratio
+            aspect_ratio = base_width / height if height > 0 else float('inf')
+            
+            if aspect_ratio < min_r:
+                return False  # Too needle-like
+        
+        return True

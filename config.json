@@ -1,0 +1,82 @@
+{
+  "_comment": "Shape Studio Configuration",
+  "_note": "All values below are the system defaults. Modify as needed.",
+  
+  "canvas": {
+    "width": 768,
+    "height": 768,
+    "origin": "top-left",
+    "grid_spacing": 64,
+    "default_bounds_margin": 100
+  },
+  
+  "paths": {
+    "output": "output",
+    "scripts": "scripts",
+    "shapes": "shapes",
+    "projects": "projects",
+    "templates": "templates",
+    "global_library": "~/.shapestudio/shapes"
+  },
+  
+  "procedural": {
+    "defaults": {
+      "iterations": 10,
+      "max_retries": 15,
+      "connect": "angle_sort",
+      "direction_bias": "random"
+    },
+    
+    "operations": {
+      "break_margin": 0.15,
+      "break_width_max": 0.5,
+      "projection_max": 2.0,
+      "min_segment_length": 10
+    },
+    
+    "squarewave": {
+      "independent_directions": false,
+      "opposite_direction_prob": 0.2
+    },
+    
+    "validation": {
+      "enabled": true,
+      "check_intersections": true,
+      "min_segment_clearance": 15.0,
+      "min_segment_clearance_relative": 0.02,
+      "use_relative_clearance": false,
+      "min_angle": 20.0,
+      "min_aspect_ratio": 0.4,
+      "validate_each_retry": true
+    },
+    
+    "debug": {
+      "verbose_default": 0,
+      "save_iterations_default": false,
+      "snapshot_interval_default": 1
+    }
+  },
+  
+  "randomization": {
+    "normal_distribution": {
+      "max_sampling_attempts": 1000,
+      "fallback_to_uniform": false,
+      "warn_on_failures": true
+    },
+    "default_distribution": "uniform",
+    "seed": null
+  },
+  
+  "animation": {
+    "default_fps": 2,
+    "fps_range": [1, 10],
+    "preview_size": 512,
+    "default_loop": false
+  },
+  
+  "ui": {
+    "command_log_width": 400,
+    "canvas_padding": 10,
+    "window_title": "Shape Studio"
+  }
+}

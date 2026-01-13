@@ -2,7 +2,7 @@
 Parameter type converters for procedural generation system
 Converts string parameters from scripts to proper Python types
 """
-
+from src.config import config
 
 def int_converter(value):
     """Convert to integer"""

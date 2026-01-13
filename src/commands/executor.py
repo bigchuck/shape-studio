@@ -13,6 +13,7 @@ from src.core.shape import Line, Polygon, ShapeGroup
 from src.commands.parser import CommandParser
 from src.core.procedural import ProceduralGenerators
 from src.core.templates import TemplateLibrary, TemplateExecutor
+from src.config import config
 
 class CommandExecutor:
     """Execute commands on WIP or Main canvas"""
@@ -36,10 +37,10 @@ class CommandExecutor:
         self.stash = {}
 
         # Persistence directories
-        self.project_store_dir = Path('shapes')
-        self.global_store_dir = Path.home() / '.shapestudio' / 'shapes'
-        self.projects_dir = Path('projects')
-        self.scripts_dir = Path('scripts')
+        self.project_store_dir = Path(config.paths.shapes)
+        self.global_store_dir = config.paths.global_library
+        self.projects_dir = Path(config.paths.projects)
+        self.scripts_dir = Path(config.paths.scripts)
         
         # Create directories
         os.makedirs('output', exist_ok=True)
@@ -628,7 +629,7 @@ class CommandExecutor:
     def _execute_save(self, cmd_dict, command_text):
         """Execute SAVE command - always saves MAIN canvas"""
         filename = cmd_dict['filename']
-        filepath = os.path.join('output', filename)
+        filepath = os.path.join(config.paths.output, filename)
         
         # Always save the MAIN canvas
         self.main_canvas.save(filepath)

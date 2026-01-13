@@ -5,7 +5,7 @@ Three-panel layout with help browser (fixed sash positioning)
 import tkinter as tk
 from tkinter import ttk, scrolledtext
 from PIL import Image, ImageTk
-
+from src.config import config
 
 class ShapeStudioUI:
     """Main UI for Shape Studio with help browser"""
@@ -13,7 +13,7 @@ class ShapeStudioUI:
     def __init__(self, executor):
         self.executor = executor
         self.root = tk.Tk()
-        self.root.title("Shape Studio - Command Line Drawing Tool")
+        self.root.title(config.ui.window_title)
         
         # Start in fullscreen mode
         self.root.attributes('-fullscreen', True)
