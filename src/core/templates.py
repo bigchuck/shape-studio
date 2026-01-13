@@ -1,5 +1,5 @@
 """
-Template system for Shape Studio - Phase 3
+Template system for Shape Studio
 Provides reusable procedural blueprints with parameter substitution
 """
 import json
@@ -521,14 +521,10 @@ class TemplateExecutor:
         """
         randomization = executable.get('randomization', {})
 
-        print(f"DEBUG: {randomization.items()}")
-
         if not randomization:
             return {}
         
         randomized = {}
-
-        print(f"DEBUG: enter randomized method")
         
         for key, spec in randomization.items():
             # Check if this is a dictionary format (for distributions)
@@ -536,7 +532,6 @@ class TemplateExecutor:
                 dist_type = spec.get('type')
                 if dist_type == 'normal':
                     randomized[key] = self._generate_normal_value(key, spec)
-                    print(f"DEBUG: NORMAL {randomized[key]}")
                 else:
                     raise ValueError(
                         f"Unknown distribution type '{dist_type}' for '{key}'\n"
@@ -566,7 +561,6 @@ class TemplateExecutor:
                     randomized[key] = random.randint(min_val, max_val)
                 else:
                     randomized[key] = random.uniform(min_val, max_val)
-                print(f"DEBUG: UNIFORM {randomized[key]}")
             
             # Check if this is weighted format: [[val, weight], [val, weight], ...]
             elif all(isinstance(item, list) for item in spec):
