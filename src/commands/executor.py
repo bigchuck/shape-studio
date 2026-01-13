@@ -984,22 +984,40 @@ class CommandExecutor:
             )
 
     def _execute_batch_templated(self, count, filepath, executable_name, 
-                                 output_prefix, target_canvas):
-        """Execute BATCH with templated script"""
-        # Load script to get executable
+                                output_prefix, target_canvas):
+        """Execute BATCH with templated script
+        
+        Supports:
+        - Single executable: BATCH 100 script.json exec1 prefix
+        - Multiple executables: BATCH 100 script.json exec1,exec2,exec3 prefix
+        - All executables: BATCH 100 script.json --ALL prefix
+        """
+        # Load script to get executables
         import json
         with open(filepath, 'r') as f:
             data = json.load(f)
         
         executables = data.get('executables', {})
-        if executable_name not in executables:
-            available = ', '.join(executables.keys())
-            raise ValueError(
-                f"Executable '{executable_name}' not found in {filepath}\n"
-                f"Available: {available}"
-            )
+        if not executables:
+            raise ValueError(f"No executables found in {filepath}")
         
-        executable = executables[executable_name]
+        # NEW: Determine which executables to run (copied from execute_script logic)
+        if executable_name is None or executable_name == '--ALL':
+            exec_names = list(executables.keys())
+        elif ',' in executable_name:
+            # Multiple executables specified
+            exec_names = [n.strip() for n in executable_name.split(',')]
+        else:
+            exec_names = [executable_name]
+        
+        # NEW: Validate all executables exist before starting
+        for name in exec_names:
+            if name not in executables:
+                available = ', '.join(executables.keys())
+                raise ValueError(
+                    f"Executable '{name}' not found in {filepath}\n"
+                    f"Available: {available}"
+                )
         
         # Switch to target canvas
         original_canvas = self.active_canvas_name
@@ -1011,53 +1029,55 @@ class CommandExecutor:
         results = []
         successful = 0
         
-        for i in range(1, count + 1):
-            try:
-                # Generate randomization values for this iteration
-                randomization = self.template_executor.generate_randomization(executable)
-                
-                # Execute the script with randomization
-                self.template_executor.execute_script(
-                    filepath, executable_name,
-                    batch_mode=True,
-                    randomization_values=randomization
-                )
-                
-                # Save output
-                output_filename = f"{output_prefix}_{i:03d}.png"
-                output_path = Path('output') / output_filename
-                save_canvas.save(str(output_path))
-                
-                successful += 1
-                results.append(f"  [{i}/{count}] Generated {output_filename}")
-                
-                # Clear canvas for next iteration
-                save_canvas.clear()
-                shapes_dict = self.wip_shapes if target_canvas == 'WIP' else self.main_shapes
-                shapes_dict.clear()
-                
-            except Exception as e:
-                # Fail immediately with explanation
-                error_msg = (
-                    f"BATCH failed at iteration {i}/{count}:\n"
-                    f"  Error: {str(e)}\n"
-                    f"  Completed: {successful} successful iterations\n"
-                    f"  Output files in: output/"
-                )
-                results.append(f"  [{i}/{count}] FAILED: {str(e)}")
-                
-                # Restore canvas
-                if target_canvas != original_canvas:
-                    self.execute(f"SWITCH {original_canvas}")
-                
-                raise ValueError(error_msg)
+        # NEW: Outer loop over executables
+        for exec_name in exec_names:
+            executable = executables[exec_name]
+            
+            # NEW: Add executable name to prefix if running multiple
+            if len(exec_names) > 1:
+                exec_prefix = f"{output_prefix}_{exec_name}"
+            else:
+                exec_prefix = output_prefix
+            
+            # Inner loop over iterations
+            for i in range(1, count + 1):
+                try:
+                    # Generate randomization values for this iteration
+                    randomization = self.template_executor.generate_randomization(executable)
+                    
+                    # Execute the script with randomization
+                    self.template_executor.execute_script(
+                        filepath, exec_name,
+                        batch_mode=True,
+                        randomization_values=randomization
+                    )
+                    
+                    # Save output
+                    output_file = f"output/{exec_prefix}_{i:04d}.png"
+                    save_canvas.save_png(output_file)
+                    successful += 1
+                    
+                    # Clear for next iteration
+                    if target_canvas == 'WIP':
+                        self.wip_shapes.clear()
+                    else:
+                        self.main_shapes.clear()
+                    save_canvas.clear()
+                    self._sync_active_canvas()
+                    
+                except Exception as e:
+                    results.append(f"  Iteration {i} failed: {e}")
         
-        # Restore original canvas
+        # Switch back to original canvas
         if target_canvas != original_canvas:
             self.execute(f"SWITCH {original_canvas}")
         
-        summary = f"BATCH complete: {successful}/{count} successful\n" + "\n".join(results)
-        return summary
+        # NEW: Better summary message for multiple executables
+        if len(exec_names) > 1:
+            total_expected = count * len(exec_names)
+            return f"BATCH completed: {successful}/{total_expected} successful across {len(exec_names)} executables"
+        else:
+            return f"BATCH completed: {successful}/{count} successful"
 
     def _execute_batch_legacy(self, count, filepath, output_prefix, target_canvas):
         """Execute BATCH with old-style script (existing behavior)"""

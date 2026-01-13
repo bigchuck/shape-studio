@@ -1,0 +1,187 @@
+{
+  "description": "Example: Normal Distribution Randomization",
+  "template_libraries": [],
+  
+  "executables": {
+    
+    "uniform_example": {
+      "description": "Uniform distribution (existing functionality)",
+      "randomization": {
+        "projection": [0.5, 1.5],
+        "iters": [10, 25]
+      },
+      "commands": [
+        {
+          "template": "dynamic_polygon_simple",
+          "params": {
+            "name": "uniform_shape",
+            "vertices": 6,
+            "bounds": "100,100,668,668",
+            "iterations": "${iters}",
+            "depth": "${projection}"
+          }
+        }
+      ]
+    },
+    
+    "normal_example": {
+      "description": "Normal distribution - values cluster around mean",
+      "randomization": {
+        "projection": {
+          "type": "normal",
+          "min": 0.5,
+          "max": 1.5,
+          "mean": 1.0,
+          "std": 0.3
+        },
+        "iters": {
+          "type": "normal",
+          "min": 10,
+          "max": 25,
+          "mean": 17,
+          "std": 4
+        }
+      },
+      "commands": [
+        {
+          "template": "dynamic_polygon_simple",
+          "params": {
+            "name": "normal_shape",
+            "vertices": 6,
+            "bounds": "100,100,668,668",
+            "iterations": "${iters}",
+            "depth": "${projection}"
+          }
+        }
+      ]
+    },
+    
+    "mixed_distributions": {
+      "description": "Mix normal distribution with other types",
+      "randomization": {
+        "projection": {
+          "type": "normal",
+          "min": 0.3,
+          "max": 1.2,
+          "mean": 0.7,
+          "std": 0.25
+        },
+        "iters": [15, 20, 25],
+        "operation": [
+          ["split_offset", 2],
+          ["sawtooth", 1]
+        ]
+      },
+      "commands": [
+        {
+          "template": "dynamic_polygon_full",
+          "params": {
+            "name": "mixed_shape",
+            "vertices": 8,
+            "bounds": "100,100,668,668",
+            "iterations": "${iters}",
+            "operations": "${operation}",
+            "depth": "${projection}"
+          }
+        }
+      ]
+    },
+    
+    "tight_normal": {
+      "description": "Tight normal distribution - low variance",
+      "randomization": {
+        "projection": {
+          "type": "normal",
+          "min": 0.8,
+          "max": 1.2,
+          "mean": 1.0,
+          "std": 0.1
+        },
+        "iters": {
+          "type": "normal",
+          "min": 18,
+          "max": 22,
+          "mean": 20,
+          "std": 1
+        }
+      },
+      "commands": [
+        {
+          "template": "dynamic_polygon_simple",
+          "params": {
+            "name": "tight_shape",
+            "vertices": 5,
+            "bounds": "200,200,568,568",
+            "iterations": "${iters}",
+            "depth": "${projection}"
+          }
+        }
+      ]
+    },
+    
+    "wide_normal": {
+      "description": "Wide normal distribution - high variance",
+      "randomization": {
+        "projection": {
+          "type": "normal",
+          "min": 0.3,
+          "max": 1.7,
+          "mean": 1.0,
+          "std": 0.5
+        },
+        "iters": {
+          "type": "normal",
+          "min": 5,
+          "max": 30,
+          "mean": 17,
+          "std": 8
+        }
+      },
+      "commands": [
+        {
+          "template": "dynamic_polygon_simple",
+          "params": {
+            "name": "wide_shape",
+            "vertices": 7,
+            "bounds": "100,100,668,668",
+            "iterations": "${iters}",
+            "depth": "${projection}"
+          }
+        }
+      ]
+    },
+    
+    "skewed_normal": {
+      "description": "Skewed normal - mean away from center",
+      "randomization": {
+        "projection": {
+          "type": "normal",
+          "min": 0.5,
+          "max": 1.5,
+          "mean": 1.3,
+          "std": 0.2
+        },
+        "iters": {
+          "type": "normal",
+          "min": 10,
+          "max": 25,
+          "mean": 22,
+          "std": 3
+        }
+      },
+      "commands": [
+        {
+          "template": "dynamic_polygon_simple",
+          "params": {
+            "name": "skewed_shape",
+            "vertices": 6,
+            "bounds": "150,150,618,618",
+            "iterations": "${iters}",
+            "depth": "${projection}"
+          }
+        }
+      ]
+    }
+    
+  }
+}

@@ -504,10 +504,11 @@ class TemplateExecutor:
     def generate_randomization(self, executable):
         """Generate random values for an executable's randomization spec
         
-        Supports three formats:
-        - Range: [min, max] - random number in range
+        Supports four formats:
+        - Dict: {"type": "normal", "min": x, "max": y, "mean": z, "std": w} - normal distribution
+        - Range: [min, max] - uniform random number in range
         - Simple list: [val1, val2, ...] - uniform random choice
-        - Weighted list: [[val1, weight1], [val2, weight2], ...] - weighted random choice
+        - Weighted list: "val1:weight1,val2:weight2, ..." - weighted random choice
         
         Args:
             executable: Executable dict with optional 'randomization' key
@@ -519,15 +520,34 @@ class TemplateExecutor:
             ValueError: If format is invalid or weights are invalid
         """
         randomization = executable.get('randomization', {})
+
+        print(f"DEBUG: {randomization.items()}")
+
         if not randomization:
             return {}
         
         randomized = {}
+
+        print(f"DEBUG: enter randomized method")
         
         for key, spec in randomization.items():
+            # Check if this is a dictionary format (for distributions)
+            if isinstance(spec, dict):
+                dist_type = spec.get('type')
+                if dist_type == 'normal':
+                    randomized[key] = self._generate_normal_value(key, spec)
+                    print(f"DEBUG: NORMAL {randomized[key]}")
+                else:
+                    raise ValueError(
+                        f"Unknown distribution type '{dist_type}' for '{key}'\n"
+                        f"Supported types: 'normal'"
+                    )
+                continue
+            
+            # Existing list-based format handling
             if not isinstance(spec, list):
                 raise ValueError(
-                    f"Randomization value for '{key}' must be list (range, choices, or weighted choices)"
+                    f"Randomization value for '{key}' must be list or dict (for distributions)"
                 )
             
             if len(spec) == 0:
@@ -546,6 +566,7 @@ class TemplateExecutor:
                     randomized[key] = random.randint(min_val, max_val)
                 else:
                     randomized[key] = random.uniform(min_val, max_val)
+                print(f"DEBUG: UNIFORM {randomized[key]}")
             
             # Check if this is weighted format: [[val, weight], [val, weight], ...]
             elif all(isinstance(item, list) for item in spec):
@@ -572,7 +593,7 @@ class TemplateExecutor:
                 randomized[key] = random.choice(spec)
         
         return randomized
-    
+            
     def _validate_weighted_list(self, key, spec):
         """Validate weighted list format
         
@@ -610,3 +631,72 @@ class TemplateExecutor:
             
             # Note: We allow any value type for the value itself
             # Could be string, int, float, etc.
+
+    def _generate_normal_value(self, key, spec):
+        """Generate a value from a normal distribution with rejection sampling
+        
+        Args:
+            key: Parameter name (for error messages)
+            spec: Dict with keys: type, min, max, mean, std
+            
+        Returns:
+            Generated value (int or float based on min/max types)
+            
+        Raises:
+            ValueError: If spec is invalid or rejection sampling fails
+        """
+        # Validate required fields
+        required = ['min', 'max', 'mean', 'std']
+        missing = [f for f in required if f not in spec]
+        if missing:
+            raise ValueError(
+                f"Normal distribution for '{key}' missing required fields: {', '.join(missing)}\n"
+                f"Required: type, min, max, mean, std"
+            )
+        
+        min_val = spec['min']
+        max_val = spec['max']
+        mean = spec['mean']
+        std = spec['std']
+        
+        # Validate types
+        if not isinstance(min_val, (int, float)):
+            raise ValueError(f"Normal distribution for '{key}': 'min' must be numeric")
+        if not isinstance(max_val, (int, float)):
+            raise ValueError(f"Normal distribution for '{key}': 'max' must be numeric")
+        if not isinstance(mean, (int, float)):
+            raise ValueError(f"Normal distribution for '{key}': 'mean' must be numeric")
+        if not isinstance(std, (int, float)):
+            raise ValueError(f"Normal distribution for '{key}': 'std' must be numeric")
+        
+        # Validate ranges
+        if min_val >= max_val:
+            raise ValueError(
+                f"Normal distribution for '{key}': min ({min_val}) must be < max ({max_val})"
+            )
+        
+        if std <= 0:
+            raise ValueError(
+                f"Normal distribution for '{key}': std ({std}) must be positive"
+            )
+        
+        # Rejection sampling with retry limit
+        max_retries = 1000
+        for attempt in range(max_retries):
+            value = random.gauss(mean, std)
+            
+            # Check if value is in valid range
+            if min_val <= value <= max_val:
+                # Determine if result should be int or float
+                if isinstance(min_val, int) and isinstance(max_val, int):
+                    return round(value)
+                else:
+                    return value
+        
+        # Failed to generate valid value after max retries
+        raise ValueError(
+            f"Normal distribution for '{key}' failed after {max_retries} attempts\n"
+            f"Parameters: mean={mean}, std={std}, range=[{min_val}, {max_val}]\n"
+            f"Consider: (1) reducing std, (2) adjusting mean closer to range center, "
+            f"or (3) widening the range"
+        )
