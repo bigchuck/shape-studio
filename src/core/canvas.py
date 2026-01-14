@@ -16,6 +16,7 @@ class Canvas:
         self.image = Image.new('RGBA', (self.width, self.height), (255, 255, 255, 255))
         self.draw = ImageDraw.Draw(self.image)
         self.shapes = []
+        self.next_z_coord = 0
         
         # Display options
         self.show_rulers = True
@@ -24,12 +25,30 @@ class Canvas:
         # Draw initial grid
         if self.show_grid:
             self._draw_grid_on_canvas(self.draw)
-        
+
     def add_shape(self, shape):
-        """Add a shape to the canvas"""
-        self.shapes.append(shape)
-        shape.draw(self.draw)
+        """Add shape to canvas with automatic z-order assignment"""
+        from src.config import config
         
+        auto_assign = config.canvas.auto_assign_zorder
+        
+        if auto_assign:
+            current_z = shape.attrs['style']['z_coord']
+            
+            # Check if the last history entry is a ZORDER command
+            history = shape.attrs.get('history', [])
+            last_command = history[-1][1] if history else ""
+            is_manual_zorder = last_command.startswith('ZORDER')
+            
+            if current_z == 0 and not is_manual_zorder:
+                # Default z=0 and not from ZORDER command → auto-assign
+                shape.attrs['style']['z_coord'] = self.next_z_coord
+                self.next_z_coord += 1
+            # Else: explicit z_coord (manual ZORDER), counter unchanged
+        
+        self.shapes.append(shape)
+        self.redraw()
+
     def remove_shape(self, shape):
         """Remove a shape from the canvas"""
         if shape in self.shapes:

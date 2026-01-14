@@ -108,6 +108,7 @@ class CommandExecutor:
             'ZORDER': self._execute_zorder,
             'EXIT': self._execute_exit,
             'VALIDATE': self._execute_validate,
+            'RESET_ZORDER': self._execute_reset_zorder,
         }
         
         if command in handlers:
@@ -592,7 +593,8 @@ class CommandExecutor:
         style = shape.attrs['style']
         info.append(f"Color: {style['color']}")
         info.append(f"Width: {style['width']}")
-        
+        info.append(f"Z-Order: {style['z_coord']}")
+
         # Relationships
         rel = shape.attrs['relationships']
         if rel['group']:
@@ -792,112 +794,107 @@ class CommandExecutor:
         return f"Loaded project from {filepath} (WIP: {wip_count}, MAIN: {main_count}, Stash: {stash_count})"
     
     def _execute_run(self, cmd_dict, command_text):
-        """Execute RUN command - supports both old format and templated executables"""
+        """Execute RUN command - routes to text or JSON handlers"""
         scriptfile = cmd_dict['scriptfile']
         filepath = self.scripts_dir / scriptfile
         
         if not filepath.exists():
             raise ValueError(f"Script file not found: {filepath}")
         
-        # Try to load as JSON to detect format
-        try:
-            with open(filepath, 'r') as f:
-                first_char = f.read(1)
-                f.seek(0)
+        
+        # Route based on file extension
+        if scriptfile.endswith('.txt'):
+            # Plain text file - execute line by line
+            label = cmd_dict.get('executable')
+            return self._execute_run_text(scriptfile, label)
+        
+        elif scriptfile.endswith('.json'):
+            # JSON template file
+            section_name = cmd_dict.get('executable')  # May be None
+            return self._execute_run_json(scriptfile, section_name)
+        
+        else:
+            # Unknown extension - try to detect format by content
+            try:
+                with open(filepath, 'r') as f:
+                    first_char = f.read(1)
                 
-                # If starts with '[', it's old format (array)
-                if first_char == '[':
-                    # Old format - execute as plain commands
-                    lines = f.readlines()
-                    commands = []
-                    for line in lines:
-                        line = line.strip()
-                        if line and not line.startswith('#'):
-                            commands.append(line)
-                    
-                    if not commands:
-                        return f"Script '{scriptfile}' contains no commands"
-                    
-                    results = []
-                    for i, cmd in enumerate(commands, 1):
-                        try:
-                            result = self.execute(cmd)
-                            results.append(f"  [{i}] {cmd} → {result}")
-                        except Exception as e:
-                            results.append(f"  [{i}] {cmd} → ERROR: {str(e)}")
-                    
-                    return f"Executed {len(commands)} commands from '{scriptfile}':\n" + "\n".join(results)
-                
-                # New format - check for executables
-                elif first_char == '{':
-                    import json
-                    data = json.load(f)
-                    
-                    if 'executables' not in data:
-                        raise ValueError(
-                            f"Script {scriptfile} appears to be JSON but has no 'executables' key.\n"
-                            f"Expected format: {{ \"executables\": {{...}} }}"
-                        )
-                    
-                    # Template format - need executable name
-                    if 'executable' not in cmd_dict or not cmd_dict['executable']:
-                        raise ValueError(
-                            f"Script {scriptfile} uses template format.\n"
-                            f"Specify executable: RUN {scriptfile} <executable_name>\n"
-                            f"Or use: RUN {scriptfile} --ALL\n"
-                            f"Use 'LIST EXECUTABLES {scriptfile}' to see available executables."
-                        )
-                    
-                    # Execute using template system
-                    executable_name = cmd_dict['executable']
-                    results = self.template_executor.execute_script(
-                        filepath, executable_name
-                    )
-                    return '\n'.join(results)
-                
+                if first_char == '[' or first_char == '{':
+                    # Looks like JSON
+                    section_name = cmd_dict.get('executable')
+                    return self._execute_run_json(scriptfile, section_name)
                 else:
-                    raise ValueError(f"Script {scriptfile} has invalid format (must start with '[' or '{{')")
+                    # Treat as text
+                    return self._execute_run_text(scriptfile)
                     
-        except json.JSONDecodeError as e:
-            raise ValueError(f"Script {scriptfile} is not valid JSON: {e}")
+            except Exception as e:
+                raise ValueError(f"Could not determine format of {scriptfile}: {e}")
 
-    def _execute_run_text(self, scriptfile):
-        """Execute RUN command - run commands from text script file"""
+    def _execute_run_text(self, scriptfile, label=None):
+        """Execute plain text script file, optionally jumping to a labeled section
+        
+        Args:
+            scriptfile: Name of script file (e.g., 'test.txt')
+            label: Optional label to jump to (e.g., 'test2')
+            
+        File format:
+            @label_name       # Label marker (line must start with @)
+            command1          # Commands for this section
+            command2
+            EOF               # End of section marker
+            
+            @another_label
+            command3
+            EOF
+            
+        If no label specified: Executes from start until first EOF or end of file
+        If label specified: Executes only that labeled section
+        """
         filepath = self.scripts_dir / scriptfile
         
-        if not filepath.exists():
-            raise ValueError(f"Script file not found: {filepath}")
-        
-        # Read script file
         with open(filepath, 'r') as f:
             lines = f.readlines()
         
-        # Filter out comments and blank lines, STOP at EOF marker
-        commands = []
-        for line in lines:
-            line = line.strip()
-            
-            # Check for EOF marker
-            if line.upper() == 'EOF' or line.upper() == '# EOF':
-                break
-            
-            # Skip comments and blank lines
-            if line and not line.startswith('#'):
-                commands.append(line)
+        # Parse file into sections
+        sections = self._parse_text_sections(lines)
         
-        if not commands:
-            return f"Script '{scriptfile}' contains no commands"
+        if label:
+            # Execute specific labeled section
+            if label not in sections:
+                available = list(sections.keys())
+                raise ValueError(
+                    f"Label '{label}' not found in {scriptfile}\n"
+                    f"Available labels: {', '.join(available) if available else '(none)'}\n"
+                    f"Use: RUN {scriptfile} <label>"
+                )
+            
+            commands = sections[label]
+            section_desc = f"section '{label}'"
+        else:
+            # Execute default section (unlabeled commands or first section)
+            if '' in sections:
+                # There are unlabeled commands at the start
+                commands = sections['']
+                section_desc = "unlabeled section"
+            elif sections:
+                # Use first labeled section
+                first_label = list(sections.keys())[0]
+                commands = sections[first_label]
+                section_desc = f"section '{first_label}' (first section)"
+            else:
+                return f"Script '{scriptfile}' contains no commands"
         
-        # Execute each command
+        # Execute commands
         results = []
         for i, cmd in enumerate(commands, 1):
             try:
                 result = self.execute(cmd)
-                results.append(f"  [{i}] {cmd} → {result}")
+                results.append(f"  [{i}] {cmd[:60]}{'...' if len(cmd) > 60 else ''} → {result}")
             except Exception as e:
-                results.append(f"  [{i}] {cmd} → ERROR: {str(e)}")
+                results.append(f"  [{i}] {cmd[:60]}{'...' if len(cmd) > 60 else ''} → ERROR: {str(e)}")
         
-        return f"Executed {len(commands)} commands from '{scriptfile}':\n" + "\n".join(results)
+        header = f"Executed {len(commands)} commands from '{scriptfile}' ({section_desc}):"
+        return header + "\n" + "\n".join(results)
 
     def _execute_run_json(self, scriptfile, section_name=None):
         """Execute RUN command with JSON script file"""
@@ -2081,3 +2078,75 @@ class CommandExecutor:
             raise ValueError(result)
         
         return result
+
+    def _execute_reset_zorder(self, cmd_dict, command_text):
+        """Execute RESET_ZORDER command - reset canvas z-order counter
+        
+        Resets the active canvas's z-order counter to initial value or specified value.
+        This is useful when you want to restart z-order numbering in the middle of a session.
+        """
+        from src.config import config
+        
+        value = cmd_dict.get('value')
+        
+        if value is None:
+            # Use config default
+            value = config.canvas.zorder_initial
+        
+        # Reset the active canvas counter
+        old_value = self.active_canvas.next_z_coord
+        self.active_canvas.next_z_coord = value
+        
+        return f"Reset z-order counter from {old_value} to {value} on {self.active_canvas_name} canvas"
+
+    def _parse_text_sections(self, lines):
+        """Parse text file lines into labeled sections
+        
+        Returns:
+            dict mapping label → list of commands
+            
+        Example:
+            {
+                '': ['POLY shape1 ...', 'POLY shape2 ...'],  # Unlabeled section
+                'test1': ['CLEAR WIP ALL', 'POLY ...'],
+                'test2': ['PROC ...', 'COLOR ...']
+            }
+        """
+        sections = {}
+        current_label = ''  # Unlabeled section (before any @label)
+        current_commands = []
+        
+        for line in lines:
+            line = line.strip()
+            
+            # Skip empty lines and comments
+            if not line or line.startswith('#'):
+                continue
+            
+            # Check for label marker
+            if line.startswith('@'):
+                # Save previous section if it has commands
+                if current_commands:
+                    sections[current_label] = current_commands
+                
+                # Start new section
+                current_label = line[1:].strip()  # Remove @ and whitespace
+                current_commands = []
+                continue
+            
+            # Check for EOF marker (ends current section)
+            if line.upper() == 'EOF':
+                if current_commands:
+                    sections[current_label] = current_commands
+                current_label = ''  # Reset to unlabeled
+                current_commands = []
+                continue
+            
+            # Regular command line
+            current_commands.append(line)
+        
+        # Save final section if it has commands
+        if current_commands:
+            sections[current_label] = current_commands
+        
+        return sections

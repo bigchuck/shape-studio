@@ -3,6 +3,9 @@
   "_note": "All values below are the system defaults. Modify as needed.",
   
   "canvas": {
+    "auto_assign_zorder": true,
+    "zorder_initial": 0,
+    "zorder_increment": 1,
     "width": 768,
     "height": 768,
     "origin": "top-left",

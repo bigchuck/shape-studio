@@ -273,11 +273,15 @@ class ShapeGroup(Shape):
             member.attrs['relationships']['group'] = name
             
     def draw(self, draw_context):
-        """Draw all member shapes"""
+        """Draw all member shapes, respecting their z-order within the group"""
         members = self.attrs['geometry']['members']
-        for member in members:
+        
+        # Sort members by z_coord before drawing
+        sorted_members = sorted(members, key=lambda m: m.attrs['style']['z_coord'])
+        
+        for member in sorted_members:
             member.draw(draw_context)
-            
+
     def move(self, dx, dy):
         """Move all members together"""
         members = self.attrs['geometry']['members']

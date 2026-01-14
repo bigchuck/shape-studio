@@ -46,6 +46,7 @@ class CommandParser:
             'EXIT': self._parse_exit,
             'QUIT': self._parse_exit,
             'VALIDATE': self._parse_validate,        
+            'RESET_ZORDER': self._parse_reset_zorder,
         }
         
     def parse(self, command_text):
@@ -515,20 +516,17 @@ class CommandParser:
         }
     
     def _parse_run(self, parts):
-        """Parse RUN command: RUN <scriptfile> [executable_name|--ALL]"""
+        """Parse RUN command: RUN <scriptfile> [label|executable_name|--ALL]"""
         if len(parts) < 2:
-            raise ValueError("RUN requires: RUN <scriptfile> [executable_name|--ALL]")
+            raise ValueError("RUN requires: RUN <scriptfile> [label|executable_name|--ALL]")
         
         scriptfile = parts[1]
-        executable = None
-        
-        if len(parts) >= 3:
-            executable = parts[2]
+        label = parts[2] if len(parts) > 2 else None
         
         return {
             'command': 'RUN',
             'scriptfile': scriptfile,
-            'executable': executable
+            'executable': label  # Used for both JSON sections and .txt labels
         }
     
     def _parse_batch(self, parts):
@@ -849,4 +847,27 @@ class CommandParser:
             'command': 'LIST',
             'target': target,  # None means active canvas
             'scriptfile': scriptfile
+        }
+
+    def _parse_reset_zorder(self, parts):
+        """Parse RESET_ZORDER command: RESET_ZORDER [value]
+        
+        Resets the canvas z-order counter to initial value (or specified value)
+        
+        Examples:
+            RESET_ZORDER        # Reset to config default (0)
+            RESET_ZORDER 10     # Reset to 10
+        """
+        value = None
+        
+        if len(parts) > 1:
+            # Explicit value provided
+            try:
+                value = int(parts[1])
+            except ValueError:
+                raise ValueError(f"RESET_ZORDER value must be an integer, got: {parts[1]}")
+        
+        return {
+            'command': 'RESET_ZORDER',
+            'value': value  # None means use config default
         }
