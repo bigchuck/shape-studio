@@ -14,6 +14,7 @@ from src.commands.parser import CommandParser
 from src.core.procedural import ProceduralGenerators
 from src.core.templates import TemplateLibrary, TemplateExecutor
 from src.config import config
+from src.core.enhancement import EnhancementRegistry
 
 class CommandExecutor:
     """Execute commands on WIP or Main canvas"""
@@ -28,6 +29,7 @@ class CommandExecutor:
         self.procedural_gen = ProceduralGenerators() 
         self.template_library = TemplateLibrary(project_root='.')
         self.template_executor = TemplateExecutor(self.template_library, self)
+        self.enhancement_registry = EnhancementRegistry()
         
         # Separate shape registries for each canvas
         self.wip_shapes = {}
@@ -109,6 +111,7 @@ class CommandExecutor:
             'EXIT': self._execute_exit,
             'VALIDATE': self._execute_validate,
             'RESET_ZORDER': self._execute_reset_zorder,
+            'ENHANCE': self._execute_enhance,
         }
         
         if command in handlers:
@@ -569,6 +572,11 @@ class CommandExecutor:
         elif shape_name in self.stash:
             shape = self.stash[shape_name]
             location = 'STASH'
+        elif len(cmd_dict) >= 1 and cmd_dict[0].upper() == 'ENHANCE':
+            if len(cmd_dict) < 2:
+                return "Usage: INFO ENHANCE <method>"
+            method_name = cmd_dict[1].lower()
+            return self._info_enhance_method(method_name)
         else:
             raise ValueError(f"Shape '{shape_name}' not found on any canvas or stash")
         
@@ -1403,6 +1411,8 @@ class CommandExecutor:
             # List available procedural methods
             methods = self.procedural_gen.list_methods()
             return "Available procedural methods:\n  " + "\n  ".join(methods)
+        elif target == 'ENHANCE':
+            return self._list_enhance_methods()
         else:
             raise ValueError(f"Unknown LIST target: {target}")
         
@@ -2150,3 +2160,137 @@ class CommandExecutor:
             sections[current_label] = current_commands
         
         return sections
+    
+    def _execute_enhance(self, cmd_dict, command_text):
+        """Execute ENHANCE command"""
+        method = cmd_dict['method']
+        shape_name = cmd_dict['shape']
+        intent_dict = cmd_dict['intent']
+        
+        canvas = self.wip_canvas if self.active_canvas == 'WIP' else self.main_canvas
+        
+        # Validate
+        if method not in self.enhancement_registry.list_methods():
+            available = ', '.join(self.enhancement_registry.list_methods())
+            raise ValueError(f"Unknown method '{method}'. Available: {available}")
+        
+        if shape_name.lower() != 'canvas' and shape_name not in canvas.shapes:
+            raise ValueError(f"Shape '{shape_name}' not found on {self.active_canvas}")
+        
+        shape = canvas.shapes.get(shape_name) if shape_name.lower() != 'canvas' else None
+        
+        is_valid, error = self.enhancement_registry.validate_intent(method, intent_dict)
+        if not is_valid:
+            raise ValueError(f"Intent validation failed: {error}")
+        
+        # Execute
+        result = self.enhancement_registry.enhance(method, canvas, shape, intent_dict)
+        commands = result.get('commands', {})
+        metadata = result.get('metadata', {})
+        
+        if not metadata.get('success', False):
+            return f"Enhancement failed: {metadata.get('reasoning', 'Unknown error')}"
+        
+        # Apply commands
+        applied = []
+        if shape:
+            for cmd_type, cmd_value in commands.items():
+                if cmd_type == 'color':
+                    shape.attrs['style']['color'] = cmd_value
+                    applied.append(f"color → {cmd_value}")
+                elif cmd_type == 'fill':
+                    shape.attrs['style']['fill'] = cmd_value
+                    applied.append(f"fill → {cmd_value}")
+                elif cmd_type == 'move':
+                    dx, dy = cmd_value
+                    shape.move(dx, dy)
+                    applied.append(f"moved ({dx:.1f}, {dy:.1f})")
+        
+        reasoning = metadata.get('reasoning', '')
+        if applied:
+            return f"Enhanced '{shape_name}' using {method}\\n  Applied: {', '.join(applied)}\\n  Reasoning: {reasoning}"
+        else:
+            return f"Enhancement completed\\n  Reasoning: {reasoning}"
+
+    def _list_enhance_methods(self):
+        """
+        List available enhancement methods
+        
+        Returns:
+            Formatted string of method names
+        """
+        methods = self.enhancement_registry.list_methods()
+        
+        result = ["Available enhancement methods:"]
+        for method in methods:
+            info = self.enhancement_registry.get_method_info(method)
+            if info:
+                desc = info.get('description', 'No description')
+                result.append(f"  {method} - {desc}")
+        
+        result.append("\\nUse 'INFO ENHANCE <method>' for details")
+        return '\\n'.join(result)
+    
+    def _info_enhance_method(self, method_name):
+        """
+        Show detailed information about an enhancement method
+        
+        Args:
+            method_name: Name of method
+            
+        Returns:
+            Formatted string with method details
+        """
+        info = self.enhancement_registry.get_method_info(method_name)
+        
+        if not info:
+            available = ', '.join(self.enhancement_registry.list_methods())
+            return f"Unknown enhancement method '{method_name}'\\nAvailable: {available}"
+        
+        result = [
+            f"Enhancement Method: {info['name']}",
+            f"Description: {info['description']}",
+            "",
+            "Intent Parameters:",
+        ]
+        
+        param_spec = info.get('param_spec', {})
+        for param_name, param_config in param_spec.items():
+            param_type = param_config.get('type', 'unknown')
+            desc = param_config.get('description', 'No description')
+            default = param_config.get('default')
+            
+            param_line = f"  {param_name} ({param_type})"
+            if default is not None:
+                param_line += f" [default: {default}]"
+            param_line += f" - {desc}"
+            
+            # Add choices if applicable
+            if param_type == 'choice':
+                choices = param_config.get('choices', [])
+                param_line += f"\\n    Choices: {', '.join(str(c) for c in choices)}"
+            
+            # Add range if applicable
+            if 'min' in param_config or 'max' in param_config:
+                range_info = []
+                if 'min' in param_config:
+                    range_info.append(f"min: {param_config['min']}")
+                if 'max' in param_config:
+                    range_info.append(f"max: {param_config['max']}")
+                param_line += f"\\n    Range: {', '.join(range_info)}"
+            
+            result.append(param_line)
+        
+        result.append("")
+        result.append("Returns:")
+        returns = info.get('returns', [])
+        for ret in returns:
+            result.append(f"  {ret}")
+        
+        result.append("")
+        result.append("Examples:")
+        examples = info.get('examples', [])
+        for example in examples:
+            result.append(f"  {example}")
+        
+        return '\\n'.join(result)

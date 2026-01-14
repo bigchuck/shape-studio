@@ -47,6 +47,7 @@ class CommandParser:
             'QUIT': self._parse_exit,
             'VALIDATE': self._parse_validate,        
             'RESET_ZORDER': self._parse_reset_zorder,
+            'ENHANCE': self._parse_enhance,
         }
         
     def parse(self, command_text):
@@ -870,4 +871,41 @@ class CommandParser:
         return {
             'command': 'RESET_ZORDER',
             'value': value  # None means use config default
+        }
+    
+    def _parse_enhance(self, parts):
+        """Parse ENHANCE command"""
+        if len(parts) < 3:
+            raise ValueError("ENHANCE requires: ENHANCE <method> <shape> INTENT=\"...\"")
+        
+        method = parts[1].lower()
+        shape_name = parts[2]
+        
+        # Parse INTENT parameter
+        intent_str = None
+        for part in parts[3:]:
+            if part.upper().startswith('INTENT='):
+                intent_str = part[7:]
+                if intent_str.startswith('"') and intent_str.endswith('"'):
+                    intent_str = intent_str[1:-1]
+                elif intent_str.startswith("'") and intent_str.endswith("'"):
+                    intent_str = intent_str[1:-1]
+                break
+        
+        if intent_str is None:
+            raise ValueError("ENHANCE requires INTENT parameter")
+        
+        intent_dict = {}
+        if intent_str.strip():
+            for pair in intent_str.split(','):
+                if ':' not in pair:
+                    raise ValueError(f"Invalid intent: '{pair}' (expected key:value)")
+                key, value = pair.split(':', 1)
+                intent_dict[key.strip()] = value.strip()
+        
+        return {
+            'command': 'ENHANCE',
+            'method': method,
+            'shape': shape_name,
+            'intent': intent_dict
         }
