@@ -2167,50 +2167,73 @@ class CommandExecutor:
         shape_name = cmd_dict['shape']
         intent_dict = cmd_dict['intent']
         
-        canvas = self.wip_canvas if self.active_canvas == 'WIP' else self.main_canvas
-        
+        canvas = self.wip_canvas if self.active_canvas_name == 'WIP' else self.main_canvas
+
         # Validate
         if method not in self.enhancement_registry.list_methods():
             available = ', '.join(self.enhancement_registry.list_methods())
             raise ValueError(f"Unknown method '{method}'. Available: {available}")
         
-        if shape_name.lower() != 'canvas' and shape_name not in canvas.shapes:
-            raise ValueError(f"Shape '{shape_name}' not found on {self.active_canvas}")
+        shape = canvas.get_shape_by_name(shape_name) if shape_name.lower() != 'canvas' else None
         
-        shape = canvas.shapes.get(shape_name) if shape_name.lower() != 'canvas' else None
+        if shape_name.lower() != 'canvas' and shape is None:
+            raise ValueError(f"Shape '{shape_name}' not found on {self.active_canvas_name}")
         
-        is_valid, error = self.enhancement_registry.validate_intent(method, intent_dict)
+        # Get the enhancer instance from registry
+        enhancer = self.enhancement_registry.get(method)
+        if enhancer is None:
+            raise ValueError(f"Unknown enhancement method: {method}")
+        
+        is_valid, error = enhancer.validate_intent(intent_dict)
         if not is_valid:
             raise ValueError(f"Intent validation failed: {error}")
         
         # Execute
-        result = self.enhancement_registry.enhance(method, canvas, shape, intent_dict)
+        result = enhancer.enhance(canvas, shape, intent_dict)
         commands = result.get('commands', {})
         metadata = result.get('metadata', {})
-        
+        print(f"DEBUG: {commands}")
         if not metadata.get('success', False):
             return f"Enhancement failed: {metadata.get('reasoning', 'Unknown error')}"
         
-        # Apply commands
+        # Apply commands by delegating to existing command handlers
         applied = []
-        if shape:
+        if shape and commands:
             for cmd_type, cmd_value in commands.items():
                 if cmd_type == 'color':
-                    shape.attrs['style']['color'] = cmd_value
+                    color_cmd = {
+                        'command': 'COLOR',
+                        'name': shape_name,
+                        'color': cmd_value
+                    }
+                    self._execute_color(color_cmd, f"COLOR {shape_name} {cmd_value}")
                     applied.append(f"color → {cmd_value}")
+                
                 elif cmd_type == 'fill':
-                    shape.attrs['style']['fill'] = cmd_value
+                    fill_cmd = {
+                        'command': 'FILL',
+                        'name': shape_name,
+                        'fill': cmd_value
+                    }
+                    self._execute_fill(fill_cmd, f"FILL {shape_name} {cmd_value}")
                     applied.append(f"fill → {cmd_value}")
+                
                 elif cmd_type == 'move':
                     dx, dy = cmd_value
-                    shape.move(dx, dy)
+                    move_cmd = {
+                        'command': 'MOVE',
+                        'name': shape_name,
+                        'delta': (dx, dy)
+                    }
+                    self._execute_move(move_cmd, f"MOVE {shape_name} {dx},{dy}")
                     applied.append(f"moved ({dx:.1f}, {dy:.1f})")
         
         reasoning = metadata.get('reasoning', '')
+        
         if applied:
-            return f"Enhanced '{shape_name}' using {method}\\n  Applied: {', '.join(applied)}\\n  Reasoning: {reasoning}"
+            return f"Enhanced '{shape_name}' using {method}  Applied: {', '.join(applied)}  Reasoning: {reasoning}"
         else:
-            return f"Enhancement completed\\n  Reasoning: {reasoning}"
+            return f"Enhancement completed  Reasoning: {reasoning}"
 
     def _list_enhance_methods(self):
         """

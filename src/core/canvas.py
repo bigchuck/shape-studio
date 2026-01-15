@@ -78,7 +78,7 @@ class Canvas:
     def get_shapes(self):
         """Return list of all shapes"""
         return self.shapes
-        
+    
     def redraw(self):
         """Redraw all shapes on a fresh canvas, respecting z-order"""
         self.image = Image.new('RGBA', (self.width, self.height), (255, 255, 255, 255))
@@ -233,3 +233,39 @@ class Canvas:
         # Draw corner frame to box in the canvas
         draw.rectangle([canvas_start, canvas_start, canvas_end, canvas_end], 
                       outline=ruler_color, width=1)
+
+    def render(self, bg_color='white'):
+        """
+        Render all shapes on canvas to a PIL Image (without grid/rulers)
+        
+        Args:
+            bg_color: Background color (default: white)
+            
+        Returns:
+            PIL Image object
+        """
+        # Create blank image
+        image = Image.new('RGB', (self.width, self.height), bg_color)
+        draw = ImageDraw.Draw(image, 'RGBA')  # RGBA for transparency
+        
+        # Sort shapes by z_coord (lowest first = back to front)
+        sorted_shapes = sorted(self.shapes, key=lambda s: s.attrs['style']['z_coord'])
+        
+        # Render each shape using its own draw() method
+        for shape in sorted_shapes:
+            shape.draw(draw)
+        
+        # Convert RGBA to RGB for return
+        if image.mode == 'RGBA':
+            rgb_image = Image.new('RGB', image.size, bg_color)
+            rgb_image.paste(image, mask=image.split()[3])  # Use alpha as mask
+            return rgb_image
+        
+        return image
+
+    def get_shape_by_name(self, shape_name):
+        """Get shape by name (helper for enhancement system)"""
+        for shape in self.shapes: 
+            if shape.name == shape_name:
+                return shape
+        return None

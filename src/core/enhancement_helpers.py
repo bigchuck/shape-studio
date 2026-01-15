@@ -1,190 +1,167 @@
 """
-PIL Helper Functions for Enhancement Modules
-Provides common image analysis utilities
+Enhancement Helper Functions
+PIL-based utilities for pixel analysis and canvas inspection
 """
-from PIL import Image, ImageDraw
-from collections import defaultdict
+from PIL import Image
+from collections import Counter
 import colorsys
 
 
-def render_canvas_to_pil(canvas, width=768, height=768):
+def get_dominant_colors(image, num_colors=5, sample_size=1000):
     """
-    Render canvas to PIL Image for pixel analysis
+    Extract dominant colors from PIL Image
     
     Args:
-        canvas: Canvas object with shapes
-        width: Image width (default 768)
-        height: Image height (default 768)
+        image: PIL Image object
+        num_colors: Number of dominant colors to return
+        sample_size: Number of pixels to sample (0 = all pixels)
         
     Returns:
-        PIL.Image: Rendered canvas
+        List of (color_hex, frequency) tuples
     """
-    img = Image.new('RGB', (width, height), 'white')
-    draw = ImageDraw.Draw(img, 'RGBA')
+    # Convert to RGB if needed
+    if image.mode != 'RGB':
+        image = image.convert('RGB')
     
-    # Sort shapes by z-order
-    sorted_shapes = sorted(canvas.shapes.values(), key=lambda s: s.attrs.get('z_order', 0))
+    # Get pixel data
+    pixels = list(image.getdata())
     
-    for shape in sorted_shapes:
-        shape.draw(draw)
+    # Sample if needed for performance
+    if sample_size > 0 and len(pixels) > sample_size:
+        import random
+        pixels = random.sample(pixels, sample_size)
     
-    return img
+    # Count colors
+    color_counts = Counter(pixels)
+    most_common = color_counts.most_common(num_colors)
+    
+    # Convert to hex with frequencies
+    results = []
+    total = sum(count for _, count in most_common)
+    for rgb, count in most_common:
+        hex_color = '#{:02x}{:02x}{:02x}'.format(*rgb)
+        frequency = count / total
+        results.append((hex_color, frequency))
+    
+    return results
 
 
-def get_color_histogram(image, bins=16):
+def get_color_histogram(image):
     """
-    Compute color histogram across RGB channels
+    Get RGB histogram from PIL Image
     
     Args:
-        image: PIL Image
-        bins: Number of bins per channel
+        image: PIL Image object
         
     Returns:
-        dict: Histogram data with RGB channel breakdowns
+        Dict with 'r', 'g', 'b' keys containing histogram lists
     """
     if image.mode != 'RGB':
         image = image.convert('RGB')
     
-    pixels = list(image.getdata())
+    histogram = image.histogram()
     
-    # Initialize histograms
-    r_hist = defaultdict(int)
-    g_hist = defaultdict(int)
-    b_hist = defaultdict(int)
-    
-    bin_size = 256 // bins
-    
-    for r, g, b in pixels:
-        r_bin = (r // bin_size) * bin_size
-        g_bin = (g // bin_size) * bin_size
-        b_bin = (b // bin_size) * bin_size
-        
-        r_hist[r_bin] += 1
-        g_hist[g_bin] += 1
-        b_hist[b_bin] += 1
-    
+    # Split into R, G, B channels (256 bins each)
     return {
-        'red': dict(r_hist),
-        'green': dict(g_hist),
-        'blue': dict(b_hist),
-        'total_pixels': len(pixels)
+        'r': histogram[0:256],
+        'g': histogram[256:512],
+        'b': histogram[512:768]
     }
 
 
-def get_dominant_colors(image, num_colors=5):
+def get_average_color(image, region=None):
     """
-    Extract dominant colors from image
+    Get average color from image or region
     
     Args:
-        image: PIL Image
-        num_colors: Number of dominant colors to extract
+        image: PIL Image object
+        region: Optional (x1, y1, x2, y2) tuple for crop region
         
     Returns:
-        list: List of (color_hex, percentage) tuples
+        Hex color string
     """
     if image.mode != 'RGB':
         image = image.convert('RGB')
     
-    # Quantize to reduce color space
-    quantized = image.quantize(colors=num_colors)
-    palette = quantized.getpalette()
+    # Crop to region if specified
+    if region:
+        image = image.crop(region)
     
-    # Count color frequencies
-    color_counts = defaultdict(int)
-    for pixel in quantized.getdata():
-        color_counts[pixel] += 1
-    
-    # Convert to hex and percentages
-    total_pixels = image.width * image.height
-    results = []
-    
-    for color_idx, count in sorted(color_counts.items(), key=lambda x: x[1], reverse=True):
-        r = palette[color_idx * 3]
-        g = palette[color_idx * 3 + 1]
-        b = palette[color_idx * 3 + 2]
-        hex_color = f"#{r:02x}{g:02x}{b:02x}"
-        percentage = (count / total_pixels) * 100
-        results.append((hex_color, percentage))
-    
-    return results[:num_colors]
-
-
-def get_average_brightness(image):
-    """
-    Calculate average brightness of image
-    
-    Args:
-        image: PIL Image
-        
-    Returns:
-        float: Average brightness (0.0-1.0)
-    """
-    if image.mode != 'RGB':
-        image = image.convert('RGB')
-    
+    # Get all pixels
     pixels = list(image.getdata())
-    total_brightness = 0
     
-    for r, g, b in pixels:
-        # Convert to HSV and get value (brightness)
-        h, s, v = colorsys.rgb_to_hsv(r/255, g/255, b/255)
-        total_brightness += v
+    if not pixels:
+        return '#000000'
     
-    return total_brightness / len(pixels)
+    # Calculate average
+    r_avg = sum(p[0] for p in pixels) / len(pixels)
+    g_avg = sum(p[1] for p in pixels) / len(pixels)
+    b_avg = sum(p[2] for p in pixels) / len(pixels)
+    
+    return '#{:02x}{:02x}{:02x}'.format(int(r_avg), int(g_avg), int(b_avg))
 
 
-def get_average_saturation(image):
+def get_color_temperature(hex_color):
     """
-    Calculate average saturation of image
+    Classify color as warm, cool, or neutral
     
     Args:
-        image: PIL Image
+        hex_color: Hex color string
         
     Returns:
-        float: Average saturation (0.0-1.0)
+        'warm', 'cool', or 'neutral'
     """
-    if image.mode != 'RGB':
-        image = image.convert('RGB')
+    # Convert hex to RGB
+    hex_color = hex_color.lstrip('#')
+    r, g, b = tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
     
-    pixels = list(image.getdata())
-    total_saturation = 0
+    # Convert to HSV
+    h, s, v = colorsys.rgb_to_hsv(r/255, g/255, b/255)
     
-    for r, g, b in pixels:
-        h, s, v = colorsys.rgb_to_hsv(r/255, g/255, b/255)
-        total_saturation += s
+    # Hue ranges (normalized 0-1):
+    # Warm: 0-0.15 (red-orange-yellow)
+    # Cool: 0.45-0.75 (cyan-blue-purple)
+    # Neutral: everything else or low saturation
     
-    return total_saturation / len(pixels)
-
-
-def get_color_temperature(image):
-    """
-    Estimate color temperature (warm vs cool)
+    if s < 0.2:  # Low saturation = neutral
+        return 'neutral'
     
-    Args:
-        image: PIL Image
-        
-    Returns:
-        str: 'warm', 'neutral', or 'cool'
-        float: Temperature score (-1.0 to 1.0, negative=cool, positive=warm)
-    """
-    if image.mode != 'RGB':
-        image = image.convert('RGB')
-    
-    pixels = list(image.getdata())
-    warm_score = 0
-    
-    for r, g, b in pixels:
-        # Warm colors have more red/yellow, cool colors have more blue
-        warm_score += (r - b) / 255
-    
-    avg_score = warm_score / len(pixels)
-    
-    if avg_score > 0.1:
-        return 'warm', avg_score
-    elif avg_score < -0.1:
-        return 'cool', avg_score
+    if h < 0.15 or h > 0.85:  # Red-orange range
+        return 'warm'
+    elif 0.45 <= h <= 0.75:  # Cyan-blue-purple range
+        return 'cool'
     else:
-        return 'neutral', avg_score
+        return 'neutral'
+
+
+def get_complementary_color(hex_color):
+    """
+    Get complementary color (opposite on color wheel)
+    
+    Args:
+        hex_color: Hex color string
+        
+    Returns:
+        Complementary hex color string
+    """
+    # Convert hex to RGB
+    hex_color = hex_color.lstrip('#')
+    r, g, b = tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
+    
+    # Convert to HSV
+    h, s, v = colorsys.rgb_to_hsv(r/255, g/255, b/255)
+    
+    # Rotate hue by 180 degrees (0.5 in 0-1 scale)
+    h_comp = (h + 0.5) % 1.0
+    
+    # Convert back to RGB
+    r_comp, g_comp, b_comp = colorsys.hsv_to_rgb(h_comp, s, v)
+    
+    return '#{:02x}{:02x}{:02x}'.format(
+        int(r_comp * 255),
+        int(g_comp * 255),
+        int(b_comp * 255)
+    )
 
 
 def get_shape_bounds_on_canvas(shape):
@@ -192,22 +169,31 @@ def get_shape_bounds_on_canvas(shape):
     Get bounding box of shape in canvas coordinates
     
     Args:
-        shape: Shape object
+        shape: Shape object with geometry
         
     Returns:
-        tuple: (min_x, min_y, max_x, max_y) or None if no geometry
+        (x1, y1, x2, y2) tuple or None if shape has no geometry
     """
-    if 'geometry' not in shape.attrs:
+    if not hasattr(shape, 'attrs') or 'geometry' not in shape.attrs:
         return None
     
-    points = shape.attrs['geometry'].get('points', [])
-    if not points:
-        return None
+    geometry = shape.attrs['geometry']
     
-    xs = [p[0] for p in points]
-    ys = [p[1] for p in points]
+    if 'points' in geometry:
+        points = geometry['points']
+        if not points:
+            return None
+        xs = [p[0] for p in points]
+        ys = [p[1] for p in points]
+        return (min(xs), min(ys), max(xs), max(ys))
     
-    return (min(xs), min(ys), max(xs), max(ys))
+    elif 'start' in geometry and 'end' in geometry:
+        # Line
+        x1, y1 = geometry['start']
+        x2, y2 = geometry['end']
+        return (min(x1, x2), min(y1, y2), max(x1, x2), max(y1, y2))
+    
+    return None
 
 
 def get_shape_centroid(shape):
@@ -215,64 +201,52 @@ def get_shape_centroid(shape):
     Get centroid of shape
     
     Args:
+        shape: Shape object with geometry
+        
+    Returns:
+        (x, y) tuple or None
+    """
+    if not hasattr(shape, 'attrs') or 'geometry' not in shape.attrs:
+        return None
+    
+    geometry = shape.attrs['geometry']
+    
+    if 'points' in geometry:
+        points = geometry['points']
+        if not points:
+            return None
+        x_avg = sum(p[0] for p in points) / len(points)
+        y_avg = sum(p[1] for p in points) / len(points)
+        return (x_avg, y_avg)
+    
+    elif 'start' in geometry and 'end' in geometry:
+        # Line midpoint
+        x1, y1 = geometry['start']
+        x2, y2 = geometry['end']
+        return ((x1 + x2) / 2, (y1 + y2) / 2)
+    
+    return None
+
+
+def get_canvas_region_around_shape(shape, margin=50):
+    """
+    Get region around shape with margin
+    
+    Args:
         shape: Shape object
+        margin: Pixels to extend beyond shape bounds
         
     Returns:
-        tuple: (center_x, center_y) or None if no geometry
+        (x1, y1, x2, y2) tuple or None
     """
-    if 'geometry' not in shape.attrs:
+    bounds = get_shape_bounds_on_canvas(shape)
+    if not bounds:
         return None
     
-    points = shape.attrs['geometry'].get('points', [])
-    if not points:
-        return None
-    
-    xs = [p[0] for p in points]
-    ys = [p[1] for p in points]
-    
-    return (sum(xs) / len(xs), sum(ys) / len(ys))
-
-
-def get_canvas_thirds_points(width=768, height=768):
-    """
-    Get rule of thirds intersection points
-    
-    Args:
-        width: Canvas width
-        height: Canvas height
-        
-    Returns:
-        list: List of (x, y) tuples for the 4 intersection points
-    """
-    x1 = width / 3
-    x2 = 2 * width / 3
-    y1 = height / 3
-    y2 = 2 * height / 3
-    
-    return [
-        (x1, y1),  # Top-left third
-        (x2, y1),  # Top-right third
-        (x1, y2),  # Bottom-left third
-        (x2, y2),  # Bottom-right third
-    ]
-
-
-def distance_to_nearest_thirds_point(x, y, width=768, height=768):
-    """
-    Calculate distance from point to nearest rule of thirds intersection
-    
-    Args:
-        x, y: Point coordinates
-        width, height: Canvas dimensions
-        
-    Returns:
-        float: Distance to nearest intersection point
-    """
-    thirds_points = get_canvas_thirds_points(width, height)
-    
-    min_dist = float('inf')
-    for tx, ty in thirds_points:
-        dist = ((x - tx) ** 2 + (y - ty) ** 2) ** 0.5
-        min_dist = min(min_dist, dist)
-    
-    return min_dist
+    x1, y1, x2, y2 = bounds
+    return (
+        max(0, x1 - margin),
+        max(0, y1 - margin),
+        min(768, x2 + margin),  # Canvas max width
+        min(768, y2 + margin)   # Canvas max height
+    )
