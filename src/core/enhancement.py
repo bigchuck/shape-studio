@@ -151,24 +151,24 @@ class EnhancementRegistry:
 
     def _discover_methods(self):
         """Discover all EnhancementMethod subclasses"""
-        print("DEBUG: Starting discovery...")
+        # print("DEBUG: Starting discovery...")
 
         # Import all modules in the enhancers package
         try:
             import src.core.enhancers as enhancers_pkg
-            print(f"DEBUG: Imported enhancers package: {enhancers_pkg}")
+            # print(f"DEBUG: Imported enhancers package: {enhancers_pkg}")
             
             # Get the package path
             package_path = enhancers_pkg.__path__
-            print(f"DEBUG: Package path: {package_path}")
+            # print(f"DEBUG: Package path: {package_path}")
             
             # Import all modules in the package
             for importer, modname, ispkg in pkgutil.iter_modules(package_path):
                 full_module_name = f'src.core.enhancers.{modname}'
-                print(f"DEBUG: Attempting to import {full_module_name}")
+                # print(f"DEBUG: Attempting to import {full_module_name}")
                 try:
                     importlib.import_module(full_module_name)
-                    print(f"DEBUG: Successfully imported {full_module_name}")
+                    # print(f"DEBUG: Successfully imported {full_module_name}")
                 except Exception as e:
                     print(f"Warning: Could not import {full_module_name}: {e}")
                     import traceback
@@ -178,18 +178,18 @@ class EnhancementRegistry:
             print(f"Warning: Could not import enhancers package: {e}")
     
         # Now find all concrete subclasses
-        print(f"DEBUG: Looking for subclasses of {EnhancementMethod}")
+        # print(f"DEBUG: Looking for subclasses of {EnhancementMethod}")
         all_subclasses = self._get_all_subclasses(EnhancementMethod)
-        print(f"DEBUG: Found {len(all_subclasses)} subclass(es): {all_subclasses}")
+        # print(f"DEBUG: Found {len(all_subclasses)} subclass(es): {all_subclasses}")
     
         for cls in all_subclasses:
-            print(f"DEBUG: Checking {cls.__name__}, abstract={inspect.isabstract(cls)}")
+            # print(f"DEBUG: Checking {cls.__name__}, abstract={inspect.isabstract(cls)}")
             if not inspect.isabstract(cls):
                 try:
-                    print(f"DEBUG: Attempting to instantiate {cls.__name__}")
+                    # print(f"DEBUG: Attempting to instantiate {cls.__name__}")
                     instance = cls()
                     self.methods[instance.name] = instance
-                    print(f"Registered enhancement method: {instance.name}")
+                    # print(f"Registered enhancement method: {instance.name}")
                 except Exception as e:
                     print(f"Warning: Could not instantiate {cls.__name__}: {e}")
                     import traceback

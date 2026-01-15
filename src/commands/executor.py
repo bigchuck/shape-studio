@@ -2192,7 +2192,7 @@ class CommandExecutor:
         result = enhancer.enhance(canvas, shape, intent_dict)
         commands = result.get('commands', {})
         metadata = result.get('metadata', {})
-        print(f"DEBUG: {commands}")
+        
         if not metadata.get('success', False):
             return f"Enhancement failed: {metadata.get('reasoning', 'Unknown error')}"
         
