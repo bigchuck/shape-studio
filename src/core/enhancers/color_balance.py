@@ -190,7 +190,7 @@ class ColorBalanceEnhancer(EnhancementMethod):
                     'temperature': temperature,
                     'mode': mode,
                 },
-                'recommendation': suggested_hex,
+                'recommendation': analysis['recommendations'],
             }
         }
     

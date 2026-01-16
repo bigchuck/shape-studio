@@ -2229,11 +2229,12 @@ class CommandExecutor:
                     applied.append(f"moved ({dx:.1f}, {dy:.1f})")
         
         reasoning = metadata.get('reasoning', '')
+        recommendation = metadata.get('recommendation', '')
         
         if applied:
             return f"Enhanced '{shape_name}' using {method}  Applied: {', '.join(applied)}  Reasoning: {reasoning}"
         else:
-            return f"Enhancement completed  Reasoning: {reasoning}"
+            return f"Enhancement analyzed  Recommendation: {recommendation}"
 
     def _list_enhance_methods(self):
         """
