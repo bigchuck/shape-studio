@@ -545,6 +545,16 @@ class CommandParser:
         
         scriptfile = parts[2]
         
+        # Pre-scan for optional STORE flag (position-independent)
+        store_shapes = False
+        filtered_parts = []
+        for p in parts:
+            if p.upper() == 'STORE':
+                store_shapes = True
+            else:
+                filtered_parts.append(p)
+        parts = filtered_parts
+
         # Determine if executable name is provided (for new format)
         # If 4th param is all caps, it's the canvas target (old format)
         # Otherwise it's either executable name or output prefix
@@ -582,7 +592,8 @@ class CommandParser:
             'scriptfile': scriptfile,
             'executable': executable,
             'output_prefix': output_prefix,
-            'target_canvas': target_canvas
+            'target_canvas': target_canvas,
+            'store_shapes': store_shapes
         }
         
     def _parse_proc(self, parts):

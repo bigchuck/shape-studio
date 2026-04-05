@@ -905,42 +905,51 @@ class CommandExecutor:
         return header + "\n" + "\n".join(results)
 
     def _execute_run_json(self, scriptfile, section_name=None):
-        """Execute RUN command with JSON script file"""
+        """Execute RUN command with JSON script file.
+        
+        Handles two JSON formats:
+        - Executables format: top-level 'executables' key -> routes through TemplateExecutor
+        - Sections format: top-level keys are sections with 'commands' arrays
+        """
         filepath = self.scripts_dir / scriptfile
         
         if not filepath.exists():
             raise ValueError(f"Script file not found: {filepath}")
         
-        # Load and validate JSON file
         json_data = self._load_json_file(filepath)
         
-        # Select section
+        # Executables-format files have a top-level 'executables' key.
+        if 'executables' in json_data:
+            executable_name = section_name
+            if executable_name is None:
+                available = ', '.join(json_data['executables'].keys())
+                raise ValueError(
+                    f"'{scriptfile}' is an executables-format script. "
+                    f"Specify an executable name.\n"
+                    f"Usage: RUN {scriptfile} <executable_name>\n"
+                    f"Available: {available}"
+                )
+            results = self.template_executor.execute_script(
+                filepath, executable_name, batch_mode=False
+            )
+            header = f"RUN {scriptfile} [{executable_name}]"
+            return header + "\n" + "\n".join(results)
+        
+        # Sections format (original behaviour)
         section_data, actual_section_name = self._select_section(json_data, section_name, scriptfile)
-        
-        # Validate section
         self._validate_section(section_data, actual_section_name)
-        
-        # Execute commands
         commands = section_data['commands']
         results = []
-        
-        # Display section info
         results.append(f"Running section '{actual_section_name}' from {scriptfile}")
-        
         if 'description' in section_data:
             results.append(f"Description: {section_data['description']}")
-        
         results.append("")
-
-        # Execute each command (string or dict)
         for i, cmd in enumerate(commands, 1):
             try:
                 if isinstance(cmd, str):
-                    # String command - parse and execute as before
                     result = self.execute(cmd)
                     results.append(f"  [{i}] {cmd} → {result}")
                 elif isinstance(cmd, dict):
-                    # Structured command - convert and execute
                     cmd_display = self._format_structured_command(cmd)
                     result = self._execute_structured_command(cmd)
                     results.append(f"  [{i}] {cmd_display} → {result}")
@@ -952,7 +961,6 @@ class CommandExecutor:
                 else:
                     cmd_display = self._format_structured_command(cmd)
                     results.append(f"  [{i}] {cmd_display} → ERROR: {str(e)}")
-        
         return "\n".join(results)
 
     def _execute_batch(self, cmd_dict, command_text):
@@ -980,8 +988,10 @@ class CommandExecutor:
                     f"Specify executable: BATCH <count> {scriptfile} <executable_name> <prefix>"
                 )
             
+            store_shapes = cmd_dict.get('store_shapes', False)
             return self._execute_batch_templated(
-                count, filepath, executable_name, output_prefix, target_canvas
+                count, filepath, executable_name, output_prefix, target_canvas,
+                store_shapes=store_shapes
             )
         else:
             # Old format - existing behavior
@@ -990,7 +1000,7 @@ class CommandExecutor:
             )
 
     def _execute_batch_templated(self, count, filepath, executable_name, 
-                                output_prefix, target_canvas):
+                                output_prefix, target_canvas, store_shapes=False):
         """Execute BATCH with templated script
         
         Supports:
@@ -1058,10 +1068,28 @@ class CommandExecutor:
                         randomization_values=randomization
                     )
                     
-                    # Save output
-                    output_file = f"output/{exec_prefix}_{i:04d}.png"
-                    save_canvas.save_png(output_file)
+                    # Save output PNG
+                    output_base = f"{exec_prefix}_{i:04d}"
+                    output_file = f"output/{output_base}.png"
+                    save_canvas.save(output_file)
                     successful += 1
+                    
+                    # Optionally store shapes under the PNG base name
+                    if store_shapes:
+                        shapes_on_canvas = list(
+                            self.wip_shapes.values() if target_canvas == 'WIP'
+                            else self.main_shapes.values()
+                        )
+                        for shape in shapes_on_canvas:
+                            if len(shapes_on_canvas) == 1:
+                                store_name = output_base
+                            else:
+                                store_name = f"{output_base}_{shape.name}"
+                            shape_data = self._serialize_shape(shape)
+                            shape_data['name'] = store_name
+                            filepath_out = self.project_store_dir / f"{store_name}.json"
+                            with open(filepath_out, 'w') as f:
+                                json.dump(shape_data, f, indent=2)
                     
                     # Clear for next iteration
                     if target_canvas == 'WIP':
@@ -1072,18 +1100,24 @@ class CommandExecutor:
                     self._sync_active_canvas()
                     
                 except Exception as e:
-                    results.append(f"  Iteration {i} failed: {e}")
+                    import traceback
+                    results.append(f"  [{exec_name}] Iteration {i} FAILED: {e}")
+                    results.append(f"    Detail: {traceback.format_exc().strip().splitlines()[-1]}")
         
         # Switch back to original canvas
         if target_canvas != original_canvas:
             self.execute(f"SWITCH {original_canvas}")
         
-        # NEW: Better summary message for multiple executables
+        # Build summary — always include any error lines
         if len(exec_names) > 1:
             total_expected = count * len(exec_names)
-            return f"BATCH completed: {successful}/{total_expected} successful across {len(exec_names)} executables"
+            summary = f"BATCH completed: {successful}/{total_expected} successful across {len(exec_names)} executables"
         else:
-            return f"BATCH completed: {successful}/{count} successful"
+            summary = f"BATCH completed: {successful}/{count} successful"
+        
+        if results:
+            return summary + "\n" + "\n".join(results)
+        return summary
 
     def _execute_batch_legacy(self, count, filepath, output_prefix, target_canvas):
         """Execute BATCH with old-style script (existing behavior)"""
