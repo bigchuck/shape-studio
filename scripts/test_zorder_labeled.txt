@@ -1,0 +1,220 @@
+# Z-Order System Test Script - WITH LABELED SECTIONS
+# Run specific tests: RUN test_zorder.txt <label>
+# Run first test: RUN test_zorder.txt
+
+# ========================================
+@basic_auto_assignment
+# TEST 1: Basic Auto-Assignment
+# ========================================
+CLEAR WIP ALL
+RESET_ZORDER
+
+POLY shape1 100,100 200,200 300,100
+POLY shape2 150,150 250,250 350,150  
+POLY shape3 200,200 300,300 400,200
+
+INFO shape1
+INFO shape2  
+INFO shape3
+
+SAVE test1_auto_assignment.png
+EOF
+
+# ========================================
+@manual_override
+# TEST 2: Manual Override (Counter Stays)
+# ========================================
+CLEAR WIP ALL
+RESET_ZORDER
+
+POLY auto1 100,100 200,200 300,100
+ZORDER auto1 100
+POLY auto2 150,150 250,250 350,150
+
+INFO auto1
+INFO auto2
+
+SAVE test2_manual_override.png
+EOF
+
+# ========================================
+@reset_counter
+# TEST 3: Reset Counter
+# ========================================
+CLEAR WIP ALL
+RESET_ZORDER
+
+POLY s1 100,100 200,200 300,100
+POLY s2 150,150 250,250 350,150
+POLY s3 200,200 300,300 400,200
+
+# Counter is at 3, reset it
+RESET_ZORDER
+
+POLY s4 250,250 350,350 450,250
+
+INFO s1
+INFO s2
+INFO s3
+INFO s4
+
+SAVE test3_reset_counter.png
+EOF
+
+# ========================================
+@group_zorder
+# TEST 4: Group Z-Order
+# ========================================
+CLEAR WIP ALL
+RESET_ZORDER
+
+POLY member1 100,100 150,150 200,100
+POLY member2 120,120 170,170 220,120
+POLY member3 140,140 190,190 240,140
+
+GROUP testgroup member1 member2 member3
+
+POLY independent 300,300 400,400 500,300
+
+INFO testgroup
+INFO independent
+
+SAVE test4_group_zorder.png
+EOF
+
+# ========================================
+@member_internal_order
+# TEST 5: Member Z-Order Within Group
+# ========================================
+CLEAR WIP ALL
+RESET_ZORDER
+
+POLY member_front 100,100 200,200 300,100
+POLY member_middle 150,150 250,250 350,150
+POLY member_back 200,200 300,300 400,200
+
+ZORDER member_front 10
+ZORDER member_middle 5
+ZORDER member_back 1
+
+GROUP layered member_front member_middle member_back
+
+INFO layered
+INFO member_front
+INFO member_middle
+INFO member_back
+
+SAVE test5_member_order.png
+EOF
+
+# ========================================
+@extraction
+# TEST 6: Extraction
+# ========================================
+CLEAR WIP ALL
+RESET_ZORDER
+
+POLY shape_a 100,100 200,200 300,100
+POLY shape_b 400,400 500,500 600,400
+GROUP mygroup shape_a shape_b
+
+POLY shape_c 150,150 250,250 350,150
+
+INFO mygroup
+INFO shape_c
+
+EXTRACT shape_a FROM mygroup
+
+INFO shape_a
+INFO mygroup
+
+SAVE test6_extraction.png
+EOF
+
+# ========================================
+@complex_layering
+# TEST 7: Complex Layering
+# ========================================
+CLEAR WIP ALL
+RESET_ZORDER
+
+POLY bg 0,0 768,0 768,768 0,768
+FILL bg lightgray
+ZORDER bg -10
+
+PROC dynamic_polygon mid1 VERTICES=5 BOUNDS=100,100,300,300
+PROC dynamic_polygon mid2 VERTICES=6 BOUNDS=400,100,600,300
+PROC dynamic_polygon mid3 VERTICES=7 BOUNDS=100,400,300,600
+
+COLOR mid1 blue
+COLOR mid2 green  
+COLOR mid3 red
+
+POLY fg 200,200 568,200 568,568 200,568
+ALPHA fg 0.5
+FILL fg yellow
+ZORDER fg 100
+
+INFO bg
+INFO mid1
+INFO mid2
+INFO mid3
+INFO fg
+
+SAVE test7_complex_layering.png
+EOF
+
+# ========================================
+@counter_persistence
+# TEST 8: Counter After Manual ZORDER
+# ========================================
+CLEAR WIP ALL
+RESET_ZORDER
+
+POLY s1 100,100 200,200 300,100
+POLY s2 150,150 250,250 350,150
+ZORDER s2 50
+POLY s3 200,200 300,300 400,200
+
+INFO s1
+INFO s2
+INFO s3
+
+SAVE test8_counter_persistence.png
+EOF
+
+# ========================================
+@reset_to_value
+# TEST 9: Reset to Specific Value
+# ========================================
+CLEAR WIP ALL
+RESET_ZORDER 10
+
+POLY s1 100,100 200,200 300,100
+POLY s2 150,150 250,250 350,150
+POLY s3 200,200 300,300 400,200
+
+INFO s1
+INFO s2
+INFO s3
+
+SAVE test9_reset_value.png
+EOF
+
+# ========================================
+@collision_handling
+# TEST 10: Same Z-Coord (Stable Sort)
+# ========================================
+CLEAR WIP ALL
+RESET_ZORDER
+
+POLY same_z1 100,100 200,200 300,100
+POLY same_z2 150,150 250,250 350,150
+ZORDER same_z1 5
+ZORDER same_z2 5
+
+INFO same_z1
+INFO same_z2
+
+SAVE test10_collision.png
+EOF

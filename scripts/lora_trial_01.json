@@ -1,0 +1,102 @@
+{
+  "version": "1.0",
+  "description": "LoRA Training Trial Executables - Single polygon outline generation",
+  "author": "Mr. Chuck",
+  "created": "2026-01-09",
+  "comments": "Executable scripts for generating LoRA training images. References templates from library_for_lora.json",
+  
+  "template_libraries": [
+    "library_for_lora_1.json"
+  ],
+  
+  "executables": {
+    
+    "clear_main": {
+      "description": "Clear main",
+      "author": "Mr. Chuck",
+      "created": "2026-01-12",
+      "target_canvas": "MAIN",
+      "comments": "Clear the canvas independent of drawing",
+      "commands": [
+        {
+          "template": "clear_main_template"
+        }
+      ]
+
+    },
+
+    "trial_01": {
+      "description": "Single test image - simple organic outline",
+      "author": "Mr. Chuck",
+      "created": "2026-01-09",
+      "target_canvas": "MAIN",
+      "comments": "Quick test using organic_outline_template with specific parameters",
+      "randomization": {
+        "projection": {
+          "type": "normal",
+          "min": 0.5,
+          "max": 1.5,
+          "mean": 1.0,
+          "std": 0.3
+        },
+        "_projection": [0.5, 1.5],
+        "iters": [10,25],
+        "_color": ["black","red","green"]
+      },
+
+      "commands": [
+        {
+          "template": "organic_outline_template",
+          "params": {
+            "name": "shape1",
+            "_verts": "6",
+            "verts": "6,10",
+            "bounds": "150,150,618,618",
+            "break_width": "0.4",
+            "color": "black",
+            "width": "3",
+            "connect": "convex_hull",
+            "_ops": "split_offset:10,sawtooth:5,squarewave:5,remove_point:1,distort_original:1",
+            "ops": "split_offset:1,squarewave:1,sawtooth:1",
+            "bias": "random"
+          }
+        }
+      ]
+    },
+
+    
+    "trial_01b": {
+      "description": "Single test image - simple organic outline",
+      "author": "Mr. Chuck",
+      "created": "2026-01-09",
+      "target_canvas": "MAIN",
+      "comments": "Quick test using organic_outline_template with specific parameters",
+      "randomization": {
+        "projection": [0.5, 1.5],
+        "iters": [10,25],
+        "color": ["red","green"]
+      },
+
+      "commands": [
+        {
+          "template": "organic_outline_template",
+          "params": {
+            "name": "shape2",
+            "_verts": "6",
+            "verts": "6,10",
+            "bounds": "0,0,450,450",
+            "break_width": "0.4",
+            "_color": "black",
+            "width": "3",
+            "connect": "convex_hull",
+            "_ops": "split_offset:10,sawtooth:5,squarewave:5,remove_point:1,distort_original:1",
+            "ops": "sawtooth:1",
+            "bias": "random"
+          }
+        }
+      ]
+    }
+
+
+  }
+}

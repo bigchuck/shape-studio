@@ -1,8 +1,8 @@
 # Generated output images
 output/
 # project files
-scripts/
-templates/
+# scripts/
+# templates/
 
 # Python
 __pycache__/

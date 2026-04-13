@@ -1,0 +1,237 @@
+# Z-Order System Test Script
+# Tests automatic assignment, manual override, groups, and edge cases
+
+# ========================================
+# TEST 1: Basic Auto-Assignment
+# ========================================
+CLEAR WIP ALL
+
+# Create 3 shapes - should get z=0,1,2 automatically
+POLY shape1 100,100 200,200 300,100
+POLY shape2 150,150 250,250 350,150  
+POLY shape3 200,200 300,300 400,200
+
+# Verify auto-assignment
+INFO shape1
+INFO shape2  
+INFO shape3
+fill shape1 red
+fill shape2 green
+fill shape3 blue
+
+# Visual check: shape1 should be furthest back, shape3 in front
+SAVE test1_auto_assignment.png
+# ========================================
+# TEST 2: Manual Override (Counter Stays)
+# ========================================
+CLEAR main ALL
+
+POLY auto1 100,100 200,200 300,100
+# auto1 gets z=0
+
+ZORDER auto1 100
+# auto1 now has z=100, counter stays at 1
+
+POLY auto2 150,150 250,250 350,150
+# auto2 should get z=1 (counter didn't advance)
+
+INFO auto1
+INFO auto2
+fill auto1 red
+fill auto2 green
+
+# Visual check: auto2 (z=1) should be behind auto1 (z=100)
+SAVE test2_manual_override.png
+
+# ========================================
+# TEST 3: Group Z-Order
+# ========================================
+CLEAR main ALL
+
+# Create shapes for grouping
+POLY member1 100,100 150,150 200,100
+POLY member2 120,120 170,170 220,120
+POLY member3 140,140 190,190 240,140
+
+# Group them
+GROUP testgroup member1 member2 member3
+fill member1 yellow
+fill member2 orange
+fill member3 gray
+# Create independent shape
+POLY independent 300,300 400,400 500,300
+
+INFO testgroup
+INFO independent
+fill testgroup red
+fill independent green
+# Visual check: Group and independent shape render in z-order
+SAVE test3_group_zorder.png
+
+
+# ========================================
+# TEST 4: Member Z-Order Within Group
+# ========================================
+CLEAR main ALL
+
+# Create members with explicit z-orders
+POLY member_front 100,100 200,200 300,100
+POLY member_middle 150,150 250,250 350,150
+POLY member_back 200,200 300,300 400,200
+fill member_front red
+fill member_middle green
+fill member_back blue
+
+# Set explicit z-orders (reverse of creation order)
+ZORDER member_front 10
+ZORDER member_middle 5
+ZORDER member_back 1
+
+# Group them
+GROUP layered member_front member_middle member_back
+
+INFO layered
+INFO member_front
+INFO member_middle
+INFO member_back
+
+# Visual check: member_back (z=1) behind member_middle (z=5) behind member_front (z=10)
+SAVE test4_member_zorder.png
+# ========================================
+# TEST 5: Extraction
+# ========================================
+CLEAR main ALL
+
+POLY shape_a 100,100 200,200 300,100
+POLY shape_b 400,400 500,500 600,400
+GROUP mygroup shape_a shape_b
+
+fill shape_a red
+fill shape_b green
+
+# Create shape between group's range
+POLY shape_c 150,150 250,250 350,150
+fill shape_c blue
+
+# shape_c should get next z from counter
+INFO mygroup
+INFO shape_c
+
+# Extract shape_a - it should keep its z-coord and participate in global sort
+EXTRACT shape_a FROM mygroup
+
+INFO shape_a
+INFO mygroup
+
+# Visual check: Extraction preserves z-coord
+SAVE test5_extraction.png
+
+# ========================================
+# TEST 6: Complex Layering
+# ========================================
+CLEAR main ALL
+
+# Background layer (explicit low z)
+POLY bg 0,0 768,0 768,768 0,768
+FILL bg lightgray
+ZORDER bg -10
+
+# Automatic middle layers
+PROC dynamic_polygon mid1 VERTICES=5 BOUNDS=100,100,300,300
+PROC dynamic_polygon mid2 VERTICES=6 BOUNDS=400,100,600,300
+PROC dynamic_polygon mid3 VERTICES=7 BOUNDS=100,400,300,600
+
+COLOR mid1 blue
+COLOR mid2 green  
+COLOR mid3 red
+
+# Foreground layer (explicit high z)
+POLY fg 200,200 568,200 568,568 200,568
+# ALPHA fg 0.5
+# ALPHA fg 0.
+FILL fg yellow
+ZORDER fg 4448
+
+INFO bg
+INFO mid1
+INFO mid2
+INFO mid3
+INFO fg
+
+# Visual check: bg behind, mid1/2/3 in creation order, fg in front with transparency
+SAVE test6_complex_layering.png
+EOF
+# ========================================
+# TEST 7: Group Nesting (if supported)
+# ========================================
+CLEAR WIP ALL
+
+POLY inner1 100,100 150,150 200,100
+POLY inner2 120,120 170,170 220,120
+GROUP inner_group inner1 inner2
+
+POLY outer1 300,300 350,350 400,300
+GROUP outer_group inner_group outer1
+
+INFO outer_group
+INFO inner_group
+
+# Visual check: Nested group rendering
+SAVE test7_nested_groups.png
+
+# ========================================
+# TEST 8: Randomized Z-Order (Template Use)
+# ========================================
+CLEAR WIP ALL
+
+# Simulate template with random z-orders
+PROC dynamic_polygon rand1 VERTICES=5 BOUNDS=100,100,300,300
+ZORDER rand1 RAND(0,50)
+
+PROC dynamic_polygon rand2 VERTICES=6 BOUNDS=400,100,600,300
+ZORDER rand2 RAND(0,50)
+
+PROC dynamic_polygon rand3 VERTICES=7 BOUNDS=100,400,300,600
+ZORDER rand3 RAND(0,50)
+
+INFO rand1
+INFO rand2
+INFO rand3
+
+# Visual check: Random layering creates variation
+SAVE test8_randomized.png
+
+# ========================================
+# TEST 9: Counter Persistence
+# ========================================
+CLEAR WIP ALL
+
+# Create shapes
+POLY test1 100,100 200,200 300,100
+POLY test2 150,150 250,250 350,150
+
+# Note: After CLEAR, counter should reset
+# After PROMOTE/UNPROMOTE, counter should be independent per canvas
+
+# ========================================
+# TEST 10: Edge Cases
+# ========================================
+CLEAR WIP ALL
+
+# Same z-coord for multiple shapes (stable sort should preserve creation order)
+POLY same_z1 100,100 200,200 300,100
+POLY same_z2 150,150 250,250 350,150
+ZORDER same_z1 5
+ZORDER same_z2 5
+
+INFO same_z1
+INFO same_z2
+
+# Visual check: Both have z=5, same_z1 should be behind (created first)
+SAVE test10_edge_cases.png
+
+# ========================================
+# All Tests Complete
+# ========================================
+# Review output/*.png files to verify visual layering
+# Check INFO output to verify z_coord values

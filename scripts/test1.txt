@@ -1,0 +1,74 @@
+@t1
+clear wip all
+poly shape1 0,0 100,100 50,200
+color shape1 red
+fill shape1 red
+enhance color_balance shape1 intent="k:v"
+EOF
+
+@t2
+clear wip all
+poly shape1 0,0 100,100 50,200
+color shape1 red
+fill shape1 red
+poly shape2 200,200 300,300 150,200
+color shape2 green
+fill shape2 green
+enhance color_balance shape1 intent="apply:True,outline:False,mode:auto"
+EOF
+
+@t3
+clear wip all
+poly shape1 0,0 100,100 50,200
+color shape1 red
+fill shape1 red
+poly shape2 200,200 300,300 150,200
+color shape2 green
+fill shape2 green
+enhance color_balance shape1 intent="apply:True,outline:False,mode:complement"
+EOF
+
+@t4
+clear wip all
+poly shape1 0,0 100,100 50,200
+color shape1 red
+fill shape1 red
+poly shape2 200,200 300,300 150,200
+color shape2 green
+fill shape2 green
+enhance color_balance shape1 intent="apply:True,outline:False,mode:analogous"
+EOF
+
+@t5
+clear wip all
+poly shape1 0,0 100,100 50,200
+color shape1 red
+fill shape1 red
+poly shape2 200,200 300,300 150,200
+color shape2 green
+fill shape2 green
+enhance color_balance shape1 intent="apply:True,outline:False,mode:triadic"
+EOF
+
+@t6
+clear wip all
+poly shape1 0,0 100,100 50,200
+color shape1 red
+fill shape1 red
+poly shape2 200,200 300,300 150,200
+color shape2 green
+fill shape2 green
+enhance color_balance shape1 intent="apply:True,outline:False,mode:analogous,sample_rate:30"
+EOF
+
+@t7
+clear wip all
+poly shape1 0,0 100,100 50,200
+#color shape1 red
+#fill shape1 red
+poly shape2 200,200 300,300 150,200
+color shape2 green
+fill shape2 green
+#enhance color_balance shape1 intent="apply:True,outline:False,mode:analogous,sample_rate:2,top_n:1"
+enhance color_balance shape2 intent="outline:False,mode:analogous,sample_rate:2,top_n:1"
+EOF
