@@ -37,6 +37,8 @@ class CommandExecutor:
         
         # Global stash for temporary storage
         self.stash = {}
+        # Batch index - set during batch execution so STORE can coincide with PNG name
+        self._batch_index = None
 
         # Persistence directories
         self.project_store_dir = Path(config.paths.shapes)
@@ -672,7 +674,10 @@ class CommandExecutor:
             save_dir = self.project_store_dir
         
         # Save to file
+        if self._batch_index is not None:
+            shape_name = f"{shape_name}_{self._batch_index}"
         filepath = save_dir / f"{shape_name}.json"
+        filepath.parent.mkdir(parents=True, exist_ok=True)
         with open(filepath, 'w') as f:
             json.dump(shape_data, f, indent=2)
         
@@ -1017,7 +1022,7 @@ class CommandExecutor:
         if not executables:
             raise ValueError(f"No executables found in {filepath}")
         
-        # NEW: Determine which executables to run (copied from execute_script logic)
+        # Determine which executables to run (copied from execute_script logic)
         if executable_name is None or executable_name == '--ALL':
             exec_names = list(executables.keys())
         elif ',' in executable_name:
@@ -1026,7 +1031,7 @@ class CommandExecutor:
         else:
             exec_names = [executable_name]
         
-        # NEW: Validate all executables exist before starting
+        # Validate all executables exist before starting
         for name in exec_names:
             if name not in executables:
                 available = ', '.join(executables.keys())
@@ -1045,22 +1050,23 @@ class CommandExecutor:
         results = []
         successful = 0
         
-        # NEW: Outer loop over executables
+        # Outer loop over executables
         for exec_name in exec_names:
             executable = executables[exec_name]
             
-            # NEW: Add executable name to prefix if running multiple
+            # Add executable name to prefix if running multiple
             if len(exec_names) > 1:
                 exec_prefix = f"{output_prefix}_{exec_name}"
             else:
                 exec_prefix = output_prefix
             
             # Inner loop over iterations
-            for i in range(1, count + 1):
+            start_i = self._scan_batch_start(Path('output') / Path(exec_prefix).parent, Path(exec_prefix).name)
+            for i in range(start_i, start_i + count):
                 try:
                     # Generate randomization values for this iteration
                     randomization = self.template_executor.generate_randomization(executable)
-                    
+                    self._batch_index = f"{i:04d}"
                     # Execute the script with randomization
                     self.template_executor.execute_script(
                         filepath, exec_name,
@@ -1071,7 +1077,10 @@ class CommandExecutor:
                     # Save output PNG
                     output_base = f"{exec_prefix}_{i:04d}"
                     output_file = f"output/{output_base}.png"
-                    save_canvas.save(output_file)
+                    output_path = Path('output') / output_file
+                    output_path.parent.mkdir(parents=True, exist_ok=True)
+                    save_canvas.save(str(output_path))
+                    self._batch_index = None
                     successful += 1
                     
                     # Optionally store shapes under the PNG base name
@@ -1143,8 +1152,10 @@ class CommandExecutor:
         results = []
         successful = 0
         
-        for i in range(1, count + 1):
+        start_i = self._scan_batch_start(Path('output') / Path(output_prefix).parent, Path(output_prefix).name)
+        for i in range(start_i, start_i + count):
             try:
+                self._batch_index = f"{i:04d}"
                 for line_num, cmd in commands:
                     try:
                         self.execute(cmd)
@@ -1160,9 +1171,11 @@ class CommandExecutor:
                                 except:
                                     pass
                 
-                output_filename = f"{output_prefix}_{i:03d}.png"
+                output_filename = f"{output_prefix}_{i:04d}.png"
                 output_path = Path('output') / output_filename
+                output_path.parent.mkdir(parents=True, exist_ok=True)
                 save_canvas.save(str(output_path))
+                self._batch_index = None
                 
                 successful += 1
                 results.append(f"  [{i}/{count}] Generated {output_filename}")
@@ -1220,8 +1233,10 @@ class CommandExecutor:
         
         results.append("")
         
-        for i in range(1, count + 1):
+        start_i = self._scan_batch_start(Path('output') / Path(output_prefix).parent, Path(output_prefix).name)
+        for i in range(start_i, start_i + count):
             try:
+                self._batch_index = f"{i:04d}"
                 # Execute all commands in section (string or dict)
                 for cmd in commands:
                     try:
@@ -1248,9 +1263,11 @@ class CommandExecutor:
                         # If recovery fails or not possible, just continue with save
                 
                 # Save the current state
-                output_filename = f"{output_prefix}_{i:03d}.png"
+                output_filename = f"{output_prefix}_{i:04d}.png"
                 output_path = Path('output') / output_filename
+                output_path.parent.mkdir(parents=True, exist_ok=True)
                 save_canvas.save(str(output_path))
+                self._batch_index = None
                 
                 successful += 1
                 results.append(f"  [{i}/{count}] Generated {output_filename}")
@@ -2352,3 +2369,16 @@ class CommandExecutor:
             result.append(f"  {example}")
         
         return '\\n'.join(result)
+    
+    def _scan_batch_start(self, output_dir, prefix):
+        """Scan output_dir for existing prefix_NNNN.png files, return max index + 1"""
+        import re
+        pattern = re.compile(rf"^{re.escape(prefix)}_(\d{{4}})\.png$")
+        max_index = 0
+        output_dir = Path(output_dir)
+        if output_dir.exists():
+            for f in output_dir.iterdir():
+                m = pattern.match(f.name)
+                if m:
+                    max_index = max(max_index, int(m.group(1)))
+        return max_index + 1
