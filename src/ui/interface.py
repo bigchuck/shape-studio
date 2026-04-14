@@ -2,6 +2,7 @@
 Shape Studio UI Interface - Phase 4
 Three-panel layout with help browser (fixed sash positioning)
 """
+import json
 import tkinter as tk
 from tkinter import ttk, scrolledtext
 from PIL import Image, ImageTk
@@ -26,6 +27,7 @@ class ShapeStudioUI:
         self.command_history = []
         self.history_index = -1
         self.zoom_level = 1.0  # Default zoom level (100%)
+        self._load_command_history()
         
         # Load help content BEFORE setting up UI
         self._load_help_content()
@@ -36,6 +38,21 @@ class ShapeStudioUI:
         self.executor.ui_root = self.root
         self.executor.ui_instance = self
         
+    def _load_command_history(self):
+        """Load command history from disk on startup"""
+        history_file = getattr(config.ui, 'history_file', 'history.json')
+        try:
+            with open(history_file, 'r') as f:
+                self.command_history = json.load(f)
+        except (FileNotFoundError, json.JSONDecodeError):
+            self.command_history = []
+
+    def _save_command_history(self):
+        """Persist command history to disk"""
+        history_file = getattr(config.ui, 'history_file', 'history.json')
+        with open(history_file, 'w') as f:
+            json.dump(self.command_history, f, indent=2)
+
     def toggle_fullscreen(self, event=None):
         """Toggle fullscreen mode"""
         current = self.root.attributes('-fullscreen')
@@ -135,7 +152,7 @@ For full documentation, place HELP.md in the project root directory.
         self.canvas_indicator.pack(side=tk.LEFT, padx=10)
         
         self.switch_btn = tk.Button(
-            control_frame, text="Switch to MAIN →", command=self._switch_canvas,
+            control_frame, text="Switch to MAIN â†’", command=self._switch_canvas,
             font=('Arial', 10), bg='lightblue', width=15
         )
         self.switch_btn.pack(side=tk.LEFT, padx=5)
@@ -162,7 +179,7 @@ For full documentation, place HELP.md in the project root directory.
         self.zoom_label.pack(side=tk.LEFT, padx=5)
 
         self.zoom_out_btn = tk.Button(
-            control_frame, text="−", command=self._zoom_out,
+            control_frame, text="âˆ’", command=self._zoom_out,
             font=('Arial', 12, 'bold'), width=2
         )
         self.zoom_out_btn.pack(side=tk.LEFT, padx=2)
@@ -237,7 +254,7 @@ For full documentation, place HELP.md in the project root directory.
         
         self.status_label = tk.Label(
             status_frame, 
-            text="Ready | Active: WIP | ↑↓ for history | ESC/F11 = fullscreen",
+            text="Ready | Active: WIP | â†‘â†“ for history | ESC/F11 = fullscreen",
             anchor=tk.W
         )
         self.status_label.pack(side=tk.LEFT, fill=tk.X, expand=True)
@@ -366,15 +383,15 @@ For full documentation, place HELP.md in the project root directory.
         
         if active == 'WIP':
             self.canvas_indicator.config(text="Active: WIP", bg='blue')
-            self.switch_btn.config(text="Switch to MAIN →")
+            self.switch_btn.config(text="Switch to MAIN â†’")
             self.status_label.config(
-                text=f"Active: WIP | ↑↓ for history | ESC/F11 = fullscreen"
+                text=f"Active: WIP | â†‘â†“ for history | ESC/F11 = fullscreen"
             )
         else:
             self.canvas_indicator.config(text="Active: MAIN", bg='green')
-            self.switch_btn.config(text="← Switch to WIP")
+            self.switch_btn.config(text="â† Switch to WIP")
             self.status_label.config(
-                text=f"Active: MAIN | ↑↓ for history | ESC/F11 = fullscreen"
+                text=f"Active: MAIN | â†‘â†“ for history | ESC/F11 = fullscreen"
             )
         
     def _toggle_rulers(self):
@@ -404,7 +421,11 @@ For full documentation, place HELP.md in the project root directory.
         # Add to history
         if not self.command_history or self.command_history[-1] != command:
             self.command_history.append(command)
-        
+            history_max = getattr(config.ui, 'history_max', 50)
+            if len(self.command_history) > history_max:
+                self.command_history = self.command_history[-history_max:]
+            self._save_command_history()
+
         self.history_index = -1
         self.command_counter += 1
         
@@ -418,14 +439,14 @@ For full documentation, place HELP.md in the project root directory.
         try:
             result = self.executor.execute(command)
             if result:
-                self._log_output(f"    → {result}")
+                self._log_output(f"    â†’ {result}")
             
             self._update_canvas_indicators()
             self._update_canvas_display()
             
             self.status_label.config(text=f"Command executed: {command}")
         except Exception as e:
-            error_msg = f"    ✗ Error: {str(e)}"
+            error_msg = f"    âœ— Error: {str(e)}"
             self._log_output(error_msg)
             self.status_label.config(text=f"Error: {str(e)}")
             

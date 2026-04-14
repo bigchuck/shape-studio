@@ -80,6 +80,8 @@
   "ui": {
     "command_log_width": 400,
     "canvas_padding": 10,
-    "window_title": "Shape Studio"
+    "window_title": "Shape Studio",
+    "history_max": 50,
+    "history_file": "history.json"
   }
 }
