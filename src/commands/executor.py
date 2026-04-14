@@ -47,7 +47,7 @@ class CommandExecutor:
         self.scripts_dir = Path(config.paths.scripts)
         
         # Create directories
-        os.makedirs('output', exist_ok=True)
+        os.makedirs(config.paths.output, exist_ok=True)
         os.makedirs(self.project_store_dir, exist_ok=True)
         os.makedirs(self.global_store_dir, exist_ok=True)
         os.makedirs(self.projects_dir, exist_ok=True)
@@ -1061,7 +1061,8 @@ class CommandExecutor:
                 exec_prefix = output_prefix
             
             # Inner loop over iterations
-            start_i = self._scan_batch_start(Path('output') / Path(exec_prefix).parent, Path(exec_prefix).name)
+            output_dir = Path(config.paths.output) / Path(exec_prefix).parent
+            start_i = self._scan_batch_start(output_dir, Path(exec_prefix).name)
             for i in range(start_i, start_i + count):
                 try:
                     # Generate randomization values for this iteration
@@ -1075,11 +1076,9 @@ class CommandExecutor:
                     )
                     
                     # Save output PNG
-                    output_base = f"{exec_prefix}_{i:04d}"
-                    output_file = f"output/{output_base}.png"
-                    output_path = Path('output') / output_file
-                    output_path.parent.mkdir(parents=True, exist_ok=True)
-                    save_canvas.save(str(output_path))
+                    output_file = output_dir / f"{Path(exec_prefix).name}_{i:04d}.png"
+                    output_file.parent.mkdir(parents=True, exist_ok=True)
+                    save_canvas.save(str(output_file))
                     self._batch_index = None
                     successful += 1
                     
@@ -1152,7 +1151,8 @@ class CommandExecutor:
         results = []
         successful = 0
         
-        start_i = self._scan_batch_start(Path('output') / Path(output_prefix).parent, Path(output_prefix).name)
+        output_dir = Path(config.paths.output) / Path(output_prefix).parent
+        start_i = self._scan_batch_start(output_dir, Path(output_prefix).name)
         for i in range(start_i, start_i + count):
             try:
                 self._batch_index = f"{i:04d}"
@@ -1171,8 +1171,7 @@ class CommandExecutor:
                                 except:
                                     pass
                 
-                output_filename = f"{output_prefix}_{i:04d}.png"
-                output_path = Path('output') / output_filename
+                output_path = output_dir / f"{Path(output_prefix).name}_{i:04d}.png"
                 output_path.parent.mkdir(parents=True, exist_ok=True)
                 save_canvas.save(str(output_path))
                 self._batch_index = None
@@ -1233,7 +1232,8 @@ class CommandExecutor:
         
         results.append("")
         
-        start_i = self._scan_batch_start(Path('output') / Path(output_prefix).parent, Path(output_prefix).name)
+        output_dir = Path(config.paths.output) / Path(output_prefix).parent
+        start_i = self._scan_batch_start(output_dir, Path(output_prefix).name)
         for i in range(start_i, start_i + count):
             try:
                 self._batch_index = f"{i:04d}"
@@ -1263,8 +1263,7 @@ class CommandExecutor:
                         # If recovery fails or not possible, just continue with save
                 
                 # Save the current state
-                output_filename = f"{output_prefix}_{i:04d}.png"
-                output_path = Path('output') / output_filename
+                output_path = output_dir / f"{Path(output_prefix).name}_{i:04d}.png"
                 output_path.parent.mkdir(parents=True, exist_ok=True)
                 save_canvas.save(str(output_path))
                 self._batch_index = None
