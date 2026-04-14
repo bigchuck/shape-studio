@@ -107,6 +107,22 @@ For full documentation, place HELP.md in the project root directory.
     def _setup_ui(self):
         """Set up three-panel UI layout"""
         # Main container with three panels
+        # Bottom input bar spanning full width
+        input_bar = tk.Frame(self.root, bd=1, relief=tk.RAISED)
+        input_bar.pack(side=tk.BOTTOM, fill=tk.X, padx=5, pady=5)
+
+        input_label = tk.Label(input_bar, text="Command:")
+        input_label.pack(side=tk.LEFT, padx=(5, 2))
+
+        self.command_input = tk.Entry(input_bar, font=('Consolas', 10))
+        self.command_input.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=5)
+        self.command_input.bind('<Return>', self._execute_command)
+        self.command_input.bind('<Up>', self._history_up)
+        self.command_input.bind('<Down>', self._history_down)
+
+        execute_btn = tk.Button(input_bar, text="Execute", command=self._execute_command)
+        execute_btn.pack(side=tk.LEFT, padx=(0, 5))
+
         self.main_pane = tk.PanedWindow(self.root, orient=tk.HORIZONTAL, sashwidth=5)
         self.main_pane.pack(fill=tk.BOTH, expand=True)
         
@@ -122,21 +138,7 @@ For full documentation, place HELP.md in the project root directory.
         self.command_log.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
         self.command_log.config(state=tk.DISABLED)
         
-        # Command input
-        input_frame = tk.Frame(left_frame)
-        input_frame.pack(fill=tk.X, padx=5, pady=5)
-        
-        input_label = tk.Label(input_frame, text="Command:")
-        input_label.pack(side=tk.LEFT)
-        
-        self.command_input = tk.Entry(input_frame, font=('Consolas', 10))
-        self.command_input.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=5)
-        self.command_input.bind('<Return>', self._execute_command)
-        self.command_input.bind('<Up>', self._history_up)
-        self.command_input.bind('<Down>', self._history_down)
-        
-        execute_btn = tk.Button(input_frame, text="Execute", command=self._execute_command)
-        execute_btn.pack(side=tk.LEFT)
+
         
         # === MIDDLE PANEL: Canvas ===
         middle_frame = tk.Frame(self.main_pane, bg='white')
