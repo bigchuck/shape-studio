@@ -1084,6 +1084,7 @@ class CommandExecutor:
                     
                     # Optionally store shapes under the PNG base name
                     if store_shapes:
+                        output_base = output_file.stem
                         shapes_on_canvas = list(
                             self.wip_shapes.values() if target_canvas == 'WIP'
                             else self.main_shapes.values()
@@ -1096,6 +1097,7 @@ class CommandExecutor:
                             shape_data = self._serialize_shape(shape)
                             shape_data['name'] = store_name
                             filepath_out = self.project_store_dir / f"{store_name}.json"
+                            filepath_out.parent.mkdir(parents=True, exist_ok=True)
                             with open(filepath_out, 'w') as f:
                                 json.dump(shape_data, f, indent=2)
                     
@@ -1269,7 +1271,7 @@ class CommandExecutor:
                 self._batch_index = None
                 
                 successful += 1
-                results.append(f"  [{i}/{count}] Generated {output_filename}")
+                results.append(f"  [{i}/{count}] Generated {str(output_path)}")
                 
             except Exception as e:
                 results.append(f"  [{i}/{count}] FAILED: {str(e)}")
