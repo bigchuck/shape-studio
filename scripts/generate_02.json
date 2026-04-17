@@ -50,14 +50,16 @@
           "params": {
             "name": "shape1",
             "_verts": "6",
-            "verts": "6,10",
-            "bounds": "150,150,618,618",
-            "break_width": "0.4",
+            "__verts": "6,10",
+            "_bounds": "64,275,706,475",
+            "break_width": "0.15",
+            "projection": "4.0",
             "color": "black",
+            "fill": "#F0F0F0",
             "width": "3",
-            "connect": "convex_hull",
-            "_ops": "split_offset:10,sawtooth:5,squarewave:5,remove_point:1,distort_original:1",
-            "ops": "split_offset:1,squarewave:1,sawtooth:1",
+            "_connect": "convex_hull",
+            "ops": "split_offset:5,sawtooth:2,squarewave:2,remove_point:1,distort_original:1",
+            "_ops": "split_offset:1,squarewave:1,sawtooth:1",
             "bias": "random"
           }
         }
@@ -68,35 +70,41 @@
     "gen02b": {
       "description": "Single image - simple organic outline",
       "author": "Mr. Chuck",
-      "created": "2026-04-13",
+      "created": "2026-04-15",
       "target_canvas": "MAIN",
-      "comments": "Stretching the shape to longer, thinner",
+      "comments": "Initial form as a block",
       "randomization": {
-        "projection": [0.5, 1.5],
-        "iters": [10,25],
-        "color": ["red","green"]
+        "projection": {
+          "type": "normal",
+          "min": 0.15,
+          "max": 2.0,
+          "mean": 0.75,
+          "std": 0.7,
+
+          "_min": 0.5,
+          "_max": 1.5,
+          "_mean": 1.0,
+          "_std": 0.3
+        },
+        "_projection": [0.5, 1.5],
+        "iters": [25,40],
+        "_iters": [10,25],
+        "_color": ["black","red","green"]
       },
 
       "commands": [
         {
-          "template": "organic_outline_template",
+          "template": "organic_outline_nofill",
           "params": {
             "name": "shape2",
-            "_verts": "6",
-            "verts": "6,10",
-            "bounds": "0,0,450,450",
-            "break_width": "0.4",
-            "_color": "black",
+            "bounds": "64,200,706,550",
+            "break_width": "0.15",
             "width": "3",
-            "connect": "convex_hull",
-            "_ops": "split_offset:10,sawtooth:5,squarewave:5,remove_point:1,distort_original:1",
-            "ops": "sawtooth:1",
+            "ops": "split_offset:10,sawtooth:5,squarewave:4,remove_point:1,distort_original:1",
             "bias": "random"
           }
         }
       ]
     }
-
-
   }
 }

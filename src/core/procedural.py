@@ -7,6 +7,7 @@ import math
 from src.core.shape import Polygon, Line, ShapeGroup
 from src.core.param_converters import CONVERTERS, choice_converter
 from src.config import config
+from src.core.shape_studies import get_shape_study_registry
 
 
 class ProceduralGenerators:
@@ -161,6 +162,12 @@ class ProceduralGenerators:
                     'required': False,
                     'default': 1,
                     'description': 'Save every Nth iteration (use with save_iterations)'
+                },
+                'shape': {
+                    'type': 'list',
+                    'required': False,
+                    'default': None,
+                    'description': 'Shape study pre-phase(s): comma-separated names (e.g., u or stingray,u)'
                 },
             },
         }
@@ -340,7 +347,8 @@ class ProceduralGenerators:
                    squarewave_opposite_direction_prob=None,
                    min_segment_length=None,
                    return_mode='single', verbose=None,
-                   save_iterations=None, snapshot_interval=None):
+                   save_iterations=None, snapshot_interval=None,
+                   shape=None):
         """
         Generate evolved polygon through iterative segment modification.
         
@@ -408,6 +416,62 @@ class ProceduralGenerators:
         # Track original vertices for distort_original operation
         # This is a separate list that only contains vertices from initial construction
         distortable_points = connected_points[:]  # Independent copy
+        
+        # SHAPE STUDY PRE-PHASE
+        # If shape studies are specified, apply them in sequence before evolution.
+        # Each study modifies the polygon geometry and returns metadata.
+        # On failure, regenerate polygon and retry up to polygon_retries times.
+        shape_study_metadata = None
+        if shape is not None:
+            # Normalize shape names list
+            if isinstance(shape, str):
+                shape_names = [s.strip() for s in shape.split(',')]
+            elif isinstance(shape, list):
+                # May be in weighted_list format [[name, weight], ...] or simple list
+                shape_names = []
+                for item in shape:
+                    if isinstance(item, list):
+                        shape_names.append(str(item[0]))
+                    else:
+                        shape_names.append(str(item))
+            else:
+                shape_names = [str(shape)]
+            
+            registry = get_shape_study_registry()
+            shape_config_block = None
+            
+            # Get polygon_retries from first shape's config (or default)
+            try:
+                first_shape_config = registry._get_shape_config(shape_names[0])
+                polygon_retries = first_shape_config.get('polygon_retries', 5)
+            except (ValueError, AttributeError):
+                polygon_retries = 5
+            
+            shape_applied = False
+            for poly_attempt in range(polygon_retries):
+                centroid = self._compute_centroid(connected_points)
+                
+                try:
+                    new_points, shape_study_metadata = registry.dispatch(
+                        shape_names, connected_points, centroid, bounds, self
+                    )
+                    connected_points = new_points
+                    distortable_points = connected_points[:]
+                    shape_applied = True
+                    break
+                    
+                except ValueError as e:
+                    if poly_attempt < polygon_retries - 1:
+                        # Regenerate polygon and retry
+                        num_vertices_retry = random.randint(*vertices) if isinstance(vertices, tuple) else vertices
+                        initial_points = self._generate_initial_vertices(num_vertices_retry, bounds)
+                        connected_points = self._connect_vertices(initial_points, connect)
+                        connected_points = [self._round_point(p) for p in connected_points]
+                        distortable_points = connected_points[:]
+                    else:
+                        raise ValueError(
+                            f"Shape study failed after {polygon_retries} polygon regenerations: {e}"
+                        )
         
         # Initialize debug log
         debug_log = None
@@ -635,6 +699,10 @@ class ProceduralGenerators:
             },
             'statistics': stats
         }
+        
+        # Add shape study metadata if present
+        if shape_study_metadata:
+            polygon.attrs['procedure']['shape_studies'] = shape_study_metadata
         
         # Add debug log if verbose
         if debug_log:

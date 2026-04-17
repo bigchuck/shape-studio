@@ -57,7 +57,25 @@
       "verbose_default": 0,
       "save_iterations_default": false,
       "snapshot_interval_default": 1
+    },
+
+    "shapes": {
+      "u": {
+        "min_segment_length": 100,
+        "foot_width_min": 0.15,
+        "foot_width_max": 0.35,
+        "indent_min": 0.3,
+        "indent_max": 0.8,
+        "cross_centroid_prob": 0.3,
+        "depth_variation": 0.3,
+        "foot_adjust_max": 0.5,
+        "foot_extend_prob": 0.5,
+        "foot_min_remaining": 15,
+        "max_retries": 10,
+        "polygon_retries": 5
+      }
     }
+    
   },
   
   "randomization": {

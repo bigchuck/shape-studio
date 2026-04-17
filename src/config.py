@@ -209,6 +209,25 @@ class Config:
                     'save_iterations_default': False,
                     'snapshot_interval_default': 1,
                 },
+
+                # Shape studies - structured geometric pre-phases
+                'shapes': {
+                    'u': {
+                        'min_segment_length': 100,     # minimum qualifying segment (pixels)
+                        'foot_width_min': 0.15,        # minimum foot width (fraction of segment)
+                        'foot_width_max': 0.35,        # maximum foot width (fraction of segment)
+                        'indent_min': 0.3,             # minimum indent depth (fraction of centroid distance)
+                        'indent_max': 0.8,             # maximum indent depth (fraction of centroid distance)
+                        'cross_centroid_prob': 0.3,    # probability indent may cross centroid line
+                        'depth_variation': 0.3,        # max variation between P3/P4 depths (fraction)
+                        'foot_adjust_max': 0.5,        # max foot displacement (fraction of indent depth)
+                        'foot_extend_prob': 0.5,       # probability of extending vs reducing foot
+                        'foot_min_remaining': 15,      # minimum remaining leg length (pixels)
+                        'max_retries': 10,             # retries for indent validation
+                        'polygon_retries': 5,          # retries for polygon regeneration
+                    },
+                },
+                
             },
             
             # Randomization system

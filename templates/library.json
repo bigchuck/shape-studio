@@ -84,6 +84,30 @@
       "commands": [
         "PROC dynamic_polygon ${name} vertices=${verts} bounds=${bounds} iterations=${iters} operations=${ops} direction_bias=inward break_width_max=${break_width} projection_max=${projection} connect=${connect}",
         "COLOR ${name} ${color}",
+        "WIDTH ${name} ${width}",
+        "FILL ${name} ${fill}"
+      ],
+      "required_params": ["name","ops","fill"],
+      "optional_params": {
+        "verts": "6,10",
+        "bounds": "100,100,668,668",
+        "iters": "15",
+        "break_width": "0.4",
+        "projection": "1.5",
+        "color": "black",
+        "width": "2",
+        "_fill": "white",
+        "connect": "angle_sort"
+      }
+    },
+
+    "organic_outline_nofill": {
+      "description": "Organic polygon outline - flowing natural forms",
+      "target_canvas": "MAIN",
+      "comments": "Template for organic shapes using sawtooth operations and inward bias. Creates smooth, flowing outlines.",
+      "commands": [
+        "PROC dynamic_polygon ${name} vertices=${verts} bounds=${bounds} iterations=${iters} operations=${ops} direction_bias=inward break_width_max=${break_width} projection_max=${projection} connect=${connect}",
+        "COLOR ${name} ${color}",
         "WIDTH ${name} ${width}"
       ],
       "required_params": ["name","ops"],
@@ -97,8 +121,46 @@
         "width": "2",
         "connect": "angle_sort"
       }
+    },
+
+    "u_block_skinny_legs": {
+      "description": "Organic polygon outline - flowing natural forms, use of U block",
+      "target_canvas": "MAIN",
+      "comments": "Template for organic shapes using sawtooth operations and inward bias. Creates smooth, flowing outlines.",
+      "commands": [
+        "PROC dynamic_polygon ${name} vertices=${verts} bounds=${bounds} iterations=${iters} operations=${ops} direction_bias=inward break_width_max=${break_width} projection_max=${projection} connect=${connect} shape=u",
+        "COLOR ${name} ${color}",
+        "WIDTH ${name} ${width}"
+      ],
+      "shape_parameters": {
+        "u": {
+          "handler": "u",
+          "min_segment_length": 120,
+          "foot_width_min": 0.08,
+          "foot_width_max": 0.18,
+          "indent_min": 0.55,
+          "indent_max": 0.9,
+          "cross_centroid_prob": 0.6,
+          "depth_variation": 0.25,
+          "foot_adjust_max": 0.6,
+          "foot_extend_prob": 0.55,
+          "foot_min_remaining": 20,
+          "max_retries": 12,
+          "polygon_retries": 5
+        }
+      },
+      "required_params": ["name","ops"],
+      "optional_params": {
+        "verts": "6,10",
+        "bounds": "100,100,668,668",
+        "iters": "15",
+        "break_width": "0.4",
+        "projection": "1.5",
+        "color": "black",
+        "width": "2",
+        "connect": "angle_sort"
+      }
     }
-
-
   }
+
 }
