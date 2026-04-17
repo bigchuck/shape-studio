@@ -160,6 +160,44 @@
         "width": "2",
         "connect": "angle_sort"
       }
+    },
+    "u_block_horseshoe": {
+      "description": "Organic polygon outline with wide horseshoe U-indent",
+      "target_canvas": "MAIN",
+      "comments": "Broad, shallow U-indent with wide feet and subtle asymmetry. Stays short of centroid for a rounded feel.",
+      "commands": [
+        "PROC dynamic_polygon ${name} vertices=${verts} bounds=${bounds} iterations=${iters} operations=${ops} direction_bias=inward break_width_max=${break_width} projection_max=${projection} connect=${connect} shape=u",
+        "COLOR ${name} ${color}",
+        "WIDTH ${name} ${width}"
+      ],
+      "shape_parameters": {
+        "u": {
+          "handler": "u",
+          "min_segment_length": 100,
+          "foot_width_min": 0.25,
+          "foot_width_max": 0.40,
+          "indent_min": 0.3,
+          "indent_max": 0.6,
+          "cross_centroid_prob": 0.15,
+          "depth_variation": 0.15,
+          "foot_adjust_max": 0.25,
+          "foot_extend_prob": 0.5,
+          "foot_min_remaining": 15,
+          "max_retries": 10,
+          "polygon_retries": 5
+        }
+      },
+      "required_params": ["name", "ops"],
+      "optional_params": {
+        "verts": "6,10",
+        "bounds": "100,100,668,668",
+        "iters": "15",
+        "break_width": "0.4",
+        "projection": "1.5",
+        "color": "black",
+        "width": "2",
+        "connect": "angle_sort"
+      }
     }
   }
 

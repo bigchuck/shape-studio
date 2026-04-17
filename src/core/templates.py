@@ -331,6 +331,32 @@ class TemplateExecutor:
                 f"Required: {', '.join(required_params)}"
             )
         
+        # Extract shape_parameters from template and merge executable overrides.
+        # Priority: executable shape_parameters > template shape_parameters
+        # This allows PROC commands to receive template-defined shape configs
+        # with optional per-executable fine-tuning.
+        shape_params = template.get('shape_parameters')
+        exec_shape_params = cmd_spec.get('shape_parameters')
+ 
+        if shape_params or exec_shape_params:
+            merged_shape_params = {}
+ 
+            # Start with template's shape_parameters
+            if shape_params:
+                for key, val in shape_params.items():
+                    merged_shape_params[key] = val.copy() if isinstance(val, dict) else val
+ 
+            # Overlay executable overrides (per-shape key merge)
+            if exec_shape_params:
+                for key, overrides in exec_shape_params.items():
+                    if key in merged_shape_params and isinstance(overrides, dict):
+                        merged_shape_params[key].update(overrides)
+                    else:
+                        merged_shape_params[key] = overrides.copy() if isinstance(overrides, dict) else overrides
+ 
+            if merged_shape_params and hasattr(self.executor, 'procedural_gen'):
+                self.executor.procedural_gen._shape_parameters = merged_shape_params
+
         # Substitute and execute each command in template
         template_commands = template['commands']
         for cmd_template in template_commands:
@@ -340,6 +366,10 @@ class TemplateExecutor:
             # Execute the command
             self.executor.execute(resolved_cmd)
         
+        # Clear shape_parameters context after template execution
+        if shape_params and hasattr(self.executor, 'procedural_gen'):
+            self.executor.procedural_gen._shape_parameters = None
+            
         return f"Template '{template_name}' applied"
     
     def _substitute_params(self, command_str, params):

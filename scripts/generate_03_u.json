@@ -1,0 +1,120 @@
+{
+  "version": "1.0",
+  "description": "Generate single outline polygons",
+  "author": "Mr. Chuck",
+  "created": "2026-04-13",
+  "comments": "Executable scripts for generating LoRA training images. References templates from library_for_lora.json",
+  
+  "template_libraries": [
+    "library.json"
+  ],
+  
+  "executables": {
+    
+    "clear_main": {
+      "description": "Clear main",
+      "author": "Mr. Chuck",
+      "created": "2026-01-12",
+      "target_canvas": "MAIN",
+      "comments": "Clear the canvas independent of drawing",
+      "commands": [
+        {
+          "template": "clear_main_template"
+        }
+      ]
+
+    },
+
+    "gen02a": {
+      "description": "Single image - simple organic outline",
+      "author": "Mr. Chuck",
+      "created": "2026-04-13",
+      "target_canvas": "MAIN",
+      "comments": "Initial form as a block",
+      "randomization": {
+        "projection": {
+          "type": "normal",
+          "min": 0.5,
+          "max": 1.5,
+          "mean": 1.0,
+          "std": 0.3
+        },
+        "_projection": [0.5, 1.5],
+        "iters": [10,25],
+        "_color": ["black","red","green"]
+      },
+
+      "commands": [
+        {
+          "template": "organic_outline_template",
+          "params": {
+            "name": "shape1",
+            "_verts": "6",
+            "__verts": "6,10",
+            "_bounds": "64,275,706,475",
+            "break_width": "0.15",
+            "projection": "4.0",
+            "color": "black",
+            "fill": "#F0F0F0",
+            "width": "3",
+            "_connect": "convex_hull",
+            "ops": "split_offset:5,sawtooth:2,squarewave:2,remove_point:1,distort_original:1",
+            "_ops": "split_offset:1,squarewave:1,sawtooth:1",
+            "bias": "random"
+          }
+        }
+      ]
+    },
+
+    
+    "gen03u": {
+      "description": "Single image - simple organic outline",
+      "author": "Mr. Chuck",
+      "created": "2026-04-15",
+      "target_canvas": "MAIN",
+      "comments": "Initial form as a block",
+      "randomization": {
+        "projection": {
+          "type": "normal",
+          "min": 0.15,
+          "max": 2.0,
+          "mean": 0.75,
+          "std": 0.7,
+
+          "_min": 0.5,
+          "_max": 1.5,
+          "_mean": 1.0,
+          "_std": 0.3
+        },
+        "_projection": [0.5, 1.5],
+        "iters": [25,40],
+        "_iters": [10,25],
+        "_color": ["black","red","green"]
+      },
+      
+
+      "commands": [
+        {
+          "template": "u_block_skinny_legs",
+          "params": {
+            "name": "shape3",
+            "bounds": "64,200,706,550",
+            "break_width": "0.15",
+            "width": "3",
+            "ops": "split_offset:10,sawtooth:5,squarewave:4,remove_point:1,distort_original:1",
+            "bias": "random",
+            "verts": "4",
+            "iters": 1
+          },
+          "shape_parameters": {
+            "u": {
+              "indent_min": 0.7,
+              "indent_max": 0.95,
+              "cross_centroid_prob": 0.8
+            }
+          }
+        }
+      ]
+    }
+  }
+}

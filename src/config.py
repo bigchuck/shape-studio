@@ -227,7 +227,6 @@ class Config:
                         'polygon_retries': 5,          # retries for polygon regeneration
                     },
                 },
-                
             },
             
             # Randomization system

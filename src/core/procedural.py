@@ -183,6 +183,11 @@ class ProceduralGenerators:
                 ],
             },
         }
+
+        # Shape study parameters context - set by template executor before
+        # PROC calls, cleared after. Allows template shape_parameters blocks
+        # to override config.json shape defaults.
+        self._shape_parameters = None
     
     def call(self, method_name, shape_name, raw_params):
         """
