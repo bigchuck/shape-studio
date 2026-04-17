@@ -367,7 +367,7 @@ class TemplateExecutor:
             self.executor.execute(resolved_cmd)
         
         # Clear shape_parameters context after template execution
-        if shape_params and hasattr(self.executor, 'procedural_gen'):
+        if (shape_params or exec_shape_params) and hasattr(self.executor, 'procedural_gen'):
             self.executor.procedural_gen._shape_parameters = None
             
         return f"Template '{template_name}' applied"
