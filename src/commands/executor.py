@@ -39,6 +39,9 @@ class CommandExecutor:
         self.stash = {}
         # Batch index - set during batch execution so STORE can coincide with PNG name
         self._batch_index = None
+        # Last storage name assigned by _execute_proc (may differ from requested
+        # name after collision resolution); read by template executor to patch params
+        self._last_storage_name = None
 
         # Persistence directories
         self.project_store_dir = Path(config.paths.shapes)
@@ -415,19 +418,22 @@ class CommandExecutor:
         if shape_name not in self.wip_shapes:
             raise ValueError(f"Shape '{shape_name}' not found on WIP canvas")
         
-        # Check shape doesn't already exist on Main
-        if shape_name in self.main_shapes:
-            raise ValueError(f"Shape '{shape_name}' already exists on MAIN canvas")
-        
         shape = self.wip_shapes[shape_name]
         
         # Deep copy the shape
         promoted_shape = copy.deepcopy(shape)
         promoted_shape.add_history('PROMOTE', command_text)
         
+        # Resolve name collision; set canonical_name on the copy
+        storage_name = self._resolve_collision(shape_name, self.main_shapes)
+        promoted_shape.canonical_name = shape_name
+        if storage_name != shape_name:
+            promoted_shape.name = storage_name
+            self._log_collision(shape_name, storage_name, 'MAIN')
+        
         # Add to Main canvas
         self.main_canvas.add_shape(promoted_shape)
-        self.main_shapes[shape_name] = promoted_shape
+        self.main_shapes[storage_name] = promoted_shape
         
         # If move mode, remove from WIP
         if mode == 'move':
@@ -447,19 +453,22 @@ class CommandExecutor:
         if shape_name not in self.main_shapes:
             raise ValueError(f"Shape '{shape_name}' not found on MAIN canvas")
         
-        # Check shape doesn't already exist on WIP
-        if shape_name in self.wip_shapes:
-            raise ValueError(f"Shape '{shape_name}' already exists on WIP canvas")
-        
         shape = self.main_shapes[shape_name]
         
         # Deep copy the shape
         unpromoted_shape = copy.deepcopy(shape)
         unpromoted_shape.add_history('UNPROMOTE', command_text)
         
+        # Resolve name collision; set canonical_name on the copy
+        storage_name = self._resolve_collision(shape_name, self.wip_shapes)
+        unpromoted_shape.canonical_name = shape_name
+        if storage_name != shape_name:
+            unpromoted_shape.name = storage_name
+            self._log_collision(shape_name, storage_name, 'WIP')
+        
         # Add to WIP canvas
         self.wip_canvas.add_shape(unpromoted_shape)
-        self.wip_shapes[shape_name] = unpromoted_shape
+        self.wip_shapes[storage_name] = unpromoted_shape
         
         # If move mode, remove from Main
         if mode == 'move':
@@ -512,16 +521,20 @@ class CommandExecutor:
         
         shapes = self.get_active_shapes()
         
-        if shape_name in shapes:
-            raise ValueError(f"Shape '{shape_name}' already exists on {self.active_canvas_name} canvas")
-        
         # Deep copy from stash
         unstashed_shape = copy.deepcopy(self.stash[shape_name])
         unstashed_shape.add_history('UNSTASH', command_text)
         
+        # Resolve name collision; set canonical_name
+        storage_name = self._resolve_collision(shape_name, shapes)
+        unstashed_shape.canonical_name = shape_name
+        if storage_name != shape_name:
+            unstashed_shape.name = storage_name
+            self._log_collision(shape_name, storage_name, self.active_canvas_name)
+        
         # Add to active canvas
         self.active_canvas.add_shape(unstashed_shape)
-        shapes[shape_name] = unstashed_shape
+        shapes[storage_name] = unstashed_shape
         
         # Only remove from stash if MOVE mode
         if mode == 'move':
@@ -689,8 +702,6 @@ class CommandExecutor:
         shape_name = cmd_dict['name']
         
         shapes = self.get_active_shapes()
-        if shape_name in shapes:
-            raise ValueError(f"Shape '{shape_name}' already exists on {self.active_canvas_name} canvas")
         
         # Search project store first, then global
         filepath = self.project_store_dir / f"{shape_name}.json"
@@ -710,9 +721,16 @@ class CommandExecutor:
         shape = self._deserialize_shape(shape_data)
         shape.add_history('LOAD', command_text)
         
+        # Resolve name collision; set canonical_name
+        storage_name = self._resolve_collision(shape_name, shapes)
+        shape.canonical_name = shape_name
+        if storage_name != shape_name:
+            shape.name = storage_name
+            self._log_collision(shape_name, storage_name, self.active_canvas_name)
+        
         # Add to active canvas
         self.active_canvas.add_shape(shape)
-        shapes[shape_name] = shape
+        shapes[storage_name] = shape
         
         return f"Loaded '{shape_name}' from {source} to {self.active_canvas_name}"
     
@@ -1179,7 +1197,7 @@ class CommandExecutor:
                 self._batch_index = None
                 
                 successful += 1
-                results.append(f"  [{i}/{count}] Generated {output_filename}")
+                results.append(f"  [{i}/{count}] Generated {output_path}")
                 
             except Exception as e:
                 results.append(f"  [{i}/{count}] FAILED: {str(e)}")
@@ -1386,7 +1404,60 @@ class CommandExecutor:
                     raise ValueError(
                         f"Section '{section_name}' - command {i+1} (dict) missing 'command' field"
                     )
-            
+
+    def _resolve_collision(self, name, target_shapes):
+        """Return a collision-free storage name for target_shapes dict.
+        
+        If name is free, returns it unchanged.
+        If taken, appends _1, _2, ... until a free slot is found and logs it.
+        Always sets shape.canonical_name at the call site — this method
+        only computes the storage name.
+        """
+        if name not in target_shapes:
+            return name
+        counter = 1
+        while True:
+            candidate = f"{name}_{counter}"
+            if candidate not in target_shapes:
+                return candidate
+            counter += 1
+
+    def _find_by_canonical(self, canonical_name, shapes):
+        """Return list of (storage_name, shape) whose canonical_name matches.
+        
+        Falls back to shape.name when canonical_name is not set (legacy shapes).
+        """
+        matches = []
+        for storage_name, shape in shapes.items():
+            if getattr(shape, 'canonical_name', shape.name) == canonical_name:
+                matches.append((storage_name, shape))
+        return matches
+
+    def _get_shape(self, name, shapes):
+        """Resolve a user-supplied name to (storage_name, shape).
+        
+        Fast path: direct key lookup.
+        Slow path: canonical_name scan (handles redirected collision names).
+        When multiple canonical matches exist, returns the most recently
+        inserted one and logs the ambiguity.
+        
+        Raises ValueError if not found.
+        """
+        if name in shapes:
+            return name, shapes[name]
+
+        matches = self._find_by_canonical(name, shapes)
+        if not matches:
+            raise ValueError(f"Shape '{name}' not found")
+
+        storage_name, shape = matches[-1]
+        if len(matches) > 1:
+            all_storage = ', '.join(sn for sn, _ in matches)
+            # Surface via return value context — caller logs as needed
+            # Returning most-recent (last inserted) match
+            _ = f"Ambiguous canonical name '{name}' — matches: {all_storage}. Using '{storage_name}'."
+        return storage_name, shape
+
     def _serialize_shape(self, shape):
         """Convert shape to JSON-serializable dict"""
         data = {
@@ -1404,6 +1475,9 @@ class CommandExecutor:
             attrs['geometry']['members'] = [m.name for m in members]
         
         data['attrs'] = attrs
+        # Persist canonical_name if set (runtime attribute, not in attrs)
+        if hasattr(shape, 'canonical_name'):
+            data['canonical_name'] = shape.canonical_name
         return data
     
     def _deserialize_shape(self, data):
@@ -1427,6 +1501,10 @@ class CommandExecutor:
         
         # Restore attrs
         shape.attrs = attrs
+        
+        # Restore canonical_name if present (set by collision resolver)
+        if 'canonical_name' in data:
+            shape.canonical_name = data['canonical_name']
         
         return shape
     
@@ -1526,10 +1604,15 @@ class CommandExecutor:
             final_shape = None
             
             for shape in result:
-                if shape.name in shapes:
-                    raise ValueError(f"Shape '{shape.name}' already exists on {self.active_canvas_name} canvas")
-                shapes[shape.name] = shape
+                canonical = shape.name
+                storage_name = self._resolve_collision(canonical, shapes)
+                shape.canonical_name = canonical
+                if storage_name != canonical:
+                    shape.name = storage_name
+                    self._log_collision(canonical, storage_name, self.active_canvas_name)
+                shapes[storage_name] = shape
                 self.active_canvas.add_shape(shape)
+                self._last_storage_name = storage_name
                 
                 # Track snapshots vs final
                 if shape.attrs.get('procedure', {}).get('is_snapshot'):
@@ -1550,11 +1633,15 @@ class CommandExecutor:
         
         elif isinstance(result, (Polygon, Line, ShapeGroup)):
             # Single shape
-            if shape_name in shapes:
-                raise ValueError(f"Shape '{shape_name}' already exists on {self.active_canvas_name} canvas")
+            storage_name = self._resolve_collision(shape_name, shapes)
+            result.canonical_name = shape_name
+            if storage_name != shape_name:
+                result.name = storage_name
+                self._log_collision(shape_name, storage_name, self.active_canvas_name)
             
-            shapes[shape_name] = result
+            shapes[storage_name] = result
             self.active_canvas.add_shape(result)
+            self._last_storage_name = storage_name
             
             # Include procedure info if available
             proc_info = result.attrs.get('procedure', {})
@@ -2383,3 +2470,13 @@ class CommandExecutor:
                 if m:
                     max_index = max(max_index, int(m.group(1)))
         return max_index + 1
+    
+    def _log_collision(self, canonical_name, storage_name, canvas_name):
+        """Emit a log-friendly message when a name collision is resolved."""
+        msg = (f"Name collision on {canvas_name}: '{canonical_name}' "
+               f"already exists → stored as '{storage_name}'")
+        # Surface to UI log if available, otherwise print
+        if hasattr(self, 'ui_instance') and self.ui_instance:
+            self.ui_instance._log_output(f"    ⚠ {msg}")
+        else:
+            print(f"[COLLISION] {msg}")

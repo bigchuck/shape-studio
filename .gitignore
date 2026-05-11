@@ -3,7 +3,7 @@ output/
 # project files
 # scripts/
 # templates/
-history.json
+./history.json
 
 # Python
 __pycache__/

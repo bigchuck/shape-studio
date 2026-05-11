@@ -364,7 +364,14 @@ class TemplateExecutor:
             resolved_cmd = self._substitute_params(cmd_template, params)
             
             # Execute the command
+            self.executor._last_storage_name = None
             self.executor.execute(resolved_cmd)
+            
+            # If PROC resolved a name collision, update params so subsequent
+            # commands (COLOR, WIDTH, etc.) target the actual storage name
+            last = self.executor._last_storage_name
+            if last and last != params.get('name'):
+                params['name'] = last
         
         # Clear shape_parameters context after template execution
         if (shape_params or exec_shape_params) and hasattr(self.executor, 'procedural_gen'):
