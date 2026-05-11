@@ -48,6 +48,7 @@ class CommandParser:
             'VALIDATE': self._parse_validate,        
             'RESET_ZORDER': self._parse_reset_zorder,
             'ENHANCE': self._parse_enhance,
+            'RENAME': self._parse_rename,
         }
         
     def parse(self, command_text):
@@ -267,6 +268,17 @@ class CommandParser:
             'command': 'DELETE',
             'name': shape_name,
             'confirm': confirm
+        }
+    
+    def _parse_rename(self, parts):
+        """Parse RENAME command: RENAME <old_name> <new_name>"""
+        if len(parts) < 3:
+            raise ValueError("RENAME requires: RENAME <old_name> <new_name>")
+        
+        return {
+            'command': 'RENAME',
+            'old_name': parts[1],
+            'new_name': parts[2]
         }
         
     def _parse_switch(self, parts):

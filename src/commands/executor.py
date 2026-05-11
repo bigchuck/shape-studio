@@ -117,6 +117,7 @@ class CommandExecutor:
             'VALIDATE': self._execute_validate,
             'RESET_ZORDER': self._execute_reset_zorder,
             'ENHANCE': self._execute_enhance,
+            'RENAME': self._execute_rename,
         }
         
         if command in handlers:
@@ -395,6 +396,47 @@ class CommandExecutor:
         self._sync_active_canvas()
         
         return f"Deleted '{shape_name}' from {self.active_canvas_name}"
+    
+    def _execute_rename(self, cmd_dict, command_text):
+        """Execute RENAME command - rename a shape on the active canvas"""
+        old_name = cmd_dict['old_name']
+        new_name = cmd_dict['new_name']
+        
+        shapes = self.get_active_shapes()
+        
+        # Resolve old_name — handles canonical aliases from collision resolution
+        try:
+            storage_name, shape = self._get_shape(old_name, shapes)
+        except ValueError:
+            raise ValueError(
+                f"Shape '{old_name}' not found on {self.active_canvas_name} canvas"
+            )
+        
+        # New name must be free
+        if new_name in shapes:
+            raise ValueError(
+                f"Cannot rename to '{new_name}': name already exists on "
+                f"{self.active_canvas_name} canvas"
+            )
+        
+        # Swap the dict entry
+        shapes[new_name] = shape
+        del shapes[storage_name]
+        
+        # Update the shape's own name attribute
+        shape.name = new_name
+        
+        # canonical_name is intentionally left unchanged — it reflects the
+        # shape's origin name, not its current user-assigned label
+        
+        shape.add_history('RENAME', command_text)
+        self._sync_active_canvas()
+        
+        if storage_name != old_name:
+            # User used a canonical alias to find it
+            return (f"Renamed '{storage_name}' (canonical: '{old_name}') "
+                    f"to '{new_name}' on {self.active_canvas_name}")
+        return f"Renamed '{old_name}' to '{new_name}' on {self.active_canvas_name}"
         
     def _execute_switch(self, cmd_dict, command_text):
         """Execute SWITCH command - change active canvas"""
