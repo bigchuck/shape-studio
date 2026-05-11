@@ -66,7 +66,6 @@
       ]
     },
 
-    
     "gen02b": {
       "description": "Single image - simple organic outline",
       "author": "Mr. Chuck",
@@ -101,6 +100,46 @@
             "break_width": "0.15",
             "width": "3",
             "ops": "split_offset:10,sawtooth:5,squarewave:4,remove_point:1,distort_original:1",
+            "bias": "random"
+          }
+        }
+      ]
+    },
+
+    "stingray": {
+      "description": "Single image - the stingray",
+      "author": "Mr. Chuck",
+      "created": "2026-04-19",
+      "target_canvas": "MAIN",
+      "comments": "Initial form as a block",
+      "randomization": {
+        "projection": {
+          "type": "normal",
+          "min": 0.15,
+          "max": 4.0,
+          "mean": 1.75,
+          "std": 0.7,
+
+          "_min": 0.5,
+          "_max": 1.5,
+          "_mean": 1.0,
+          "_std": 0.3
+        },
+        "_projection": [0.5, 1.5],
+        "iters": [15,20],
+        "_iters": [10,25],
+        "_color": ["black","red","green"]
+      },
+
+      "commands": [
+        {
+          "template": "organic_outline_nofill",
+          "params": {
+            "name": "shape2",
+            "bounds": "128,128,640,640",
+            "break_width": "0.35",
+            "width": "3",
+            "ops": "split_offset:5,sawtooth:7,squarewave:1,remove_point:1,distort_original:1",
             "bias": "random"
           }
         }
