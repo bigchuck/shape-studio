@@ -49,6 +49,7 @@ class CommandParser:
             'RESET_ZORDER': self._parse_reset_zorder,
             'ENHANCE': self._parse_enhance,
             'RENAME': self._parse_rename,
+            'WORKWITH': self._parse_workwith,
         }
         
     def parse(self, command_text):
@@ -143,71 +144,79 @@ class CommandParser:
         }
         
     def _parse_move(self, parts):
-        """Parse MOVE command: MOVE <n> <dx>,<dy>"""
+        """Parse MOVE command: MOVE [<n>] <dx>,<dy>"""
+        if len(parts) < 2:
+            raise ValueError("MOVE requires: MOVE [<name>] <dx>,<dy>")
+        
+        # WW mode: MOVE <dx,dy> — first arg contains a comma
+        if ',' in parts[1]:
+            delta_parts = parts[1].split(',')
+            if len(delta_parts) != 2:
+                raise ValueError("Invalid delta format")
+            dx, dy = float(delta_parts[0]), float(delta_parts[1])
+            return {'command': 'MOVE', 'name': None, 'delta': (dx, dy)}
+        
         if len(parts) < 3:
-            raise ValueError("MOVE requires: MOVE <n> <dx>,<dy>")
+            raise ValueError("MOVE requires: MOVE [<name>] <dx>,<dy>")
         
         name = parts[1]
         delta_parts = parts[2].split(',')
         if len(delta_parts) != 2:
             raise ValueError("Invalid delta format")
-        
         dx, dy = float(delta_parts[0]), float(delta_parts[1])
-        
-        return {
-            'command': 'MOVE',
-            'name': name,
-            'delta': (dx, dy)
-        }
+        return {'command': 'MOVE', 'name': name, 'delta': (dx, dy)}
         
     def _parse_rotate(self, parts):
-        """Parse ROTATE command: ROTATE <n> <angle>"""
+        """Parse ROTATE command: ROTATE [<n>] <angle>"""
+        if len(parts) < 2:
+            raise ValueError("ROTATE requires: ROTATE [<name>] <angle>")
+        
+        # WW mode: ROTATE <angle> — first arg is numeric
+        try:
+            angle = float(parts[1])
+            return {'command': 'ROTATE', 'name': None, 'angle': angle}
+        except ValueError:
+            pass
+        
         if len(parts) < 3:
-            raise ValueError("ROTATE requires: ROTATE <n> <angle>")
-        
-        name = parts[1]
-        angle = float(parts[2])
-        
-        return {
-            'command': 'ROTATE',
-            'name': name,
-            'angle': angle
-        }
+            raise ValueError("ROTATE requires: ROTATE [<name>] <angle>")
+        return {'command': 'ROTATE', 'name': parts[1], 'angle': float(parts[2])}
         
     def _parse_scale(self, parts):
-        """Parse SCALE command: SCALE <n> <factor>"""
+        """Parse SCALE command: SCALE [<n>] <factor>"""
+        if len(parts) < 2:
+            raise ValueError("SCALE requires: SCALE [<name>] <factor>")
+        
+        try:
+            factor = float(parts[1])
+            return {'command': 'SCALE', 'name': None, 'factor': factor}
+        except ValueError:
+            pass
+        
         if len(parts) < 3:
-            raise ValueError("SCALE requires: SCALE <n> <factor>")
-        
-        name = parts[1]
-        factor = float(parts[2])
-        
-        return {
-            'command': 'SCALE',
-            'name': name,
-            'factor': factor
-        }
+            raise ValueError("SCALE requires: SCALE [<name>] <factor>")
+        return {'command': 'SCALE', 'name': parts[1], 'factor': float(parts[2])}
         
     def _parse_resize(self, parts):
-        """Parse RESIZE command: RESIZE <n> <x_factor> [y_factor]"""
+        """Parse RESIZE command: RESIZE [<n>] <x_factor> [y_factor]"""
+        if len(parts) < 2:
+            raise ValueError("RESIZE requires: RESIZE [<name>] <x_factor> [y_factor]")
+        
+        # WW mode: first arg is numeric
+        try:
+            x_factor = float(parts[1])
+            y_factor = float(parts[2]) if len(parts) >= 3 else x_factor
+            return {'command': 'RESIZE', 'name': None,
+                    'x_factor': x_factor, 'y_factor': y_factor}
+        except ValueError:
+            pass
+        
         if len(parts) < 3:
-            raise ValueError("RESIZE requires: RESIZE <n> <x_factor> [y_factor]")
-        
-        name = parts[1]
+            raise ValueError("RESIZE requires: RESIZE [<name>] <x_factor> [y_factor]")
         x_factor = float(parts[2])
-        
-        # Check if y_factor is provided
-        if len(parts) >= 4:
-            y_factor = float(parts[3])
-        else:
-            y_factor = x_factor  # Uniform scaling
-        
-        return {
-            'command': 'RESIZE',
-            'name': name,
-            'x_factor': x_factor,
-            'y_factor': y_factor
-        }
+        y_factor = float(parts[3]) if len(parts) >= 4 else x_factor
+        return {'command': 'RESIZE', 'name': parts[1],
+                'x_factor': x_factor, 'y_factor': y_factor}
         
     def _parse_group(self, parts):
         """Parse GROUP command: GROUP <group_name> <shape1> <shape2> ..."""
@@ -280,6 +289,17 @@ class CommandParser:
             'old_name': parts[1],
             'new_name': parts[2]
         }
+    
+    def _parse_workwith(self, parts):
+        """Parse WORKWITH command: WORKWITH [<shape>|OFF]
+        
+        WORKWITH <shape>  - Set implicit shape context
+        WORKWITH OFF      - Clear context
+        WORKWITH          - Clear context
+        """
+        if len(parts) < 2 or parts[1].upper() == 'OFF':
+            return {'command': 'WORKWITH', 'name': None}
+        return {'command': 'WORKWITH', 'name': parts[1]}
         
     def _parse_switch(self, parts):
         """Parse SWITCH command: SWITCH WIP|MAIN"""
@@ -677,19 +697,20 @@ class CommandParser:
         }
 
     def _parse_width(self, parts):
-        """Parse WIDTH command: WIDTH <n> <width>"""
-        if len(parts) < 3:
-            raise ValueError("WIDTH requires: WIDTH <n> <width>")
+        """Parse WIDTH command: WIDTH [<n>] <width>"""
+        if len(parts) < 2:
+            raise ValueError("WIDTH requires: WIDTH [<name>] <width>")
+        
+        if len(parts) == 2:
+            width = int(parts[1])
+            if width < 1:
+                raise ValueError("Width must be at least 1")
+            return {'command': 'WIDTH', 'name': None, 'width': width}
         
         width = int(parts[2])
         if width < 1:
             raise ValueError("Width must be at least 1")
-        
-        return {
-            'command': 'WIDTH',
-            'name': parts[1],
-            'width': width
-        }
+        return {'command': 'WIDTH', 'name': parts[1], 'width': width}
 
     def _parse_color_value(self, color_str):
         """Parse color from various formats to hex or named color
@@ -755,60 +776,57 @@ class CommandParser:
         return color
 
     def _parse_color(self, parts):
-        """Parse COLOR command: COLOR <n> <color>"""
-        if len(parts) < 3:
-            raise ValueError("COLOR requires: COLOR <n> <color>")
+        """Parse COLOR command: COLOR [<n>] <color>"""
+        if len(parts) < 2:
+            raise ValueError("COLOR requires: COLOR [<name>] <color>")
+        
+        if len(parts) == 2:
+            # WW mode: COLOR <color>
+            return {'command': 'COLOR', 'name': None,
+                    'color': self._parse_color_value(parts[1])}
         
         color = self._parse_color_value(parts[2])
-        
-        return {
-            'command': 'COLOR',
-            'name': parts[1],
-            'color': color
-        }
+        return {'command': 'COLOR', 'name': parts[1], 'color': color}
 
     def _parse_fill(self, parts):
-        """Parse FILL command: FILL <n> <color|NONE>"""
-        if len(parts) < 3:
-            raise ValueError("FILL requires: FILL <n> <color|NONE>")
+        """Parse FILL command: FILL [<n>] <color|NONE>"""
+        if len(parts) < 2:
+            raise ValueError("FILL requires: FILL [<name>] <color|NONE>")
         
-        fill = parts[2]
-        if fill.upper() == 'NONE':
-            fill = None
-        else:
-            fill = self._parse_color_value(fill)
+        if len(parts) == 2:
+            raw = parts[1]
+            fill = None if raw.upper() == 'NONE' else self._parse_color_value(raw)
+            return {'command': 'FILL', 'name': None, 'fill': fill}
         
-        return {
-            'command': 'FILL',
-            'name': parts[1],
-            'fill': fill
-        }
+        raw = parts[2]
+        fill = None if raw.upper() == 'NONE' else self._parse_color_value(raw)
+        return {'command': 'FILL', 'name': parts[1], 'fill': fill}
 
     def _parse_alpha(self, parts):
-        """Parse ALPHA command: ALPHA <n> <value>"""
-        if len(parts) < 3:
-            raise ValueError("ALPHA requires: ALPHA <n> <value>")
+        """Parse ALPHA command: ALPHA [<n>] <value>"""
+        if len(parts) < 2:
+            raise ValueError("ALPHA requires: ALPHA [<name>] <value>")
+        
+        if len(parts) == 2:
+            alpha = float(parts[1])
+            if alpha < 0 or alpha > 1:
+                raise ValueError("Alpha must be between 0 and 1")
+            return {'command': 'ALPHA', 'name': None, 'alpha': alpha}
         
         alpha = float(parts[2])
         if alpha < 0 or alpha > 1:
             raise ValueError("Alpha must be between 0 and 1")
-        
-        return {
-            'command': 'ALPHA',
-            'name': parts[1],
-            'alpha': alpha
-        }
+        return {'command': 'ALPHA', 'name': parts[1], 'alpha': alpha}
 
     def _parse_zorder(self, parts):
-        """Parse ZORDER command: ZORDER <n> <value>"""
-        if len(parts) < 3:
-            raise ValueError("ZORDER requires: ZORDER <n> <value>")
+        """Parse ZORDER command: ZORDER [<n>] <value>"""
+        if len(parts) < 2:
+            raise ValueError("ZORDER requires: ZORDER [<name>] <value>")
         
-        return {
-            'command': 'ZORDER',
-            'name': parts[1],
-            'z_coord': int(parts[2])
-        }
+        if len(parts) == 2:
+            return {'command': 'ZORDER', 'name': None, 'z_coord': int(parts[1])}
+        
+        return {'command': 'ZORDER', 'name': parts[1], 'z_coord': int(parts[2])}
 
     def _parse_exit(self, parts):
         """Parse EXIT or QUIT command: EXIT or QUIT"""

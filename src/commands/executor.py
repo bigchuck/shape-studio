@@ -42,6 +42,8 @@ class CommandExecutor:
         # Last storage name assigned by _execute_proc (may differ from requested
         # name after collision resolution); read by template executor to patch params
         self._last_storage_name = None
+        # WORKWITH context: storage name of the implicitly targeted shape, or None
+        self.workwith = None
 
         # Persistence directories
         self.project_store_dir = Path(config.paths.shapes)
@@ -118,6 +120,7 @@ class CommandExecutor:
             'RESET_ZORDER': self._execute_reset_zorder,
             'ENHANCE': self._execute_enhance,
             'RENAME': self._execute_rename,
+            'WORKWITH': self._execute_workwith,
         }
         
         if command in handlers:
@@ -162,7 +165,7 @@ class CommandExecutor:
         
     def _execute_move(self, cmd_dict, command_text):
         """Execute MOVE command on active canvas"""
-        name = cmd_dict['name']
+        name = self._resolve_shape_name(cmd_dict.get('name'))
         delta = cmd_dict['delta']
         
         shapes = self.get_active_shapes()
@@ -184,7 +187,7 @@ class CommandExecutor:
         
     def _execute_rotate(self, cmd_dict, command_text):
         """Execute ROTATE command on active canvas"""
-        name = cmd_dict['name']
+        name = self._resolve_shape_name(cmd_dict.get('name'))
         angle = cmd_dict['angle']
         
         shapes = self.get_active_shapes()
@@ -206,7 +209,7 @@ class CommandExecutor:
         
     def _execute_scale(self, cmd_dict, command_text):
         """Execute SCALE command on active canvas"""
-        name = cmd_dict['name']
+        name = self._resolve_shape_name(cmd_dict.get('name'))
         factor = cmd_dict['factor']
         
         shapes = self.get_active_shapes()
@@ -228,7 +231,7 @@ class CommandExecutor:
         
     def _execute_resize(self, cmd_dict, command_text):
         """Execute RESIZE command on active canvas"""
-        name = cmd_dict['name']
+        name = self._resolve_shape_name(cmd_dict.get('name'))
         x_factor = cmd_dict['x_factor']
         y_factor = cmd_dict['y_factor']
         
@@ -391,7 +394,11 @@ class CommandExecutor:
         
         # Remove from registry
         del shapes[shape_name]
-        
+
+        # Auto-clear WORKWITH if the deleted shape was the context
+        if self.workwith == shape_name:
+            self.workwith = None
+
         # SYNC FIX: Rebuild canvas shape list from registry
         self._sync_active_canvas()
         
@@ -437,6 +444,44 @@ class CommandExecutor:
             return (f"Renamed '{storage_name}' (canonical: '{old_name}') "
                     f"to '{new_name}' on {self.active_canvas_name}")
         return f"Renamed '{old_name}' to '{new_name}' on {self.active_canvas_name}"
+    
+    def _resolve_shape_name(self, explicit_name):
+        """Return effective shape name for single-shape commands.
+        
+        Uses explicit_name if provided (not None), otherwise falls back to
+        the WORKWITH context. Raises ValueError if neither is set.
+        WORKWITH is intentionally ignored during RUN/BATCH because templates
+        always supply explicit names via substitution.
+        """
+        if explicit_name is not None:
+            return explicit_name
+        if self.workwith is None:
+            raise ValueError(
+                "No shape name given and no WORKWITH context set. "
+                "Provide a shape name or use WORKWITH <shape> first."
+            )
+        return self.workwith
+
+    def _execute_workwith(self, cmd_dict, command_text):
+        """Execute WORKWITH command - set or clear implicit shape context"""
+        name = cmd_dict.get('name')
+
+        if name is None:
+            self.workwith = None
+            return "WORKWITH cleared"
+
+        # Verify shape exists on the active canvas
+        shapes = self.get_active_shapes()
+        try:
+            storage_name, _ = self._get_shape(name, shapes)
+        except ValueError:
+            raise ValueError(
+                f"Shape '{name}' not found on {self.active_canvas_name} canvas"
+            )
+
+        self.workwith = storage_name
+        display = f"'{storage_name}'" if storage_name == name else f"'{storage_name}' (via '{name}')"
+        return f"WORKWITH set to {display} on {self.active_canvas_name}"
         
     def _execute_switch(self, cmd_dict, command_text):
         """Execute SWITCH command - change active canvas"""
@@ -480,6 +525,8 @@ class CommandExecutor:
         # If move mode, remove from WIP
         if mode == 'move':
             del self.wip_shapes[shape_name]
+            if self.workwith == shape_name:
+                self.workwith = None
             # SYNC FIX: Rebuild WIP canvas shape list from registry
             self.wip_canvas.sync_shapes(self.wip_shapes)
             return f"Promoted '{shape_name}' from WIP to MAIN (moved)"
@@ -1897,7 +1944,7 @@ class CommandExecutor:
 
     def _execute_color(self, cmd_dict, command_text):
         """Execute COLOR command - set shape outline color"""
-        name = cmd_dict['name']
+        name = self._resolve_shape_name(cmd_dict.get('name'))
         color = cmd_dict['color']
         
         shapes = self.get_active_shapes()
@@ -1913,7 +1960,7 @@ class CommandExecutor:
 
     def _execute_width(self, cmd_dict, command_text):
         """Execute WIDTH command - set shape line width"""
-        name = cmd_dict['name']
+        name = self._resolve_shape_name(cmd_dict.get('name'))
         width = cmd_dict['width']
         
         shapes = self.get_active_shapes()
@@ -1929,7 +1976,7 @@ class CommandExecutor:
 
     def _execute_fill(self, cmd_dict, command_text):
         """Execute FILL command - set shape fill color"""
-        name = cmd_dict['name']
+        name = self._resolve_shape_name(cmd_dict.get('name'))
         fill = cmd_dict['fill']
         
         shapes = self.get_active_shapes()
@@ -1947,7 +1994,7 @@ class CommandExecutor:
 
     def _execute_alpha(self, cmd_dict, command_text):
         """Execute ALPHA command - set shape transparency"""
-        name = cmd_dict['name']
+        name = self._resolve_shape_name(cmd_dict.get('name'))
         alpha = cmd_dict['alpha']
         
         shapes = self.get_active_shapes()
@@ -1963,7 +2010,7 @@ class CommandExecutor:
 
     def _execute_zorder(self, cmd_dict, command_text):
         """Execute ZORDER command - set shape z-coordinate for layering"""
-        name = cmd_dict['name']
+        name = self._resolve_shape_name(cmd_dict.get('name'))
         z_coord = cmd_dict['z_coord']
         
         shapes = self.get_active_shapes()

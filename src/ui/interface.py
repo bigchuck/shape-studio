@@ -383,17 +383,20 @@ For full documentation, place HELP.md in the project root directory.
         """Update canvas indicator labels and button"""
         active = self.executor.active_canvas_name
         
+        ww = self.executor.workwith
+        ww_text = f" | WW: {ww}" if ww else ""
+
         if active == 'WIP':
             self.canvas_indicator.config(text="Active: WIP", bg='blue')
             self.switch_btn.config(text="Switch to MAIN â†’")
             self.status_label.config(
-                text=f"Active: WIP | â†‘â†“ for history | ESC/F11 = fullscreen"
+                text=f"Active: WIP{ww_text} | ↑↓ for history | ESC/F11 = fullscreen"
             )
         else:
             self.canvas_indicator.config(text="Active: MAIN", bg='green')
             self.switch_btn.config(text="â† Switch to WIP")
             self.status_label.config(
-                text=f"Active: MAIN | â†‘â†“ for history | ESC/F11 = fullscreen"
+                text=f"Active: MAIN{ww_text} | ↑↓ for history | ESC/F11 = fullscreen"
             )
         
     def _toggle_rulers(self):

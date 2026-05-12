@@ -1,12 +1,4 @@
 [
-  "fill sa224/gen4_0007 green",
-  "fill sa224/gen1_0006 gray",
-  "save sa224_a",
-  "save_project sa224_a",
-  "promote sa224/gen1_0011",
-  "promote sa224/gen4_0007",
-  "promote sa224/gen4_0015",
-  "promote sa224/gen1_0006",
   "save_project sa224_a",
   "save sa224_a",
   "load_project sa224_a",
@@ -48,5 +40,13 @@
   "a",
   "info a",
   "info b",
+  "exit",
+  "load_project test1",
+  "list",
+  "workwith shape1",
+  "scale .4",
+  "rotate 100",
+  "workwith",
+  "rotate 100",
   "exit"
 ]
