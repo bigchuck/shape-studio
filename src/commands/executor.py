@@ -121,6 +121,7 @@ class CommandExecutor:
             'ENHANCE': self._execute_enhance,
             'RENAME': self._execute_rename,
             'WORKWITH': self._execute_workwith,
+            'VIEWPORT': self._execute_viewport,
         }
         
         if command in handlers:
@@ -482,6 +483,24 @@ class CommandExecutor:
         self.workwith = storage_name
         display = f"'{storage_name}'" if storage_name == name else f"'{storage_name}' (via '{name}')"
         return f"WORKWITH set to {display} on {self.active_canvas_name}"
+
+    def _execute_viewport(self, cmd_dict, command_text):
+        """Execute VIEWPORT command - set or clear viewport border on both canvases"""
+        w = cmd_dict['width']
+        h = cmd_dict['height']
+
+        if w is None:
+            self.wip_canvas.viewport = None
+            self.main_canvas.viewport = None
+            self.wip_canvas.redraw()
+            self.main_canvas.redraw()
+            return "Viewport border cleared"
+
+        self.wip_canvas.viewport  = (w, h)
+        self.main_canvas.viewport = (w, h)
+        self.wip_canvas.redraw()
+        self.main_canvas.redraw()
+        return f"Viewport set to {w}×{h}px on both canvases"
         
     def _execute_switch(self, cmd_dict, command_text):
         """Execute SWITCH command - change active canvas"""

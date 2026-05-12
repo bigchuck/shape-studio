@@ -21,6 +21,8 @@ class Canvas:
         # Display options
         self.show_rulers = True
         self.show_grid = True
+        # Viewport border: (width_px, height_px) or None
+        self.viewport = None
         
         # Draw initial grid
         if self.show_grid:
@@ -87,7 +89,11 @@ class Canvas:
         # Draw grid first (if enabled) so shapes appear on top
         if self.show_grid:
             self._draw_grid_on_canvas(self.draw)
-        
+
+        # Draw viewport border if set (sits above grid, below shapes)
+        if self.viewport is not None:
+            self._draw_viewport_border(self.draw)
+
         # Sort shapes by z_coord (lower z_coord drawn first = further back)
         sorted_shapes = sorted(self.shapes, key=lambda s: s.attrs['style']['z_coord'])
         
@@ -106,6 +112,41 @@ class Canvas:
         # Horizontal lines
         for y in range(grid_interval, self.size, grid_interval):
             draw.line([(0, y), (self.size, y)], fill=grid_color, width=1)
+
+    def _draw_viewport_border(self, draw):
+        """Draw a centered viewport border indicating the physical canvas boundary.
+
+        self.viewport is (width_px, height_px) already in pixel coordinates,
+        clamped to fit within the canvas on set.  The border sits above the
+        grid but below all shapes.
+        """
+        vp_w, vp_h = self.viewport
+
+        # Center within canvas
+        left   = (self.width  - vp_w) // 2
+        top    = (self.height - vp_h) // 2
+        right  = left + vp_w
+        bottom = top  + vp_h
+
+        border_color = (180, 60, 60)   # Muted red — distinct from gray grid
+        border_width = 2
+
+        draw.rectangle(
+            [left, top, right, bottom],
+            outline=border_color,
+            width=border_width
+        )
+
+        # Dimension label in top-left corner of the border
+        try:
+            from PIL import ImageFont
+            font = ImageFont.truetype("arial.ttf", 9)
+        except Exception:
+            from PIL import ImageFont
+            font = ImageFont.load_default()
+
+        label = f"{vp_w}×{vp_h}px"
+        draw.text((left + 4, top + 3), label, fill=border_color, font=font)
             
     def save(self, filename):
         """Save the canvas without rulers to PNG file"""

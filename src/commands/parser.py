@@ -50,6 +50,7 @@ class CommandParser:
             'ENHANCE': self._parse_enhance,
             'RENAME': self._parse_rename,
             'WORKWITH': self._parse_workwith,
+            'VIEWPORT': self._parse_viewport,
         }
         
     def parse(self, command_text):
@@ -300,7 +301,55 @@ class CommandParser:
         if len(parts) < 2 or parts[1].upper() == 'OFF':
             return {'command': 'WORKWITH', 'name': None}
         return {'command': 'WORKWITH', 'name': parts[1]}
-        
+
+    def _parse_viewport(self, parts):
+        """Parse VIEWPORT command: VIEWPORT <w>,<h> | VIEWPORT OFF
+
+        Values >= 1 are treated as absolute pixels.
+        Values 0 < v < 1 are treated as ratio multipliers against 768.
+        VIEWPORT OFF or bare VIEWPORT clears the border.
+        """
+        CANVAS_SIZE = 768
+
+        if len(parts) < 2 or parts[1].upper() == 'OFF':
+            return {'command': 'VIEWPORT', 'width': None, 'height': None}
+
+        raw = parts[1]
+        if ',' not in raw:
+            raise ValueError("VIEWPORT requires: VIEWPORT <w>,<h> or VIEWPORT OFF")
+
+        w_str, h_str = raw.split(',', 1)
+        try:
+            w_val = float(w_str)
+            h_val = float(h_str)
+        except ValueError:
+            raise ValueError("VIEWPORT width and height must be numbers")
+
+        # Ratio mode: any value that is a float with fractional part, or explicitly < 1
+        def resolve(v):
+            if v < 1.0:
+                # Ratio — multiply against canvas size
+                return int(round(v * CANVAS_SIZE))
+            else:
+                return int(round(v))
+
+        # Treat as ratio if either value was written as a float < 1
+        # (detect by checking the original string for a decimal point AND value < 1)
+        def is_ratio(s, v):
+            return '.' in s
+
+        w_px = int(round(w_val * CANVAS_SIZE)) if is_ratio(w_str, w_val) else int(round(w_val))
+        h_px = int(round(h_val * CANVAS_SIZE)) if is_ratio(h_str, h_val) else int(round(h_val))
+
+        if w_px <= 0 or h_px <= 0:
+            raise ValueError("VIEWPORT dimensions must be positive")
+        if w_px > CANVAS_SIZE or h_px > CANVAS_SIZE:
+            raise ValueError(
+                f"VIEWPORT dimensions cannot exceed canvas size ({CANVAS_SIZE}px)"
+            )
+
+        return {'command': 'VIEWPORT', 'width': w_px, 'height': h_px}
+
     def _parse_switch(self, parts):
         """Parse SWITCH command: SWITCH WIP|MAIN"""
         if len(parts) < 2:
