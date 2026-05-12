@@ -28,7 +28,7 @@ def test_basic_access():
     print(f"Iterations default: {config.procedural.defaults.iterations}")
     print(f"Min clearance: {config.procedural.validation.min_segment_clearance}")
     
-    print("✓ Basic access works")
+    print("OK Basic access works")
     print()
 
 
@@ -53,7 +53,7 @@ def test_get_method():
     clearance = config.get('procedural.validation.min_segment_clearance')
     print(f"config.get('procedural.validation.min_segment_clearance'): {clearance}")
     
-    print("✓ Path-based access works")
+    print("OK Path-based access works")
     print()
 
 
@@ -69,10 +69,10 @@ def test_immutability():
     # Try to modify (should fail)
     try:
         config.canvas.width = 1024
-        print("✗ ERROR: Config modification should have been blocked!")
+        print("FAIL ERROR: Config modification should have been blocked!")
         return False
     except AttributeError as e:
-        print(f"✓ Modification correctly blocked: {e}")
+        print(f"OK Modification correctly blocked: {e}")
     
     # Verify value unchanged
     print(f"Canvas width still: {config.canvas.width}")
@@ -93,7 +93,7 @@ def test_to_dict():
     for key in config_dict.keys():
         print(f"  - {key}")
     
-    print("✓ Dictionary export works")
+    print("OK Dictionary export works")
     print()
 
 
@@ -116,7 +116,7 @@ def test_validation_config():
     print(f"  Min aspect ratio: {val.min_aspect_ratio}")
     print(f"  Validate each retry: {val.validate_each_retry}")
     
-    print("✓ Validation config accessible")
+    print("OK Validation config accessible")
     print()
 
 
@@ -150,15 +150,15 @@ def test_all_defaults():
     all_pass = True
     for path, expected in paths_to_test:
         actual = config.get(path)
-        status = "✓" if actual == expected else "✗"
+        status = "OK" if actual == expected else "FAIL"
         if actual != expected:
             all_pass = False
         print(f"{status} {path}: {actual} (expected {expected})")
     
     if all_pass:
-        print("\n✓ All default paths correct")
+        print("\nOK All default paths correct")
     else:
-        print("\n✗ Some paths have unexpected values")
+        print("\nFAIL Some paths have unexpected values")
     print()
 
 
@@ -191,7 +191,7 @@ def test_usage_patterns():
     
     print(f"Pattern 3 - Validation check: {should_validate()}")
     
-    print("✓ Usage patterns work")
+    print("OK Usage patterns work")
     print()
 
 
@@ -213,14 +213,14 @@ def main():
         test_usage_patterns()
         
         print("=" * 60)
-        print("ALL TESTS PASSED ✓")
+        print("ALL TESTS PASSED OK")
         print("=" * 60)
         print("\nConfiguration system is working correctly.")
         print("Ready for Phase 2: Module refactoring")
         print()
         
     except Exception as e:
-        print(f"\n✗ TEST FAILED: {e}")
+        print(f"\nFAIL TEST FAILED: {e}")
         import traceback
         traceback.print_exc()
         return 1

@@ -6,6 +6,14 @@ import re
 import random
 
 
+class MissingParamsError(ValueError):
+    """Raised when a command is invoked without its required parameters.
+    
+    Caught by the interface to trigger automatic help display.
+    """
+    pass
+
+
 class CommandParser:
     """Parse text commands into structured command dictionaries"""
     
@@ -51,6 +59,7 @@ class CommandParser:
             'RENAME': self._parse_rename,
             'WORKWITH': self._parse_workwith,
             'VIEWPORT': self._parse_viewport,
+            'HELP': self._parse_help,
         }
         
     def parse(self, command_text):
@@ -97,7 +106,7 @@ class CommandParser:
     def _parse_line(self, parts):
         """Parse LINE command: LINE <n> <x1>,<y1> <x2>,<y2>"""
         if len(parts) < 4:
-            raise ValueError("LINE requires: LINE <n> <x1>,<y1> <x2>,<y2>")
+            raise MissingParamsError("LINE requires: LINE <n> <x1>,<y1> <x2>,<y2>")
         
         name = parts[1]
         
@@ -123,7 +132,7 @@ class CommandParser:
     def _parse_poly(self, parts):
         """Parse POLY command: POLY <n> <x1>,<y1> <x2>,<y2> ..."""
         if len(parts) < 4:
-            raise ValueError("POLY requires at least 3 points")
+            raise MissingParamsError("POLY requires at least 3 points")
         
         name = parts[1]
         points = []
@@ -147,7 +156,7 @@ class CommandParser:
     def _parse_move(self, parts):
         """Parse MOVE command: MOVE [<n>] <dx>,<dy>"""
         if len(parts) < 2:
-            raise ValueError("MOVE requires: MOVE [<name>] <dx>,<dy>")
+            raise MissingParamsError("MOVE requires: MOVE [<name>] <dx>,<dy>")
         
         # WW mode: MOVE <dx,dy> — first arg contains a comma
         if ',' in parts[1]:
@@ -170,7 +179,7 @@ class CommandParser:
     def _parse_rotate(self, parts):
         """Parse ROTATE command: ROTATE [<n>] <angle>"""
         if len(parts) < 2:
-            raise ValueError("ROTATE requires: ROTATE [<name>] <angle>")
+            raise MissingParamsError("ROTATE requires: ROTATE [<name>] <angle>")
         
         # WW mode: ROTATE <angle> — first arg is numeric
         try:
@@ -186,7 +195,7 @@ class CommandParser:
     def _parse_scale(self, parts):
         """Parse SCALE command: SCALE [<n>] <factor>"""
         if len(parts) < 2:
-            raise ValueError("SCALE requires: SCALE [<name>] <factor>")
+            raise MissingParamsError("SCALE requires: SCALE [<name>] <factor>")
         
         try:
             factor = float(parts[1])
@@ -201,7 +210,7 @@ class CommandParser:
     def _parse_resize(self, parts):
         """Parse RESIZE command: RESIZE [<n>] <x_factor> [y_factor]"""
         if len(parts) < 2:
-            raise ValueError("RESIZE requires: RESIZE [<name>] <x_factor> [y_factor]")
+            raise MissingParamsError("RESIZE requires: RESIZE [<name>] <x_factor> [y_factor]")
         
         # WW mode: first arg is numeric
         try:
@@ -222,7 +231,7 @@ class CommandParser:
     def _parse_group(self, parts):
         """Parse GROUP command: GROUP <group_name> <shape1> <shape2> ..."""
         if len(parts) < 3:
-            raise ValueError("GROUP requires: GROUP <group_name> <shape1> [shape2 ...]")
+            raise MissingParamsError("GROUP requires: GROUP <group_name> <shape1> [shape2 ...]")
         
         group_name = parts[1]
         member_names = parts[2:]
@@ -248,7 +257,7 @@ class CommandParser:
     def _parse_extract(self, parts):
         """Parse EXTRACT command: EXTRACT <member> FROM <group>"""
         if len(parts) < 4:
-            raise ValueError("EXTRACT requires: EXTRACT <member> FROM <group>")
+            raise MissingParamsError("EXTRACT requires: EXTRACT <member> FROM <group>")
         
         if parts[2].upper() != 'FROM':
             raise ValueError("EXTRACT syntax: EXTRACT <member> FROM <group>")
@@ -265,7 +274,7 @@ class CommandParser:
     def _parse_delete(self, parts):
         """Parse DELETE command: DELETE <shape_name> [CONFIRM]"""
         if len(parts) < 2:
-            raise ValueError("DELETE requires: DELETE <shape>")
+            raise MissingParamsError("DELETE requires: DELETE <shape>")
         
         shape_name = parts[1]
         
@@ -283,7 +292,7 @@ class CommandParser:
     def _parse_rename(self, parts):
         """Parse RENAME command: RENAME <old_name> <new_name>"""
         if len(parts) < 3:
-            raise ValueError("RENAME requires: RENAME <old_name> <new_name>")
+            raise MissingParamsError("RENAME requires: RENAME <old_name> <new_name>")
         
         return {
             'command': 'RENAME',
@@ -350,10 +359,15 @@ class CommandParser:
 
         return {'command': 'VIEWPORT', 'width': w_px, 'height': h_px}
 
+    def _parse_help(self, parts):
+        """Parse HELP command: HELP [<command>]"""
+        topic = parts[1].upper() if len(parts) >= 2 else None
+        return {'command': 'HELP', 'topic': topic}
+
     def _parse_switch(self, parts):
         """Parse SWITCH command: SWITCH WIP|MAIN"""
         if len(parts) < 2:
-            raise ValueError("SWITCH requires: SWITCH WIP|MAIN")
+            raise MissingParamsError("SWITCH requires: SWITCH WIP|MAIN")
         
         target = parts[1].upper()
         
@@ -368,7 +382,7 @@ class CommandParser:
     def _parse_promote(self, parts):
         """Parse PROMOTE command: PROMOTE [COPY] <shape>"""
         if len(parts) < 2:
-            raise ValueError("PROMOTE requires: PROMOTE [COPY] <shape>")
+            raise MissingParamsError("PROMOTE requires: PROMOTE [COPY] <shape>")
         
         # Check for COPY modifier
         if parts[1].upper() == 'COPY':
@@ -389,7 +403,7 @@ class CommandParser:
     def _parse_unpromote(self, parts):
         """Parse UNPROMOTE command: UNPROMOTE [COPY] <shape>"""
         if len(parts) < 2:
-            raise ValueError("UNPROMOTE requires: UNPROMOTE [COPY] <shape>")
+            raise MissingParamsError("UNPROMOTE requires: UNPROMOTE [COPY] <shape>")
         
         # Check for COPY modifier
         if parts[1].upper() == 'COPY':
@@ -410,7 +424,7 @@ class CommandParser:
     def _parse_stash(self, parts):
         """Parse STASH command: STASH <shape>"""
         if len(parts) < 2:
-            raise ValueError("STASH requires: STASH <shape>")
+            raise MissingParamsError("STASH requires: STASH <shape>")
         
         shape_name = parts[1]
         
@@ -422,7 +436,7 @@ class CommandParser:
     def _parse_unstash(self, parts):
         """Parse UNSTASH command: UNSTASH [MOVE] <shape>"""
         if len(parts) < 2:
-            raise ValueError("UNSTASH requires: UNSTASH [MOVE] <shape>")
+            raise MissingParamsError("UNSTASH requires: UNSTASH [MOVE] <shape>")
         
         # Check for MOVE modifier
         if parts[1].upper() == 'MOVE':
@@ -447,7 +461,7 @@ class CommandParser:
         STORE GLOBAL <shape> - Save to global library
         """
         if len(parts) < 2:
-            raise ValueError("STORE requires: STORE [GLOBAL] <shape>")
+            raise MissingParamsError("STORE requires: STORE [GLOBAL] <shape>")
         
         # Check for GLOBAL modifier
         if parts[1].upper() == 'GLOBAL':
@@ -471,7 +485,7 @@ class CommandParser:
         Searches project store first, then global library
         """
         if len(parts) < 2:
-            raise ValueError("LOAD requires: LOAD <shape>")
+            raise MissingParamsError("LOAD requires: LOAD <shape>")
         
         shape_name = parts[1]
         
@@ -483,7 +497,7 @@ class CommandParser:
     def _parse_save_project(self, parts):
         """Parse SAVE_PROJECT command: SAVE_PROJECT <filename>"""
         if len(parts) < 2:
-            raise ValueError("SAVE_PROJECT requires: SAVE_PROJECT <filename>")
+            raise MissingParamsError("SAVE_PROJECT requires: SAVE_PROJECT <filename>")
         
         filename = parts[1]
         if not filename.endswith('.shapestudio'):
@@ -497,7 +511,7 @@ class CommandParser:
     def _parse_load_project(self, parts):
         """Parse LOAD_PROJECT command: LOAD_PROJECT <filename>"""
         if len(parts) < 2:
-            raise ValueError("LOAD_PROJECT requires: LOAD_PROJECT <filename>")
+            raise MissingParamsError("LOAD_PROJECT requires: LOAD_PROJECT <filename>")
         
         filename = parts[1]
         if not filename.endswith('.shapestudio'):
@@ -564,7 +578,7 @@ class CommandParser:
     def _parse_info(self, parts):
         """Parse INFO command: INFO <shape> or INFO PROC <method>"""
         if len(parts) < 2:
-            raise ValueError("INFO requires: INFO <shape> or INFO PROC <method>")
+            raise MissingParamsError("INFO requires: INFO <shape> or INFO PROC <method>")
         
         # Check for INFO PROC <method>
         if parts[1].upper() == 'PROC':
@@ -586,7 +600,7 @@ class CommandParser:
     def _parse_save(self, parts):
         """Parse SAVE command: SAVE <filename>"""
         if len(parts) < 2:
-            raise ValueError("SAVE requires: SAVE <filename>")
+            raise MissingParamsError("SAVE requires: SAVE <filename>")
         
         filename = parts[1]
         if not filename.endswith('.png'):
@@ -600,7 +614,7 @@ class CommandParser:
     def _parse_run(self, parts):
         """Parse RUN command: RUN <scriptfile> [label|executable_name|--ALL]"""
         if len(parts) < 2:
-            raise ValueError("RUN requires: RUN <scriptfile> [label|executable_name|--ALL]")
+            raise MissingParamsError("RUN requires: RUN <scriptfile> [label|executable_name|--ALL]")
         
         scriptfile = parts[1]
         label = parts[2] if len(parts) > 2 else None
@@ -614,7 +628,7 @@ class CommandParser:
     def _parse_batch(self, parts):
         """Parse BATCH command: BATCH <count> <scriptfile> [executable_name] <output_prefix> [WIP|MAIN]"""
         if len(parts) < 4:
-            raise ValueError("BATCH requires: BATCH <count> <scriptfile> [executable_name] <output_prefix> [WIP|MAIN]")
+            raise MissingParamsError("BATCH requires: BATCH <count> <scriptfile> [executable_name] <output_prefix> [WIP|MAIN]")
         
         try:
             count = int(parts[1])
@@ -683,7 +697,7 @@ class CommandParser:
         Example: PROC dynamic_polygon shape1 VERTICES=5 BOUNDS=100,100,600,600
         """
         if len(parts) < 3:
-            raise ValueError("PROC requires: PROC <method> <name> [PARAM=value ...]")
+            raise MissingParamsError("PROC requires: PROC <method> <name> [PARAM=value ...]")
         
         method_name = parts[1]
         shape_name = parts[2]
@@ -708,7 +722,7 @@ class CommandParser:
     def _parse_animate(self, parts):
         """Parse ANIMATE command: ANIMATE <base_name> [FPS=<n>] [LOOP=<true|false>]"""
         if len(parts) < 2:
-            raise ValueError("ANIMATE requires: ANIMATE <base_name> [FPS=n] [LOOP=true|false]")
+            raise MissingParamsError("ANIMATE requires: ANIMATE <base_name> [FPS=n] [LOOP=true|false]")
         
         base_name = parts[1]
         fps = 2  # default
@@ -748,7 +762,7 @@ class CommandParser:
     def _parse_width(self, parts):
         """Parse WIDTH command: WIDTH [<n>] <width>"""
         if len(parts) < 2:
-            raise ValueError("WIDTH requires: WIDTH [<name>] <width>")
+            raise MissingParamsError("WIDTH requires: WIDTH [<name>] <width>")
         
         if len(parts) == 2:
             width = int(parts[1])
@@ -827,7 +841,7 @@ class CommandParser:
     def _parse_color(self, parts):
         """Parse COLOR command: COLOR [<n>] <color>"""
         if len(parts) < 2:
-            raise ValueError("COLOR requires: COLOR [<name>] <color>")
+            raise MissingParamsError("COLOR requires: COLOR [<name>] <color>")
         
         if len(parts) == 2:
             # WW mode: COLOR <color>
@@ -840,7 +854,7 @@ class CommandParser:
     def _parse_fill(self, parts):
         """Parse FILL command: FILL [<n>] <color|NONE>"""
         if len(parts) < 2:
-            raise ValueError("FILL requires: FILL [<name>] <color|NONE>")
+            raise MissingParamsError("FILL requires: FILL [<name>] <color|NONE>")
         
         if len(parts) == 2:
             raw = parts[1]
@@ -854,7 +868,7 @@ class CommandParser:
     def _parse_alpha(self, parts):
         """Parse ALPHA command: ALPHA [<n>] <value>"""
         if len(parts) < 2:
-            raise ValueError("ALPHA requires: ALPHA [<name>] <value>")
+            raise MissingParamsError("ALPHA requires: ALPHA [<name>] <value>")
         
         if len(parts) == 2:
             alpha = float(parts[1])
@@ -870,7 +884,7 @@ class CommandParser:
     def _parse_zorder(self, parts):
         """Parse ZORDER command: ZORDER [<n>] <value>"""
         if len(parts) < 2:
-            raise ValueError("ZORDER requires: ZORDER [<name>] <value>")
+            raise MissingParamsError("ZORDER requires: ZORDER [<name>] <value>")
         
         if len(parts) == 2:
             return {'command': 'ZORDER', 'name': None, 'z_coord': int(parts[1])}
@@ -886,7 +900,7 @@ class CommandParser:
     def _parse_validate(self, parts):
         """Parse VALIDATE command: VALIDATE <scriptfile>"""
         if len(parts) < 2:
-            raise ValueError("VALIDATE requires: VALIDATE <scriptfile>")
+            raise MissingParamsError("VALIDATE requires: VALIDATE <scriptfile>")
         
         scriptfile = parts[1]
         
@@ -966,7 +980,7 @@ class CommandParser:
     def _parse_enhance(self, parts):
         """Parse ENHANCE command"""
         if len(parts) < 3:
-            raise ValueError("ENHANCE requires: ENHANCE <method> <shape> INTENT=\"...\"")
+            raise MissingParamsError("ENHANCE requires: ENHANCE <method> <shape> INTENT=\"...\"")
         
         method = parts[1].lower()
         shape_name = parts[2]

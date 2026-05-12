@@ -7,6 +7,7 @@ import tkinter as tk
 from tkinter import ttk, scrolledtext
 from PIL import Image, ImageTk
 from src.config import config
+from src.commands.parser import MissingParamsError
 
 class ShapeStudioUI:
     """Main UI for Shape Studio with help browser"""
@@ -29,8 +30,6 @@ class ShapeStudioUI:
         self.zoom_level = 1.0  # Default zoom level (100%)
         self._load_command_history()
         
-        # Load help content BEFORE setting up UI
-        self._load_help_content()
         self._setup_ui()
         self._update_canvas_display()
 
@@ -57,52 +56,6 @@ class ShapeStudioUI:
         """Toggle fullscreen mode"""
         current = self.root.attributes('-fullscreen')
         self.root.attributes('-fullscreen', not current)
-        
-    def _load_help_content(self):
-        """Load help content from file"""
-        try:
-            with open('HELP.md', 'r') as f:
-                self.help_content = f.read()
-        except FileNotFoundError:
-            self.help_content = """# SHAPE STUDIO - QUICK HELP
-
-Help file (HELP.md) not found in project directory.
-
-## BASIC COMMANDS
-LINE <n> <x1>,<y1> <x2>,<y2>
-POLY <n> <x1>,<y1> <x2>,<y2> <x3>,<y3> ...
-MOVE <n> <dx>,<dy>
-ROTATE <n> <angle>
-SCALE <n> <factor>
-RESIZE <n> <x_factor> [y_factor]
-
-## GROUPS
-GROUP <n> <shape1> <shape2> ...
-UNGROUP <n>
-EXTRACT <member> FROM <group>
-
-## CANVAS
-SWITCH WIP|MAIN
-PROMOTE [COPY] <shape>
-UNPROMOTE [COPY] <shape>
-CLEAR <canvas> ALL
-LIST [WIP|MAIN|STASH|STORE|GLOBAL]
-
-## PERSISTENCE
-SAVE_PROJECT <file>
-LOAD_PROJECT <file>
-STORE [GLOBAL] <shape>
-LOAD <shape>
-
-## UTILITIES
-DELETE <shape> [CONFIRM]
-INFO <shape>
-STASH <shape>
-UNSTASH [MOVE] <shape>
-SAVE <file>.png
-
-For full documentation, place HELP.md in the project root directory.
-"""
         
     def _setup_ui(self):
         """Set up three-panel UI layout"""
@@ -133,7 +86,7 @@ For full documentation, place HELP.md in the project root directory.
         log_label.pack(pady=5)
         
         self.command_log = scrolledtext.ScrolledText(
-            left_frame, width=50, height=30, font=('Consolas', 9), wrap=tk.WORD
+            left_frame, width=50, height=30, font=('Consolas', 11), wrap=tk.WORD
         )
         self.command_log.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
         self.command_log.config(state=tk.DISABLED)
@@ -154,7 +107,7 @@ For full documentation, place HELP.md in the project root directory.
         self.canvas_indicator.pack(side=tk.LEFT, padx=10)
         
         self.switch_btn = tk.Button(
-            control_frame, text="Switch to MAIN â†’", command=self._switch_canvas,
+            control_frame, text="Switch to MAIN >", command=self._switch_canvas,
             font=('Arial', 10), bg='lightblue', width=15
         )
         self.switch_btn.pack(side=tk.LEFT, padx=5)
@@ -181,7 +134,7 @@ For full documentation, place HELP.md in the project root directory.
         self.zoom_label.pack(side=tk.LEFT, padx=5)
 
         self.zoom_out_btn = tk.Button(
-            control_frame, text="âˆ’", command=self._zoom_out,
+            control_frame, text="-", command=self._zoom_out,
             font=('Arial', 12, 'bold'), width=2
         )
         self.zoom_out_btn.pack(side=tk.LEFT, padx=2)
@@ -217,38 +170,9 @@ For full documentation, place HELP.md in the project root directory.
         v_scrollbar.config(command=self.canvas_widget.yview)
         h_scrollbar.config(command=self.canvas_widget.xview)
         
-        # === RIGHT PANEL: Help Browser ===
-        right_frame = tk.Frame(self.main_pane, bg='lightblue')
-        
-        help_label = tk.Label(right_frame, text="Help", 
-                             font=('Arial', 10, 'bold'))
-        help_label.pack(pady=5)
-        
-        # Search box
-        search_frame = tk.Frame(right_frame)
-        search_frame.pack(fill=tk.X, padx=5, pady=5)
-        
-        tk.Label(search_frame, text="Search:", font=('Arial', 8)).pack(side=tk.LEFT)
-        
-        self.search_entry = tk.Entry(search_frame, font=('Arial', 8))
-        self.search_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=5)
-        self.search_entry.bind('<KeyRelease>', self._search_help)
-        
-        clear_search_btn = tk.Button(search_frame, text="Clear", 
-                                     command=self._clear_search, width=5, font=('Arial', 8))
-        clear_search_btn.pack(side=tk.LEFT)
-        
-        # Help text display
-        self.help_text = scrolledtext.ScrolledText(
-            right_frame, width=38, height=40, font=('Courier', 8),
-            wrap=tk.WORD, bg='#f5f5f5'
-        )
-        self.help_text.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
-        
         # Add panels to main pane
-        self.main_pane.add(left_frame, minsize=450, width=450)
-        self.main_pane.add(middle_frame, minsize=400)
-        self.main_pane.add(right_frame, minsize=300, width=300)
+        self.main_pane.add(left_frame, minsize=700, width=700)
+        self.main_pane.add(middle_frame, minsize=800)
         
         # Status bar
         status_frame = tk.Frame(self.root, relief=tk.SUNKEN, bd=1)
@@ -256,17 +180,14 @@ For full documentation, place HELP.md in the project root directory.
         
         self.status_label = tk.Label(
             status_frame, 
-            text="Ready | Active: WIP | â†‘â†“ for history | ESC/F11 = fullscreen",
+            text="Ready | Active: WIP | up/dn for history | ESC/F11 = fullscreen",
             anchor=tk.W
         )
         self.status_label.pack(side=tk.LEFT, fill=tk.X, expand=True)
         
         # Focus on command input
         self.command_input.focus()
-        
-        # Display help content
-        self._display_help()
-        
+                
         # FIX: Set sash positions after window is rendered
         self.root.after(100, self._set_sash_positions)
         
@@ -279,57 +200,10 @@ For full documentation, place HELP.md in the project root directory.
             # Set sash positions:
             # First sash at 450px (end of left panel)
             # Second sash at (screen_width - 300) (start of right panel)
-            self.main_pane.sash_place(0, 450, 0)
-            self.main_pane.sash_place(1, screen_width - 300, 0)
+            self.main_pane.sash_place(0, 500, 0)
         except:
             # If it fails, try again in 100ms
             self.root.after(100, self._set_sash_positions)
-        
-    def _display_help(self):
-        """Display help content in help panel"""
-        self.help_text.config(state=tk.NORMAL)
-        self.help_text.delete(1.0, tk.END)
-        self.help_text.insert(tk.END, self.help_content)
-        self.help_text.config(state=tk.DISABLED)
-        
-    def _search_help(self, event=None):
-        """Search and highlight in help content"""
-        search_term = self.search_entry.get().upper()
-        
-        self.help_text.config(state=tk.NORMAL)
-        
-        # Remove previous highlights
-        self.help_text.tag_remove('highlight', 1.0, tk.END)
-        
-        if search_term:
-            # Search and highlight
-            start_pos = '1.0'
-            while True:
-                start_pos = self.help_text.search(search_term, start_pos, 
-                                                  nocase=True, stopindex=tk.END)
-                if not start_pos:
-                    break
-                end_pos = f"{start_pos}+{len(search_term)}c"
-                self.help_text.tag_add('highlight', start_pos, end_pos)
-                start_pos = end_pos
-            
-            # Configure highlight tag
-            self.help_text.tag_config('highlight', background='yellow', 
-                                     foreground='black')
-            
-            # Scroll to first match
-            first_match = self.help_text.search(search_term, 1.0, nocase=True)
-            if first_match:
-                self.help_text.see(first_match)
-        
-        self.help_text.config(state=tk.DISABLED)
-        
-    def _clear_search(self):
-        """Clear search box and highlights"""
-        self.search_entry.delete(0, tk.END)
-        self.help_text.config(state=tk.NORMAL)
-        self.help_text.tag_remove('highlight', 1.0, tk.END)
-        self.help_text.config(state=tk.DISABLED)
         
     def _history_up(self, event):
         """Navigate up in command history"""
@@ -388,15 +262,15 @@ For full documentation, place HELP.md in the project root directory.
 
         if active == 'WIP':
             self.canvas_indicator.config(text="Active: WIP", bg='blue')
-            self.switch_btn.config(text="Switch to MAIN â†’")
+            self.switch_btn.config(text="Switch to MAIN >")
             self.status_label.config(
-                text=f"Active: WIP{ww_text} | ↑↓ for history | ESC/F11 = fullscreen"
+                text=f"Active: WIP{ww_text} | up/dn for history | ESC/F11 = fullscreen"
             )
         else:
             self.canvas_indicator.config(text="Active: MAIN", bg='green')
-            self.switch_btn.config(text="â† Switch to WIP")
+            self.switch_btn.config(text="< Switch to WIP")
             self.status_label.config(
-                text=f"Active: MAIN{ww_text} | ↑↓ for history | ESC/F11 = fullscreen"
+                text=f"Active: MAIN{ww_text} | up/dn for history | ESC/F11 = fullscreen"
             )
         
     def _toggle_rulers(self):
@@ -444,16 +318,21 @@ For full documentation, place HELP.md in the project root directory.
         try:
             result = self.executor.execute(command)
             if result:
-                self._log_output(f"    â†’ {result}")
+                self._log_output(f"    >> {result}")
             
             self._update_canvas_indicators()
             self._update_canvas_display()
             
             self.status_label.config(text=f"Command executed: {command}")
-        except Exception as e:
-            error_msg = f"    âœ— Error: {str(e)}"
-            self._log_output(error_msg)
-            self.status_label.config(text=f"Error: {str(e)}")
+        except MissingParamsError as e:
+            # Auto-invoke help for bare required-param commands
+            cmd_name = command.split()[0].upper()
+            try:
+                self.executor.execute(f"HELP {cmd_name}")
+            except Exception:
+                pass
+            self._log_output(f"    !! {str(e)}")
+            self.status_label.config(text=f"Missing params: {cmd_name}")
             
     def _log_command(self, text):
         """Add command to log"""

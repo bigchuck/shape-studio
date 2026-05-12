@@ -15,6 +15,7 @@ from src.core.procedural import ProceduralGenerators
 from src.core.templates import TemplateLibrary, TemplateExecutor
 from src.config import config
 from src.core.enhancement import EnhancementRegistry
+from src.commands.help_data import HELP as HELP_DATA
 
 class CommandExecutor:
     """Execute commands on WIP or Main canvas"""
@@ -122,6 +123,7 @@ class CommandExecutor:
             'RENAME': self._execute_rename,
             'WORKWITH': self._execute_workwith,
             'VIEWPORT': self._execute_viewport,
+            'HELP': self._execute_help,
         }
         
         if command in handlers:
@@ -483,6 +485,43 @@ class CommandExecutor:
         self.workwith = storage_name
         display = f"'{storage_name}'" if storage_name == name else f"'{storage_name}' (via '{name}')"
         return f"WORKWITH set to {display} on {self.active_canvas_name}"
+
+    def _execute_help(self, cmd_dict, command_text):
+        """Execute HELP command - print help to the log panel"""
+        topic = cmd_dict.get('topic')
+
+        def emit(text):
+            if hasattr(self, 'ui_instance') and self.ui_instance:
+                self.ui_instance._log_output(text)
+            else:
+                print(text)
+
+        if topic is None:
+            # Compact index — all commands, synopsis only
+            emit("=" * 52)
+            emit("  SHAPE STUDIO — COMMAND REFERENCE")
+            emit("=" * 52)
+            for cmd in sorted(HELP_DATA.keys()):
+                synopsis = HELP_DATA[cmd]['synopsis']
+                emit(f"  {cmd:<16} {synopsis}")
+            emit("-" * 52)
+            emit("  HELP <command> for full usage")
+            emit("=" * 52)
+        else:
+            entry = HELP_DATA.get(topic.upper())
+            if entry is None:
+                raise ValueError(
+                    f"No help entry for '{topic}'. "
+                    f"Type HELP for the full command list."
+                )
+            emit("=" * 52)
+            emit(f"  {topic.upper()}")
+            emit("=" * 52)
+            for line in entry['usage'].splitlines():
+                emit(f"  {line}")
+            emit("=" * 52)
+
+        return None
 
     def _execute_viewport(self, cmd_dict, command_text):
         """Execute VIEWPORT command - set or clear viewport border on both canvases"""
@@ -1028,9 +1067,9 @@ class CommandExecutor:
         for i, cmd in enumerate(commands, 1):
             try:
                 result = self.execute(cmd)
-                results.append(f"  [{i}] {cmd[:60]}{'...' if len(cmd) > 60 else ''} → {result}")
+                results.append(f"  [{i}] {cmd[:60]}{'...' if len(cmd) > 60 else ''} -> {result}")
             except Exception as e:
-                results.append(f"  [{i}] {cmd[:60]}{'...' if len(cmd) > 60 else ''} → ERROR: {str(e)}")
+                results.append(f"  [{i}] {cmd[:60]}{'...' if len(cmd) > 60 else ''} -> ERROR: {str(e)}")
         
         header = f"Executed {len(commands)} commands from '{scriptfile}' ({section_desc}):"
         return header + "\n" + "\n".join(results)
@@ -1079,19 +1118,19 @@ class CommandExecutor:
             try:
                 if isinstance(cmd, str):
                     result = self.execute(cmd)
-                    results.append(f"  [{i}] {cmd} → {result}")
+                    results.append(f"  [{i}] {cmd} -> {result}")
                 elif isinstance(cmd, dict):
                     cmd_display = self._format_structured_command(cmd)
                     result = self._execute_structured_command(cmd)
-                    results.append(f"  [{i}] {cmd_display} → {result}")
+                    results.append(f"  [{i}] {cmd_display} -> {result}")
                 else:
                     results.append(f"  [{i}] ERROR: Command must be string or dict, got {type(cmd).__name__}")
             except Exception as e:
                 if isinstance(cmd, str):
-                    results.append(f"  [{i}] {cmd} → ERROR: {str(e)}")
+                    results.append(f"  [{i}] {cmd} -> ERROR: {str(e)}")
                 else:
                     cmd_display = self._format_structured_command(cmd)
-                    results.append(f"  [{i}] {cmd_display} → ERROR: {str(e)}")
+                    results.append(f"  [{i}] {cmd_display} -> ERROR: {str(e)}")
         return "\n".join(results)
 
     def _execute_batch(self, cmd_dict, command_text):
@@ -2119,6 +2158,8 @@ class CommandExecutor:
             'RUN': self._execute_run,
             'BATCH': self._execute_batch,
             'PROC': self._execute_proc,
+            'LIST_PRESET': self._execute_list_preset,
+            'INFO_PROC': self._execute_info_proc,
             'ANIMATE': self._execute_animate,
             'COLOR': self._execute_color,
             'WIDTH': self._execute_width,
@@ -2126,6 +2167,13 @@ class CommandExecutor:
             'ALPHA': self._execute_alpha,
             'ZORDER': self._execute_zorder,
             'EXIT': self._execute_exit,
+            'VALIDATE': self._execute_validate,
+            'RESET_ZORDER': self._execute_reset_zorder,
+            'ENHANCE': self._execute_enhance,
+            'RENAME': self._execute_rename,
+            'WORKWITH': self._execute_workwith,
+            'VIEWPORT': self._execute_viewport,
+            'HELP': self._execute_help,
         }
         
         if command in handlers:
@@ -2360,7 +2408,7 @@ class CommandExecutor:
         """Parse text file lines into labeled sections
         
         Returns:
-            dict mapping label → list of commands
+            dict mapping label -> list of commands
             
         Example:
             {
@@ -2454,7 +2502,7 @@ class CommandExecutor:
                         'color': cmd_value
                     }
                     self._execute_color(color_cmd, f"COLOR {shape_name} {cmd_value}")
-                    applied.append(f"color → {cmd_value}")
+                    applied.append(f"color -> {cmd_value}")
                 
                 elif cmd_type == 'fill':
                     fill_cmd = {
@@ -2463,7 +2511,7 @@ class CommandExecutor:
                         'fill': cmd_value
                     }
                     self._execute_fill(fill_cmd, f"FILL {shape_name} {cmd_value}")
-                    applied.append(f"fill → {cmd_value}")
+                    applied.append(f"fill -> {cmd_value}")
                 
                 elif cmd_type == 'move':
                     dx, dy = cmd_value
@@ -2582,9 +2630,9 @@ class CommandExecutor:
     def _log_collision(self, canonical_name, storage_name, canvas_name):
         """Emit a log-friendly message when a name collision is resolved."""
         msg = (f"Name collision on {canvas_name}: '{canonical_name}' "
-               f"already exists → stored as '{storage_name}'")
+               f"already exists -> stored as '{storage_name}'")
         # Surface to UI log if available, otherwise print
         if hasattr(self, 'ui_instance') and self.ui_instance:
-            self.ui_instance._log_output(f"    ⚠ {msg}")
+            self.ui_instance._log_output(f"    ** {msg}")
         else:
             print(f"[COLLISION] {msg}")

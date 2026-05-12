@@ -183,7 +183,7 @@ class AnimationPreview(tk.Toplevel):
         
         self.next_button = tk.Button(
             step_frame,
-            text="→",
+            text="->",
             command=self._step_forward,
             width=3
         )

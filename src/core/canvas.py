@@ -43,7 +43,7 @@ class Canvas:
             is_manual_zorder = last_command.startswith('ZORDER')
             
             if current_z == 0 and not is_manual_zorder:
-                # Default z=0 and not from ZORDER command → auto-assign
+                # Default z=0 and not from ZORDER command -> auto-assign
                 shape.attrs['style']['z_coord'] = self.next_z_coord
                 self.next_z_coord += 1
             # Else: explicit z_coord (manual ZORDER), counter unchanged

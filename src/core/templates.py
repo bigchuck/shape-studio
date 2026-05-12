@@ -425,24 +425,24 @@ class TemplateExecutor:
         try:
             # Load script
             script_data = self._load_script(script_filepath)
-            messages.append(f"✓ Script structure valid")
+            messages.append(f"OK Script structure valid")
             
             # Load libraries
             try:
                 self._load_libraries(script_data, script_filepath)
                 lib_count = len(self.library.templates)
-                messages.append(f"✓ Loaded {lib_count} templates from libraries")
+                messages.append(f"OK Loaded {lib_count} templates from libraries")
             except Exception as e:
-                messages.append(f"✗ Library loading failed: {e}")
+                messages.append(f"FAIL Library loading failed: {e}")
                 return (False, messages)
             
             # Check executables
             executables = script_data.get('executables', {})
             if not executables:
-                messages.append(f"✗ No executables defined")
+                messages.append(f"FAIL No executables defined")
                 return (False, messages)
             
-            messages.append(f"✓ Found {len(executables)} executable(s)")
+            messages.append(f"OK Found {len(executables)} executable(s)")
             
             # Validate each executable
             global_params = script_data.get('global_params', {})
@@ -450,16 +450,16 @@ class TemplateExecutor:
             for exec_name, executable in executables.items():
                 try:
                     self._validate_executable(exec_name, executable, global_params)
-                    messages.append(f"  ✓ {exec_name}")
+                    messages.append(f"  OK {exec_name}")
                 except Exception as e:
-                    messages.append(f"  ✗ {exec_name}: {e}")
+                    messages.append(f"  FAIL {exec_name}: {e}")
                     return (False, messages)
             
-            messages.append("✓ All executables valid")
+            messages.append("OK All executables valid")
             return (True, messages)
             
         except Exception as e:
-            messages.append(f"✗ Validation failed: {e}")
+            messages.append(f"FAIL Validation failed: {e}")
             return (False, messages)
     
     def _validate_executable(self, exec_name, executable, global_params):
