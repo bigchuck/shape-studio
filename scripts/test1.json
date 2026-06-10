@@ -1,0 +1,269 @@
+{
+  "version": "1.0",
+  "description": "Generate single outline polygons for SA224 design",
+  "author": "Mr. Chuck",
+  "created": "2026-05-05",
+  "comments": "Executable scripts for generating images. References templates from library.json",
+  
+  "template_libraries": [
+    "library.json"
+  ],
+  
+  "executables": {
+    
+    "clear_main": {
+      "description": "Clear main",
+      "author": "Mr. Chuck",
+      "created": "2026-05-05",
+      "target_canvas": "MAIN",
+      "comments": "Clear the canvas independent of drawing",
+      "commands": [
+        {
+          "template": "clear_main_template"
+        }
+      ]
+
+    },
+
+    "test1": {
+      "commands": [
+        {
+          "template": "compose_1",
+          "params": {
+            "color": "black",
+            "width": "3"
+          },
+          "compose_parameters": {
+            "shapes": {
+              "specified": ["sa224/gen1_0033", "sa224/gen4_0050"]
+            }
+          }
+        }
+      ]
+    },
+
+    "gen1": {
+      "description": "Single image - simple organic outline",
+      "author": "Mr. Chuck",
+      "created": "2026-05-05",
+      "target_canvas": "MAIN",
+      "comments": "FIRST STEP Initial form as a block",
+      "randomization": {
+        "projection": {
+          "type": "normal",
+          "min": 0.5,
+          "max": 1.5,
+          "mean": 1.0,
+          "std": 0.3
+        },
+        "_projection": [0.5, 1.5],
+        "iters": [10,25],
+        "_color": ["black","red","green"]
+      },
+
+      "commands": [
+        {
+          "template": "organic_outline_nofill",
+          "params": {
+            "name": "shape1",
+            "_verts": "6,10",
+            "_bounds": "64,275,706,475",
+            "break_width": "0.15",
+            "projection": "4.0",
+            "color": "black",
+            "width": "3",
+            "_connect": "convex_hull",
+            "ops": "split_offset:10,sawtooth:1,squarewave:1,remove_point:1,distort_original:1",
+            "_ops": "split_offset:1,squarewave:1,sawtooth:1",
+            "bias": "random"
+          }
+        }
+      ]
+    },
+
+    "gen1a": {
+      "description": "Single image - simple organic outline",
+      "author": "Mr. Chuck",
+      "created": "2026-06-10",
+      "target_canvas": "MAIN",
+      "comments": "FIRST STEP Initial form as a block",
+      "randomization": {
+        "projection": {
+          "type": "normal",
+          "min": 0.5,
+          "max": 1.5,
+          "mean": 1.0,
+          "std": 0.3
+        },
+        "_projection": [0.5, 1.5],
+        "iters": [10,12],
+        "_color": ["black","red","green"]
+      },
+      "source_shape": "sa224/gen1_0033",
+      "commands": [
+        {
+          "template": "secondary_organic_outline_nofill",
+          "params": {
+            "name": "shape1a",
+            "verbose": "2",
+            "_verts": "6,10",
+            "bounds": "0,0,768,768",
+            "break_width": "0.15",
+            "projection": "4.0",
+            "color": "black",
+            "width": "3",
+            "_connect": "convex_hull",
+            "ops": "sawtooth:1",
+            "bias": "outward"
+          }
+        }
+      ]
+    },
+
+
+    "gen2": {
+      "description": "Single image - simple organic outline",
+      "author": "Mr. Chuck",
+      "created": "2026-05-05",
+      "target_canvas": "MAIN",
+      "comments": "FIRST STEP Initial form as a block",
+      "randomization": {
+        "projection": {
+          "type": "normal",
+          "min": 0.5,
+          "max": 1.5,
+          "mean": 1.0,
+          "std": 0.3
+        },
+        "iters": [10,25]
+      },
+
+      "commands": [
+        {
+          "template": "organic_outline_nofill",
+          "params": {
+            "name": "shape1",
+            "_verts": "6,10",
+            "_bounds": "64,275,706,475",
+            "break_width": "0.15",
+            "projection": "2.0",
+            "_projection": "4.0",
+            "color": "black",
+            "width": "3",
+            "ops": "split_offset:10,sawtooth:1,squarewave:1,remove_point:1,distort_original:1",
+            "bias": "random"
+          }
+        }
+      ]
+    },
+
+    "gen3": {
+      "description": "Single image - simple organic outline",
+      "author": "Mr. Chuck",
+      "created": "2026-05-05",
+      "target_canvas": "MAIN",
+      "comments": "FIRST STEP Initial form as a block",
+      "randomization": {
+        "projection": {
+          "type": "normal",
+          "min": 0.5,
+          "max": 1.5,
+          "mean": 1.0,
+          "std": 0.3
+        },
+        "iters": [10,25]
+      },
+
+      "commands": [
+        {
+          "template": "organic_outline_nofill",
+          "params": {
+            "name": "shape1",
+            "break_width": "0.01",
+            "_break_width": "0.15",
+            "projection": "2.0",
+            "color": "black",
+            "width": "3",
+            "ops": "split_offset:10,sawtooth:1,squarewave:1,remove_point:1,distort_original:1",
+            "bias": "random"
+          }
+        }
+      ]
+    },
+
+    "gen4": {
+      "description": "Single image - simple organic outline",
+      "author": "Mr. Chuck",
+      "created": "2026-05-05",
+      "target_canvas": "MAIN",
+      "comments": "FIRST STEP Initial form as a block",
+      "randomization": {
+        "projection": {
+          "type": "normal",
+          "min": 0.5,
+          "max": 1.5,
+          "mean": 1.0,
+          "std": 0.3
+        },
+        "iters": [10,25]
+      },
+
+      "commands": [
+        {
+          "template": "organic_outline_nofill",
+          "params": {
+            "name": "shape1",
+            "break_width": "0.88",
+            "__break_width": "0.01",
+            "_break_width": "0.15",
+            "projection": "2.0",
+            "color": "black",
+            "width": "3",
+            "ops": "split_offset:10,sawtooth:1,squarewave:1,remove_point:1,distort_original:1",
+            "bias": "random"
+          }
+        }
+      ]
+    },
+
+    "possible_stingray": {
+      "description": "Single image - the stingray",
+      "author": "Mr. Chuck",
+      "created": "2026-04-19",
+      "target_canvas": "MAIN",
+      "comments": "UNTESTED Initial form as a block",
+      "randomization": {
+        "projection": {
+          "type": "normal",
+          "min": 0.15,
+          "max": 4.0,
+          "mean": 1.75,
+          "std": 0.7,
+
+          "_min": 0.5,
+          "_max": 1.5,
+          "_mean": 1.0,
+          "_std": 0.3
+        },
+        "_projection": [0.5, 1.5],
+        "iters": [15,20],
+        "_iters": [10,25],
+        "_color": ["black","red","green"]
+      },
+
+      "commands": [
+        {
+          "template": "organic_outline_nofill",
+          "params": {
+            "name": "shape2",
+            "bounds": "128,128,640,640",
+            "break_width": "0.35",
+            "width": "3",
+            "ops": "split_offset:5,sawtooth:7,squarewave:1,remove_point:1,distort_original:1",
+            "bias": "random"
+          }
+        }
+      ]
+    }
+  }
+}

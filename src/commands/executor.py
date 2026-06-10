@@ -2321,8 +2321,12 @@ class CommandExecutor:
                     result[key] = ','.join(str(v) for v in value)
             
             # Handle nested dicts (recurse - will filter underscores recursively)
+            # compose_parameters is passed through intact — must not be converted
             elif isinstance(value, dict):
-                result[key] = self._convert_param_types(value)
+                if key == 'compose_parameters':
+                    result[key] = value
+                else:
+                    result[key] = self._convert_param_types(value)
             
             # Keep numbers and booleans as-is for non-PROC params
             else:

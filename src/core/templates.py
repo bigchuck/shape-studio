@@ -71,11 +71,15 @@ class TemplateLibrary:
         if not commands:
             raise ValueError(f"Template '{name}' has no commands in {source_file}")
         
-        # All commands must be strings
+        # Commands must be strings or dicts
         for i, cmd in enumerate(commands):
-            if not isinstance(cmd, str):
+            if not isinstance(cmd, (str, dict)):
                 raise ValueError(
-                    f"Template '{name}' command {i} must be a string in {source_file}"
+                    f"Template '{name}' command {i} must be a string or dict in {source_file}"
+                )
+            if isinstance(cmd, dict) and 'command' not in cmd:
+                raise ValueError(
+                    f"Template '{name}' command {i} dict missing 'command' field in {source_file}"
                 )
         
         # Validate param definitions if present
@@ -367,15 +371,19 @@ class TemplateExecutor:
         # Substitute and execute each command in template
         template_commands = template['commands']
         for cmd_template in template_commands:
-            # Perform substitution
-            resolved_cmd = self._substitute_params(cmd_template, params)
-            
-            # Execute the command
             self.executor._last_storage_name = None
-            self.executor.execute(resolved_cmd)
-            
-            # If PROC resolved a name collision, update params so subsequent
-            # commands (COLOR, WIDTH, etc.) target the actual storage name
+
+            if isinstance(cmd_template, dict):
+                # Dict command — pass compose_parameters through from cmd_spec
+                # bypassing string substitution entirely
+                merged = dict(cmd_template)
+                if 'compose_parameters' not in merged and 'compose_parameters' in cmd_spec:
+                    merged['compose_parameters'] = cmd_spec['compose_parameters']
+                self.executor._execute_structured_command(merged)
+            else:
+                # String command — normal substitution path
+                resolved_cmd = self._substitute_params(cmd_template, params)
+                self.executor.execute(resolved_cmd)
             last = self.executor._last_storage_name
             if last and last != params.get('name'):
                 params['name'] = last
