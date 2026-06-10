@@ -123,6 +123,7 @@ class CommandExecutor:
             'RENAME': self._execute_rename,
             'WORKWITH': self._execute_workwith,
             'VIEWPORT': self._execute_viewport,
+            'CONFIG': self._execute_config,
             'DEFORM': self._execute_deform,
             'HELP': self._execute_help,
         }
@@ -2680,3 +2681,23 @@ class CommandExecutor:
             self.ui_instance._log_output(f"    ** {msg}")
         else:
             print(f"[COLLISION] {msg}")
+
+    def _execute_config(self, cmd_dict, command_text):
+        """Execute CONFIG command - read or set a runtime config value"""
+        path = cmd_dict['path']
+        value = cmd_dict.get('value')
+        
+        if value is None:
+            # Read mode
+            result = config.get(path)
+            if result is None:
+                raise ValueError(f"Config path '{path}' not found")
+            return f"{path} = {result}"
+        else:
+            # Write mode - capture old value for confirmation
+            old = config.get(path)
+            if old is None:
+                raise ValueError(f"Config path '{path}' not found")
+            config.set(path, value)
+            new = config.get(path)
+            return f"{path}: {old} -> {new}"

@@ -539,6 +539,23 @@ HELP = {
             "  DEFORM shape1 AXIS=minor ALONG=0.9 ACROSS=1.1"
         ),
     },
+    'CONFIG': {
+        'synopsis': 'Read or set a runtime configuration value',
+        'usage': (
+            "CONFIG <path> [value]\n"
+            "\n"
+            "  path    Dot-separated config path\n"
+            "  value   New value (omit to read current value)\n"
+            "\n"
+            "Type is preserved from the existing config value.\n"
+            "\n"
+            "Examples:\n"
+            "  CONFIG procedural.validation.min_aspect_ratio\n"
+            "  CONFIG procedural.validation.min_aspect_ratio 0.05\n"
+            "  CONFIG procedural.validation.min_segment_clearance 8.0\n"
+            "  CONFIG procedural.validation.min_angle 5.0"
+        ),
+    },
     'HELP': {
         'synopsis': 'Show command help in the log',
         'usage': (

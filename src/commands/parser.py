@@ -60,6 +60,7 @@ class CommandParser:
             'WORKWITH': self._parse_workwith,
             'VIEWPORT': self._parse_viewport,
             'DEFORM': self._parse_deform,
+            'CONFIG': self._parse_config,
             'HELP': self._parse_help,
         }
         
@@ -1047,4 +1048,18 @@ class CommandParser:
             'method': method,
             'shape': shape_name,
             'intent': intent_dict
+        }
+    
+    def _parse_config(self, parts):
+        """Parse CONFIG command: CONFIG <path> <value>  |  CONFIG <path>  (read)"""
+        if len(parts) < 2:
+            raise MissingParamsError("CONFIG requires: CONFIG <path> [value]")
+        
+        path = parts[1]
+        value = parts[2] if len(parts) > 2 else None
+        
+        return {
+            'command': 'CONFIG',
+            'path': path,
+            'value': value,
         }

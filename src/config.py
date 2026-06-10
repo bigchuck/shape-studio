@@ -86,6 +86,43 @@ class ConfigNode:
             if isinstance(value, ConfigNode):
                 value._freeze()
 
+    def set(self, path, value):
+        """Set a value by dotted path, bypassing the frozen check.
+        Used only by the CONFIG command for runtime tuning overrides.
+
+        Args:
+            path: Dot-separated path e.g. 'procedural.validation.min_aspect_ratio'
+            value: New value (must match existing type)
+
+        Raises:
+            AttributeError: If path does not exist
+            TypeError: If value type does not match existing type
+        """
+        keys = path.split('.')
+        node = self
+        for key in keys[:-1]:
+            node = getattr(node, key)
+        
+        final_key = keys[-1]
+        existing = node._data.get(final_key)
+        if existing is None:
+            raise AttributeError(f"Config path '{path}' not found")
+        
+        # Type coercion to match existing type
+        existing_type = type(existing)
+        if existing_type == bool:
+            if isinstance(value, str):
+                value = value.lower() in ('true', '1', 'yes')
+            else:
+                value = bool(value)
+        elif existing_type in (int, float):
+            value = existing_type(value)
+        elif existing_type == str:
+            value = str(value)
+        
+        # Bypass frozen check by writing directly to _data
+        node._data[final_key] = value
+
 
 class Config:
     """
@@ -317,6 +354,10 @@ class Config:
         """
         with open(output_path, 'w') as f:
             json.dump(self.to_dict(), f, indent=2)
+
+    def set(self, path, value):
+        """Runtime override of a config value by dotted path."""
+        self._root.set(path, value)
 
 
 # Module-level singleton

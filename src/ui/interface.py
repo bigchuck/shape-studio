@@ -208,31 +208,28 @@ class ShapeStudioUI:
     def _history_up(self, event):
         """Navigate up in command history"""
         if not self.command_history:
-            return
+            return "break"
         
         if self.history_index == -1:
             self.history_index = len(self.command_history) - 1
         elif self.history_index > 0:
             self.history_index -= 1
+        # At index 0: clamp, do not roll
         
-        if 0 <= self.history_index < len(self.command_history):
-            self.command_input.delete(0, tk.END)
-            self.command_input.insert(0, self.command_history[self.history_index])
-        
+        self.command_input.delete(0, tk.END)
+        self.command_input.insert(0, self.command_history[self.history_index])
         return "break"
         
     def _history_down(self, event):
         """Navigate down in command history"""
-        if not self.command_history:
-            return
+        if not self.command_history or self.history_index == -1:
+            return "break"
         
         if self.history_index < len(self.command_history) - 1:
             self.history_index += 1
             self.command_input.delete(0, tk.END)
             self.command_input.insert(0, self.command_history[self.history_index])
-        else:
-            self.history_index = -1
-            self.command_input.delete(0, tk.END)
+        # At bottom: clamp, do not clear or roll
         
         return "break"
         
