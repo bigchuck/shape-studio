@@ -1260,6 +1260,7 @@ class CommandExecutor:
                     source_shape = executable.get('source_shape')
                     if source_shape:
                         self._derive_seed_points = None
+                        self._derive_source_name = None
                         self.template_executor._load_source_shape(source_shape)
 
                     # Execute the script with randomization
@@ -1305,6 +1306,7 @@ class CommandExecutor:
 
                     # Clear transient DERIVE state
                     self._derive_seed_points = None
+                    self._derive_source_name = None
                     
                 except Exception as e:
                     import traceback
@@ -1834,6 +1836,10 @@ class CommandExecutor:
             shapes[storage_name] = result
             self.active_canvas.add_shape(result)
             self._last_storage_name = storage_name
+            
+            # Transfer derived_from if this was a DERIVE run
+            if getattr(self, '_derive_seed_points', None) is not None:
+                result.derived_from = getattr(self, '_derive_source_name', None)
             
             # Include procedure info if available
             proc_info = result.attrs.get('procedure', {})

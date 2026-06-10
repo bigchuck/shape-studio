@@ -761,6 +761,7 @@ class TemplateExecutor:
                     self.executor._derive_seed_points = [
                         tuple(p) for p in shape.attrs['geometry']['points']
                     ]
+                    self.executor._derive_source_name = shape_name
 
         # Remove source shape from canvas — it is a seed only, not a canvas object
         self.executor.execute(f"DELETE {shape_name}")

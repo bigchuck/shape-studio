@@ -302,7 +302,12 @@ class ShapeStudioUI:
                 self.command_history = self.command_history[-history_max:]
             self._save_command_history()
 
-        self.history_index = -1
+        # If we executed from mid-history, position to next entry forward.
+        # Otherwise reset to bottom.
+        if self.history_index != -1 and self.history_index < len(self.command_history) - 1:
+            self.history_index += 1
+        else:
+            self.history_index = -1
         self.command_counter += 1
         
         # Log command
