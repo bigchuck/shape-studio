@@ -90,14 +90,14 @@
             "name": "shape1a",
             "verbose": "2",
             "_verts": "6,10",
-            "_bounds": "64,275,706,475",
+            "bounds": "0,0,768,768",
             "break_width": "0.15",
             "projection": "4.0",
             "color": "black",
             "width": "3",
             "_connect": "convex_hull",
             "ops": "sawtooth:1",
-            "bias": "random"
+            "bias": "outward"
           }
         }
       ]

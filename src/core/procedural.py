@@ -581,6 +581,7 @@ class ProceduralGenerators:
             attempt_count = 0
             points_before_op = len(current_points)
             
+            failure_reasons = []
             for attempt in range(max_retries):
                 attempt_count += 1
                 try:
@@ -594,35 +595,35 @@ class ProceduralGenerators:
                     
                     # Validate: check for self-intersections and quality
                     if not self._is_valid_polygon(new_points):
-                        continue  # Self-intersection detected
+                        failure_reasons.append(f"attempt {attempt+1}: self-intersection")
+                        continue
                         
                     # Additional quality checks (if validation enabled)
                     if config.procedural.validation.enabled and config.procedural.validation.validate_each_retry:
                         # Check segment clearance
                         if not self._check_segment_clearance(new_points):
-                            continue  # Segments too close (pinch effect)
+                            failure_reasons.append(f"attempt {attempt+1}: segment clearance")
+                            continue
                         
                         # Check angles
                         if not self._check_angles(new_points):
-                            continue  # Angle too acute (pinch/needle)
+                            failure_reasons.append(f"attempt {attempt+1}: angle check")
+                            continue
 
                     # Success! Update state
                     current_points = new_points
                     distortable_points = new_distortable
-
-                    centroid = self._compute_centroid(current_points)  # Update centroid
+                    centroid = self._compute_centroid(current_points)
                     stats['successful_modifications'] += 1
                     stats['operations_used'][operation] += 1
                     success = True
                     
                     # Log successful operation details
                     if verbose >= 2 and iter_log:
-                        # Get the new point(s) that were added
                         if operation == 'split_offset':
                             new_point = current_points[segment_idx + 1]
                             iter_log['operation']['new_point'] = new_point if verbose >= 3 else None
                         
-                        # Add result info
                         if verbose >= 3:
                             iter_log['result'] = {
                                 'point_count': len(new_points),
@@ -630,7 +631,6 @@ class ProceduralGenerators:
                                 'new_points': new_points[:] if verbose >= 3 else None,
                             }                        
                             
-                        # Add direction info
                         n = len(current_points) - (len(current_points) - len(new_points))
                         if segment_idx < len(current_points) - 1:
                             perp_x, perp_y = self._get_perpendicular_direction(
@@ -639,7 +639,6 @@ class ProceduralGenerators:
                                 direction_bias, 
                                 centroid
                             )
-                            # Determine if it's inward or outward
                             p1 = current_points[segment_idx]
                             p2 = current_points[segment_idx + 1]
                             mx = (p1[0] + p2[0]) / 2
@@ -647,17 +646,14 @@ class ProceduralGenerators:
                             to_mid_x = mx - centroid[0]
                             to_mid_y = my - centroid[1]
                             dot = perp_x * to_mid_x + perp_y * to_mid_y
-                            
                             iter_log['operation']['direction'] = 'outward' if dot > 0 else 'inward'
                             if verbose >= 3:
                                 iter_log['operation']['direction_vector'] = (round(perp_x, 2), round(perp_y, 2))
-                        
-                        break
-                    else:
-                        stats['failed_attempts'] += 1
-                        
+                    
+                    break
+
                 except Exception as e:
-                    # Operation failed (e.g., degenerate geometry)
+                    failure_reasons.append(f"attempt {attempt+1}: {str(e)}")
                     stats['failed_attempts'] += 1
             
             # Log iteration result
@@ -668,6 +664,7 @@ class ProceduralGenerators:
                     'validation_attempts': attempt_count,
                     'validation_result': 'PASS' if success else 'FAIL',
                     'intersection_count': 0 if success else '?',
+                    'failure_reasons': failure_reasons if not success else [],
                 }
                 debug_log['iterations'].append(iter_log)
             
