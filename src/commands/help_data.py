@@ -522,6 +522,23 @@ HELP = {
             "  VIEWPORT OFF"
         ),
     },
+    'DEFORM': {
+        'synopsis': 'Stretch or compress a polygon along its principal axis',
+        'usage': (
+            "DEFORM <name> AXIS=major|minor ALONG=<factor> ACROSS=<factor>\n"
+            "\n"
+            "  name    Polygon shape to deform\n"
+            "  AXIS    Reference axis: major (longest) or minor (shortest)\n"
+            "  ALONG   Scale factor along the named axis (1.0 = no change)\n"
+            "  ACROSS  Scale factor perpendicular to named axis (1.0 = no change)\n"
+            "\n"
+            "Factors > 1.0 stretch, < 1.0 compress.\n"
+            "\n"
+            "Examples:\n"
+            "  DEFORM shape1 AXIS=major ALONG=1.25 ACROSS=0.85\n"
+            "  DEFORM shape1 AXIS=minor ALONG=0.9 ACROSS=1.1"
+        ),
+    },
     'HELP': {
         'synopsis': 'Show command help in the log',
         'usage': (

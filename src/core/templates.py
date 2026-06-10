@@ -254,6 +254,13 @@ class TemplateExecutor:
         if not commands:
             raise ValueError(f"Executable '{exec_name}' has no commands")
         
+        # DERIVE: if source_shape specified, load it onto the active canvas
+        # before any commands run. The loaded shape's points become the
+        # starting geometry for subsequent PROC calls via seed_points.
+        source_shape_name = executable.get('source_shape')
+        if source_shape_name:
+            self._load_source_shape(source_shape_name)
+
         # Build parameter context for substitution
         param_context = {}
         
@@ -742,3 +749,17 @@ class TemplateExecutor:
             f"Consider: (1) reducing std, (2) adjusting mean closer to range center, "
             f"or (3) widening the range"
         )
+
+    def _load_source_shape(self, shape_name):
+        """Load a stored shape onto the active canvas for DERIVE."""
+        self.executor.execute(f"LOAD {shape_name}")
+        shapes = self.executor.get_active_shapes()
+        for shape in shapes.values():
+            if not hasattr(shape, 'derived_from'):
+                shape.derived_from = shape_name
+                # Capture geometry for seed_points injection into PROC
+                if shape.attrs['type'] == 'Polygon':
+                    self.executor._derive_seed_points = list(
+                        shape.attrs['geometry']['points']
+                    )
+

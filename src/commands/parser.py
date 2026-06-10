@@ -59,6 +59,7 @@ class CommandParser:
             'RENAME': self._parse_rename,
             'WORKWITH': self._parse_workwith,
             'VIEWPORT': self._parse_viewport,
+            'DEFORM': self._parse_deform,
             'HELP': self._parse_help,
         }
         
@@ -227,6 +228,40 @@ class CommandParser:
         y_factor = float(parts[3]) if len(parts) >= 4 else x_factor
         return {'command': 'RESIZE', 'name': parts[1],
                 'x_factor': x_factor, 'y_factor': y_factor}
+    
+    def _parse_deform(self, parts):
+        """Parse DEFORM command: DEFORM <name> AXIS=major|minor ALONG=<f> ACROSS=<f>"""
+        if len(parts) < 2:
+            raise MissingParamsError("DEFORM requires: DEFORM <name> AXIS=major|minor ALONG=<f> ACROSS=<f>")
+
+        name = parts[1]
+        axis = 'major'
+        along = 1.0
+        across = 1.0
+
+        for part in parts[2:]:
+            if '=' not in part:
+                raise ValueError(f"DEFORM: expected KEY=value, got '{part}'")
+            key, val = part.split('=', 1)
+            key = key.upper()
+            if key == 'AXIS':
+                if val.lower() not in ('major', 'minor'):
+                    raise ValueError(f"DEFORM AXIS must be 'major' or 'minor', got '{val}'")
+                axis = val.lower()
+            elif key == 'ALONG':
+                along = float(val)
+            elif key == 'ACROSS':
+                across = float(val)
+            else:
+                raise ValueError(f"DEFORM: unknown parameter '{key}'")
+
+        return {
+            'command': 'DEFORM',
+            'name': name,
+            'axis': axis,
+            'along': along,
+            'across': across,
+        }
         
     def _parse_group(self, parts):
         """Parse GROUP command: GROUP <group_name> <shape1> <shape2> ..."""

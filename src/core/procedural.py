@@ -261,6 +261,10 @@ class ProceduralGenerators:
                 # Use default from spec
                 converted_params[param_name] = param_config['default']
         
+        # Extract seed_points before unknown-param check — internal handoff
+        # from DERIVE, never a user string param so bypasses conversion.
+        seed_points = raw_params.pop('_seed_points', None)
+
         # Check for unknown parameters
         known_params = set(p.upper() for p in spec.keys())
         for key in raw_params:
@@ -274,6 +278,8 @@ class ProceduralGenerators:
         
         # Call the method
         method = self.registry[method_name]
+        if seed_points is not None:
+            return method(shape_name, seed_points=seed_points, **converted_params)
         return method(shape_name, **converted_params)
     
     def _get_preset(self, method_name, preset_name):
@@ -353,7 +359,8 @@ class ProceduralGenerators:
                    min_segment_length=None,
                    return_mode='single', verbose=None,
                    save_iterations=None, snapshot_interval=None,
-                   shape=None):
+                   shape=None,
+                   seed_points=None):
         """
         Generate evolved polygon through iterative segment modification.
         
@@ -409,17 +416,17 @@ class ProceduralGenerators:
         # Handle range parameters - choose randomly if tuple
         num_vertices = random.randint(*vertices) if isinstance(vertices, tuple) else vertices
         
-        # PHASE 1: Generate initial vertices
-        initial_points = self._generate_initial_vertices(num_vertices, bounds)
-        
-        # PHASE 2: Connect vertices into polygon
-        connected_points = self._connect_vertices(initial_points, connect)
-        
-        # Round all initial points to integer pixel coordinates
-        connected_points = [self._round_point(p) for p in connected_points]
-        
+        # PHASE 1 & 2: Generate and connect initial vertices,
+        # OR accept externally provided seed points (DERIVE mode).
+        if seed_points is not None:
+            # Skip vertex generation and connection; use provided geometry.
+            connected_points = [self._round_point(p) for p in seed_points]
+        else:
+            initial_points = self._generate_initial_vertices(num_vertices, bounds)
+            connected_points = self._connect_vertices(initial_points, connect)
+            connected_points = [self._round_point(p) for p in connected_points]
+
         # Track original vertices for distort_original operation
-        # This is a separate list that only contains vertices from initial construction
         distortable_points = connected_points[:]  # Independent copy
         
         # SHAPE STUDY PRE-PHASE

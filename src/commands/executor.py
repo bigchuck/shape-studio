@@ -123,6 +123,7 @@ class CommandExecutor:
             'RENAME': self._execute_rename,
             'WORKWITH': self._execute_workwith,
             'VIEWPORT': self._execute_viewport,
+            'DEFORM': self._execute_deform,
             'HELP': self._execute_help,
         }
         
@@ -257,7 +258,32 @@ class CommandExecutor:
             return f"Resized '{name}' by {x_factor}x"
         else:
             return f"Resized '{name}' by {x_factor}x, {y_factor}x"
-            
+
+    def _execute_deform(self, cmd_dict, command_text):
+        """Execute DEFORM command - principal axis stretch/compress of a polygon"""
+        from src.composition.deform import deform_points
+
+        name = self._resolve_shape_name(cmd_dict.get('name'))
+        axis = cmd_dict['axis']
+        along = cmd_dict['along']
+        across = cmd_dict['across']
+
+        shapes = self.get_active_shapes()
+        if name not in shapes:
+            raise ValueError(f"Shape '{name}' not found on {self.active_canvas_name} canvas")
+
+        shape = shapes[name]
+        if shape.attrs['type'] != 'Polygon':
+            raise ValueError(f"DEFORM only supports Polygon shapes, '{name}' is {shape.attrs['type']}")
+
+        points = shape.attrs['geometry']['points']
+        new_points = deform_points(points, axis=axis, along=along, across=across)
+        shape.attrs['geometry']['points'] = new_points
+        shape.add_history('DEFORM', command_text)
+        self.active_canvas.redraw()
+
+        return f"Deformed '{name}': axis={axis} along={along} across={across}"
+
     def _execute_group(self, cmd_dict, command_text):
         """Execute GROUP command on active canvas"""
         group_name = cmd_dict['name']
@@ -1273,6 +1299,9 @@ class CommandExecutor:
                         self.main_shapes.clear()
                     save_canvas.clear()
                     self._sync_active_canvas()
+
+                    # Clear transient DERIVE state
+                    self._derive_seed_points = None
                     
                 except Exception as e:
                     import traceback
@@ -1625,6 +1654,9 @@ class CommandExecutor:
         # Persist canonical_name if set (runtime attribute, not in attrs)
         if hasattr(shape, 'canonical_name'):
             data['canonical_name'] = shape.canonical_name
+        # Persist derived_from if set (DERIVE ancestry breadcrumb)
+        if hasattr(shape, 'derived_from'):
+            data['derived_from'] = shape.derived_from
         return data
     
     def _deserialize_shape(self, data):
@@ -1652,6 +1684,10 @@ class CommandExecutor:
         # Restore canonical_name if present (set by collision resolver)
         if 'canonical_name' in data:
             shape.canonical_name = data['canonical_name']
+
+        # Restore derived_from if present
+        if 'derived_from' in data:
+            shape.derived_from = data['derived_from']
         
         return shape
     
@@ -1739,6 +1775,12 @@ class CommandExecutor:
         shape_name = cmd_dict['name']
         params = cmd_dict['params']
         
+        # DERIVE: inject seed_points if a source shape was loaded this iteration
+        seed_points = getattr(self, '_derive_seed_points', None)
+        if seed_points is not None:
+            raw_params = dict(raw_params)  # don't mutate original
+            raw_params['_seed_points'] = seed_points
+            
         # Call procedural generator
         result = self.procedural_gen.call(method_name, shape_name, params)
         
