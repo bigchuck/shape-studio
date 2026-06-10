@@ -757,9 +757,10 @@ class TemplateExecutor:
         for shape in shapes.values():
             if not hasattr(shape, 'derived_from'):
                 shape.derived_from = shape_name
-                # Capture geometry for seed_points injection into PROC
-                if shape.attrs['type'] == 'Polygon':
-                    self.executor._derive_seed_points = list(
-                        shape.attrs['geometry']['points']
-                    )
+                if shape.attrs.get('type') == 'Polygon':
+                    self.executor._derive_seed_points = [
+                        tuple(p) for p in shape.attrs['geometry']['points']
+                    ]
 
+        # Remove source shape from canvas — it is a seed only, not a canvas object
+        self.executor.execute(f"DELETE {shape_name}")

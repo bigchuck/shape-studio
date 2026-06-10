@@ -64,6 +64,46 @@
       ]
     },
 
+    "gen1a": {
+      "description": "Single image - simple organic outline",
+      "author": "Mr. Chuck",
+      "created": "2026-06-10",
+      "target_canvas": "MAIN",
+      "comments": "FIRST STEP Initial form as a block",
+      "randomization": {
+        "projection": {
+          "type": "normal",
+          "min": 0.5,
+          "max": 1.5,
+          "mean": 1.0,
+          "std": 0.3
+        },
+        "_projection": [0.5, 1.5],
+        "iters": [10,12],
+        "_color": ["black","red","green"]
+      },
+      "source_shape": "sa224/gen1_0033",
+      "commands": [
+        {
+          "template": "secondary_organic_outline_nofill",
+          "params": {
+            "name": "shape1a",
+            "verbose": "2",
+            "_verts": "6,10",
+            "_bounds": "64,275,706,475",
+            "break_width": "0.15",
+            "projection": "4.0",
+            "color": "black",
+            "width": "3",
+            "_connect": "convex_hull",
+            "ops": "sawtooth:1",
+            "bias": "random"
+          }
+        }
+      ]
+    },
+
+
     "gen2": {
       "description": "Single image - simple organic outline",
       "author": "Mr. Chuck",

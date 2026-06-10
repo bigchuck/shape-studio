@@ -420,11 +420,11 @@ class ProceduralGenerators:
         # OR accept externally provided seed points (DERIVE mode).
         if seed_points is not None:
             # Skip vertex generation and connection; use provided geometry.
-            connected_points = [self._round_point(p) for p in seed_points]
+            connected_points = [self._round_point(tuple(p)) for p in seed_points]
         else:
             initial_points = self._generate_initial_vertices(num_vertices, bounds)
             connected_points = self._connect_vertices(initial_points, connect)
-            connected_points = [self._round_point(p) for p in connected_points]
+            connected_points = [self._round_point(tuple(p)) for p in seed_points]
 
         # Track original vertices for distort_original operation
         distortable_points = connected_points[:]  # Independent copy
@@ -501,7 +501,7 @@ class ProceduralGenerators:
                 'summary': {
                     'successful_modifications': 0,
                     'failed_attempts': 0,
-                    'operations_used': {op: 0 for op in operations}
+                    'operations_used': {op[0]: 0 for op in operations}
                 }
             }
         

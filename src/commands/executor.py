@@ -760,11 +760,6 @@ class CommandExecutor:
         elif shape_name in self.stash:
             shape = self.stash[shape_name]
             location = 'STASH'
-        elif len(cmd_dict) >= 1 and cmd_dict[0].upper() == 'ENHANCE':
-            if len(cmd_dict) < 2:
-                return "Usage: INFO ENHANCE <method>"
-            method_name = cmd_dict[1].lower()
-            return self._info_enhance_method(method_name)
         else:
             raise ValueError(f"Shape '{shape_name}' not found on any canvas or stash")
         
@@ -1259,6 +1254,13 @@ class CommandExecutor:
                     # Generate randomization values for this iteration
                     randomization = self.template_executor.generate_randomization(executable)
                     self._batch_index = f"{i:04d}"
+
+                    # DERIVE: load source shape before executing if specified
+                    source_shape = executable.get('source_shape')
+                    if source_shape:
+                        self._derive_seed_points = None
+                        self.template_executor._load_source_shape(source_shape)
+
                     # Execute the script with randomization
                     self.template_executor.execute_script(
                         filepath, exec_name,
@@ -1778,8 +1780,8 @@ class CommandExecutor:
         # DERIVE: inject seed_points if a source shape was loaded this iteration
         seed_points = getattr(self, '_derive_seed_points', None)
         if seed_points is not None:
-            raw_params = dict(raw_params)  # don't mutate original
-            raw_params['_seed_points'] = seed_points
+            params = dict(params)  # don't mutate original
+            params['_seed_points'] = seed_points
             
         # Call procedural generator
         result = self.procedural_gen.call(method_name, shape_name, params)
