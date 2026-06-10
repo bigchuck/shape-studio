@@ -125,6 +125,7 @@ class CommandExecutor:
             'VIEWPORT': self._execute_viewport,
             'CONFIG': self._execute_config,
             'DEFORM': self._execute_deform,
+            'COMPOSE': self._execute_compose,
             'HELP': self._execute_help,
         }
         
@@ -883,10 +884,13 @@ class CommandExecutor:
         if not filepath.exists():
             raise ValueError(f"Shape '{shape_name}' not found in project store or global library")
         
-        # Load and deserialize
+        # Load and deserialize — detect composition JSON by key
         with open(filepath, 'r') as f:
             shape_data = json.load(f)
-        
+
+        if 'composition_id' in shape_data:
+            return self._load_composition(shape_data, command_text)
+
         shape = self._deserialize_shape(shape_data)
         shape.add_history('LOAD', command_text)
         
@@ -1255,6 +1259,10 @@ class CommandExecutor:
                     # Generate randomization values for this iteration
                     randomization = self.template_executor.generate_randomization(executable)
                     self._batch_index = f"{i:04d}"
+                    self._current_exec_name = exec_name
+                    self._current_output_prefix = str(
+                        Path(exec_prefix).name
+                    )
 
                     # DERIVE: load source shape before executing if specified
                     source_shape = executable.get('source_shape')
@@ -1307,6 +1315,8 @@ class CommandExecutor:
                     # Clear transient DERIVE state
                     self._derive_seed_points = None
                     self._derive_source_name = None
+                    self._current_exec_name = None
+                    self._current_output_prefix = None
                     
                 except Exception as e:
                     import traceback
@@ -2224,6 +2234,9 @@ class CommandExecutor:
             'RENAME': self._execute_rename,
             'WORKWITH': self._execute_workwith,
             'VIEWPORT': self._execute_viewport,
+            'CONFIG': self._execute_config,
+            'DEFORM': self._execute_deform,
+            'COMPOSE': self._execute_compose,
             'HELP': self._execute_help,
         }
         
@@ -2707,3 +2720,90 @@ class CommandExecutor:
             config.set(path, value)
             new = config.get(path)
             return f"{path}: {old} -> {new}"
+        
+    def _execute_compose(self, cmd_dict, command_text):
+        """Execute COMPOSE command — load specified shapes under working names,
+        save PNG, save construction JSON. Shapes remain on canvas for
+        subsequent commands in the same executable."""
+        from src.composition.compose import CompositionBuilder
+
+        compose_params = cmd_dict.get('compose_parameters', {})
+        shapes_spec = compose_params.get('shapes', {})
+        specified = shapes_spec.get('specified', [])
+
+        if not specified:
+            raise ValueError("COMPOSE: compose_parameters.shapes.specified is empty or missing")
+
+        builder = CompositionBuilder()
+
+        # Load shapes under working names
+        records = builder.load_specified_shapes(specified, self)
+
+        # Derive composition_id from batch index and active executable context
+        batch_idx = self._batch_index or '0000'
+        exec_name = getattr(self, '_current_exec_name', 'compose')
+        composition_id = f"{exec_name}_{batch_idx}"
+
+        # Build and save construction JSON to shapes/
+        construction = builder.build_construction_json(
+            composition_id=composition_id,
+            exec_name=exec_name,
+            shapes_loaded=records,
+            commands_applied=[],
+        )
+        output_prefix = getattr(self, '_current_output_prefix', exec_name)
+        json_path = self.project_store_dir / f"{output_prefix}_{batch_idx}.json"
+        builder.save_construction_json(construction, json_path)
+
+        names = ', '.join(r['working_name'] for r in records)
+        return (
+            f"COMPOSE: loaded {len(records)} shapes as {names}. "
+            f"Construction JSON: {json_path.name}"
+        )
+
+    def _load_composition(self, composition_data, command_text):
+        """Load a composition back onto the active canvas from its construction JSON.
+        Each component shape is loaded under its original working name.
+
+        Args:
+            composition_data: Parsed construction JSON dict
+            command_text:     Original LOAD command text for history
+
+        Returns:
+            Status string
+        """
+        composition_id = composition_data.get('composition_id', 'unknown')
+        shapes_loaded = composition_data.get('shapes_loaded', [])
+
+        if not shapes_loaded:
+            raise ValueError(
+                f"Composition '{composition_id}' has no shapes_loaded entries"
+            )
+
+        loaded = []
+        for entry in shapes_loaded:
+            source = entry['source']
+            working_name = entry['working_name']
+
+            # Load source shape
+            self.execute(f"LOAD {source}")
+
+            # Rename to original working name
+            shapes = self.get_active_shapes()
+            storage_name = None
+            for sname, shape in shapes.items():
+                canonical = getattr(shape, 'canonical_name', shape.name)
+                if canonical == source:
+                    storage_name = sname
+                    break
+
+            if storage_name:
+                self.execute(f"RENAME {storage_name} {working_name}")
+                loaded.append(working_name)
+
+        # TODO: replay commands_applied when RL logging is implemented
+
+        return (
+            f"Loaded composition '{composition_id}': "
+            f"{len(loaded)} shapes ({', '.join(loaded)}) on {self.active_canvas_name}"
+        )

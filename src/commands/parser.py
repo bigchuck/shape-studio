@@ -61,6 +61,7 @@ class CommandParser:
             'VIEWPORT': self._parse_viewport,
             'DEFORM': self._parse_deform,
             'CONFIG': self._parse_config,
+            'COMPOSE': self._parse_compose,
             'HELP': self._parse_help,
         }
         
@@ -1063,3 +1064,11 @@ class CommandParser:
             'path': path,
             'value': value,
         }
+    
+    def _parse_compose(self, parts):
+        """Parse COMPOSE command: only valid as a JSON dict command,
+        not as a typed string. Raises if invoked from command bar."""
+        raise MissingParamsError(
+            "COMPOSE is only valid inside an executable JSON command list.\n"
+            "Use: {\"command\": \"COMPOSE\", \"compose_parameters\": {...}}"
+        )

@@ -556,6 +556,27 @@ HELP = {
             "  CONFIG procedural.validation.min_angle 5.0"
         ),
     },
+    'COMPOSE': {
+        'synopsis': 'Load and combine shapes into a composition',
+        'usage': (
+            "COMPOSE is used inside executable JSON only:\n"
+            "\n"
+            "  {\n"
+            "    \"command\": \"COMPOSE\",\n"
+            "    \"compose_parameters\": {\n"
+            "      \"shapes\": {\n"
+            "        \"specified\": [\"sa224/gen1_0033\", \"sa224/gen4_0050\"]\n"
+            "      }\n"
+            "    }\n"
+            "  }\n"
+            "\n"
+            "Shapes are loaded under working names compose_shape_1, compose_shape_2, ...\n"
+            "and remain on canvas for subsequent commands.\n"
+            "Saves a construction JSON alongside each output PNG.\n"
+            "\n"
+            "LOAD <composition_name> reloads a saved composition."
+        ),
+    },
     'HELP': {
         'synopsis': 'Show command help in the log',
         'usage': (
