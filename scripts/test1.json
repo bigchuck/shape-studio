@@ -42,6 +42,220 @@
       ]
     },
 
+    "test2": {
+      "commands": [
+        {
+          "template": "compose_1",
+          "params": {
+            "color": "black",
+            "width": "3"
+          },
+          "compose_parameters": {
+            "shapes": {
+              "specified": ["sa224/gen1_0033", "sa224/gen4_0050"]
+            },
+            "command_loop": {
+              "iterations": 1,
+              "commands": [],
+              "select_blocks": [
+                {
+                  "chance": 1.0,
+                  "target": "random",
+                  "commands": [
+                    {
+                      "command": "DEFORM",
+                      "axis": "major",
+                      "along": {"random": "uniform", "min": 0.7, "max": 1.3},
+                      "across": {"random": "normal", "mean": 1.0, "std": 0.15, "min": 0.7, "max": 1.3},
+                      "_along": 0.6,
+                      "_across": 1.0
+                    },
+                    {
+                      "command": "MOVE",
+                      "direction": "SE",
+                      "distance": 50
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+
+    "test2b": {
+      "commands": [
+        {
+          "template": "compose_1",
+          "params": {
+            "color": "black",
+            "width": "3"
+          },
+          "compose_parameters": {
+            "shapes": {
+              "specified": ["sa224/gen1_0033","sa224/gen4_0050"]
+            },
+            "command_loop": {
+              "iterations": 1,
+              "commands": [],
+              "select_blocks": [
+                {
+                  "chance": 1.0,
+                  "target": "random",
+                  "commands": [
+                    {
+                      "command": "DEFORM",
+                      "axis": "major",
+                      "along": {"random": "uniform", "min": 0.7, "max": 1.3},
+                      "across": {"random": "normal", "mean": 1.0, "std": 0.15, "min": 0.7, "max": 1.3}
+                    },
+                    {
+                      "command": "MOVE",
+                      "direction": "SE",
+                      "distance": 50
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+
+    "test2c": {
+      "commands": [
+        {
+          "template": "compose_1",
+          "params": {
+            "color": "black",
+            "width": "3"
+          },
+          "compose_parameters": {
+            "shapes": {
+              "specified": ["sa224/gen1_0033","sa224/gen4_0050"]
+            },
+            "command_loop": {
+              "iterations": 1,
+              "commands": [],
+              "select_blocks": [
+                {
+                  "chance": 0.5,
+                  "target": "random",
+                  "commands": [
+                    {
+                      "command": "DEFORM",
+                      "axis": "major",
+                      "along": {"random": "uniform", "min": 0.7, "max": 1.3},
+                      "across": {"random": "normal", "mean": 1.0, "std": 0.15, "min": 0.7, "max": 1.3}
+                    },
+                    {
+                      "command": "MOVE",
+                      "_direction": "random",
+                      "direction": {"random": "choice", "values": ["N","SE","W"]},
+                      "__direction": {"random": "degrees", "min": 0, "max": 360},
+                      "distance": {"random": "normal", "mean": 50, "std": 15, "min": 10, "max": 100}
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+
+    "test2d": {
+      "commands": [
+        {
+          "template": "compose_1",
+          "params": {
+            "color": "black",
+            "width": "3"
+          },
+          "compose_parameters": {
+            "shapes": {
+              "specified": ["sa224/gen1_0033","sa224/gen4_0050"]
+            },
+            "command_loop": {
+              "iterations": {"random": "uniform_int", "min": 2, "max": 6},
+              "commands": [],
+              "select_blocks": [
+                {
+                  "chance": 0.5,
+                  "target": "random",
+                  "commands": [
+                    {
+                      "command": "DEFORM",
+                      "axis": "major",
+                      "along": {"random": "uniform", "min": 0.7, "max": 1.3},
+                      "across": {"random": "normal", "mean": 1.0, "std": 0.15, "min": 0.7, "max": 1.3}
+                    },
+                    {
+                      "command": "MOVE",
+                      "_direction": "random",
+                      "direction": {"random": "choice", "values": ["N","SE","W"]},
+                      "__direction": {"random": "degrees", "min": 0, "max": 360},
+                      "distance": {"random": "normal", "mean": 50, "std": 15, "min": 10, "max": 100}
+                    }
+                  ]
+                },
+                {
+                  "chance": 0.5,
+                  "target": "random",
+                  "commands": [
+                    {
+                      "command": "MOVE",
+                      "direction": {"random": "degrees", "min": 0, "max": 360},
+                      "distance": {"random": "normal", "mean": 50, "std": 15, "min": 10, "max": 100}
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+
+    "test2e": {
+      "commands": [
+        {
+          "template": "compose_1",
+          "params": {
+            "color": "black",
+            "width": "3"
+          },
+          "compose_parameters": {
+            "shapes": {
+              "specified": ["sa224/gen1_0033","sa224/gen4_0050"]
+            },
+            "command_loop": {
+              "iterations": 1,
+              "commands": [],
+              "select_blocks": [
+                {
+                  "chance": 1.0,
+                  "target": "random",
+                  "commands": [
+                    {
+                      "command": "ROTATE",
+                      "angle": {"random": "uniform", "min": -45, "max": 45}
+                    },
+                    {
+                      "command": "SCALE",
+                      "factor": 0.8
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+
     "gen1": {
       "description": "Single image - simple organic outline",
       "author": "Mr. Chuck",

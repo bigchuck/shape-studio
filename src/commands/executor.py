@@ -1260,9 +1260,7 @@ class CommandExecutor:
                     randomization = self.template_executor.generate_randomization(executable)
                     self._batch_index = f"{i:04d}"
                     self._current_exec_name = exec_name
-                    self._current_output_prefix = str(
-                        Path(exec_prefix).name
-                    )
+                    self._current_output_prefix = exec_prefix
 
                     # DERIVE: load source shape before executing if specified
                     source_shape = executable.get('source_shape')
@@ -2759,11 +2757,23 @@ class CommandExecutor:
         json_path = self.project_store_dir / f"{output_prefix}_{batch_idx}.json"
         builder.save_construction_json(construction, json_path)
 
+        # Execute command_loop if present
+        loop_result = None
+        command_loop = compose_params.get('command_loop')
+        if command_loop:
+            from src.composition.command_loop import CommandLoopRunner
+            working_names = [r['working_name'] for r in records]
+            runner = CommandLoopRunner(self, verbose=command_loop.get('verbose', True))
+            loop_result = runner.run(command_loop, working_names)
+
         names = ', '.join(r['working_name'] for r in records)
-        return (
+        msg = (
             f"COMPOSE: loaded {len(records)} shapes as {names}. "
             f"Construction JSON: {json_path.name}"
         )
+        if loop_result:
+            msg += f"\n  {loop_result}"
+        return msg
 
     def _load_composition(self, composition_data, command_text):
         """Load a composition back onto the active canvas from its construction JSON.
