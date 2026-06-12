@@ -221,11 +221,14 @@ class CommandLoopRunner:
         applied_count = 0
         skipped_count = 0
 
+        placement_blocks = spec.get('placement_blocks', [])
+
         if verbose:
             self._log(
                 f"Start: {iterations} iteration(s), "
                 f"{len(top_commands)} top command(s), "
-                f"{len(select_blocks)} select block(s). "
+                f"{len(select_blocks)} select block(s), "
+                f"{len(placement_blocks)} placement block(s). "
                 f"Shapes: {', '.join(working_names)}"
             )
 
@@ -274,6 +277,32 @@ class CommandLoopRunner:
                     if verbose:
                         self._log(f"    cmd[{cidx}] {actual}")
                     applied_count += 1
+
+            # Placement blocks — constraint-based solver for each
+            for pidx, pb in enumerate(placement_blocks):
+                target = pb.get('target', 'random')
+                resolved = self._resolve_single_target(target, working_names)
+                if resolved is None:
+                    if verbose:
+                        self._log(f"  placement[{pidx}] target '{target}' unresolved, skipping")
+                    continue
+
+                # Inject resolved target back into block for solver
+                pb_resolved = dict(pb)
+                pb_resolved['target'] = resolved
+                pb_resolved['verbose'] = verbose
+
+                if verbose:
+                    self._log(
+                        f"  placement[{pidx}] target='{target}' resolved to '{resolved}' — running solver"
+                    )
+
+                from src.composition.solver import PlacementSolver
+                solver = PlacementSolver(self.executor, verbose=verbose)
+                result = solver.solve(pb_resolved)
+                applied_count += 1
+                if verbose:
+                    self._log(f"  placement[{pidx}] {result}")
 
         summary = (
             f"command_loop done: {iterations} iteration(s), "

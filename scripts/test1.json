@@ -256,6 +256,46 @@
       ]
     },
 
+    "compose_scenario1": {
+      "commands": [{
+        "template": "compose_1",
+        "compose_parameters": {
+          "shapes": {
+            "specified": ["sa224/gen1_0033", "sa224/gen4_0050"]
+          },
+          "command_loop": {
+            "iterations": 1,
+            "commands": [],
+            "select_blocks": [],
+            "placement_blocks": [
+              {
+                "target": "compose_shape_1",
+                "constraints": [
+                  {"type": "canvas_size_limit", "max_fraction": 0.25},
+                  {"type": "grid_placement", "division": 3, "position": "top_left"}
+                ]
+              },
+              {
+                "target": "compose_shape_2",
+                "constraints": [
+                  {"type": "size_ratio", "reference": "compose_shape_1", "max": 0.8},
+                  {"type": "axis_align", "reference": "compose_shape_1", "axis": "major"},
+                  {"type": "axis_not_collinear", "reference": "compose_shape_1", "axis": "minor"},
+                  {"type": "tangent", "reference": "compose_shape_1"}
+                ]
+              }
+            ]
+          }
+        }
+      }]
+    },
+
+
+
+
+
+
+
     "gen1": {
       "description": "Single image - simple organic outline",
       "author": "Mr. Chuck",
