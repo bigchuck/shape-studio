@@ -220,6 +220,7 @@ class CommandLoopRunner:
 
         applied_count = 0
         skipped_count = 0
+        commands_applied = []
 
         placement_blocks = spec.get('placement_blocks', [])
 
@@ -244,6 +245,7 @@ class CommandLoopRunner:
                     actual = self._dispatch(cmd_spec, name)
                     if verbose:
                         self._log(f"  top[{idx}] {actual}")
+                    commands_applied.append(actual)
                     applied_count += 1
 
             # Select blocks — each fires independently by chance
@@ -276,6 +278,7 @@ class CommandLoopRunner:
                     actual = self._dispatch(cmd_spec, resolved)
                     if verbose:
                         self._log(f"    cmd[{cidx}] {actual}")
+                    commands_applied.append(actual)
                     applied_count += 1
 
             # Placement blocks — constraint-based solver for each
@@ -299,10 +302,11 @@ class CommandLoopRunner:
 
                 from src.composition.solver import PlacementSolver
                 solver = PlacementSolver(self.executor, verbose=verbose)
-                result = solver.solve(pb_resolved)
+                solver_summary, solver_cmds = solver.solve(pb_resolved)
+                commands_applied.extend(solver_cmds)
                 applied_count += 1
                 if verbose:
-                    self._log(f"  placement[{pidx}] {result}")
+                    self._log(f"  placement[{pidx}] {solver_summary}")
 
         summary = (
             f"command_loop done: {iterations} iteration(s), "
@@ -312,7 +316,7 @@ class CommandLoopRunner:
         if verbose:
             self._log(summary)
 
-        return summary
+        return summary, commands_applied
 
     # -----------------------------------------------------------------------
     # Target resolution

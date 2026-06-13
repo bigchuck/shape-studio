@@ -2747,24 +2747,28 @@ class CommandExecutor:
         composition_id = f"{exec_name}_{batch_idx}"
 
         # Build and save construction JSON to shapes/
-        construction = builder.build_construction_json(
-            composition_id=composition_id,
-            exec_name=exec_name,
-            shapes_loaded=records,
-            commands_applied=[],
-        )
+        # commands_applied populated below after command_loop runs
         output_prefix = getattr(self, '_current_output_prefix', exec_name)
         json_path = self.project_store_dir / f"{output_prefix}_{batch_idx}.json"
-        builder.save_construction_json(construction, json_path)
 
-        # Execute command_loop if present
+        # Execute command_loop if present — collect commands_applied
         loop_result = None
+        commands_applied = []
         command_loop = compose_params.get('command_loop')
         if command_loop:
             from src.composition.command_loop import CommandLoopRunner
             working_names = [r['working_name'] for r in records]
             runner = CommandLoopRunner(self, verbose=command_loop.get('verbose', True))
-            loop_result = runner.run(command_loop, working_names)
+            loop_result, commands_applied = runner.run(command_loop, working_names)
+
+        # Save construction JSON with full commands_applied log
+        construction = builder.build_construction_json(
+            composition_id=composition_id,
+            exec_name=exec_name,
+            shapes_loaded=records,
+            commands_applied=commands_applied,
+        )
+        builder.save_construction_json(construction, json_path)
 
         names = ', '.join(r['working_name'] for r in records)
         msg = (
@@ -2815,9 +2819,21 @@ class CommandExecutor:
                 self.execute(f"RENAME {storage_name} {working_name}")
                 loaded.append(working_name)
 
-        # TODO: replay commands_applied when RL logging is implemented
+        # Replay commands_applied to reconstruct composition state
+        commands_applied = composition_data.get('commands_applied', [])
+        replayed = 0
+        for cmd in commands_applied:
+            try:
+                self.execute(cmd)
+                replayed += 1
+            except Exception as e:
+                if hasattr(self, 'ui_instance') and self.ui_instance:
+                    self.ui_instance._log_output(
+                        f"    [load_composition] replay warning: {cmd!r} -> {e}"
+                    )
 
         return (
             f"Loaded composition '{composition_id}': "
             f"{len(loaded)} shapes ({', '.join(loaded)}) on {self.active_canvas_name}"
+            + (f", {replayed} command(s) replayed" if replayed else "")
         )

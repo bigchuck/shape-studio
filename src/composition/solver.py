@@ -86,6 +86,7 @@ class PlacementSolver:
 
         applied_count  = 0
         no_progress    = 0
+        commands_applied = []
 
         for iteration in range(max_iters):
             # Rebuild shape registry each iteration (geometry may have changed)
@@ -121,7 +122,9 @@ class PlacementSolver:
                 )
 
                 if result.correction:
-                    applied = self._apply_correction(target_name, result.correction, verbose)
+                    applied = self._apply_correction(
+                        target_name, result.correction, verbose, commands_applied
+                    )
                     if applied:
                         applied_count += 1
                         iter_applied  += 1
@@ -136,10 +139,11 @@ class PlacementSolver:
                     f"Total corrections: {applied_count}",
                     verbose
                 )
-                return (
+                summary = (
                     f"PlacementSolver: '{target_name}' placed in {iteration+1} "
                     f"iteration(s), {applied_count} correction(s) applied"
                 )
+                return summary, commands_applied
 
             if iter_applied == 0:
                 no_progress += 1
@@ -157,10 +161,11 @@ class PlacementSolver:
             f"Total corrections: {applied_count}",
             verbose
         )
-        return (
+        summary = (
             f"PlacementSolver: '{target_name}' — max iterations reached, "
             f"{applied_count} correction(s) applied"
         )
+        return summary, commands_applied
 
     # -----------------------------------------------------------------------
     # Shape registry — maps working_name -> point list
@@ -185,13 +190,14 @@ class PlacementSolver:
     # Correction dispatch
     # -----------------------------------------------------------------------
 
-    def _apply_correction(self, target_name, correction, verbose):
+    def _apply_correction(self, target_name, correction, verbose, commands_applied):
         """Apply a corrective transform to the target shape via the executor.
 
         Args:
-            target_name: Working name of the shape to transform
-            correction:  Dict with 'type' and correction-specific keys
-            verbose:     Whether to log the correction
+            target_name:      Working name of the shape to transform
+            correction:       Dict with 'type' and correction-specific keys
+            verbose:          Whether to log the correction
+            commands_applied: List to append the issued command string to
 
         Returns:
             True if a command was issued, False otherwise
@@ -203,24 +209,30 @@ class PlacementSolver:
             dy = correction.get('dy', 0.0)
             if abs(dx) < 0.1 and abs(dy) < 0.1:
                 return False
+            cmd = f"MOVE {target_name} {dx:.4f},{dy:.4f}"
             self._log(f"    -> MOVE {target_name} {dx:.2f},{dy:.2f}", verbose)
-            self.executor.execute(f"MOVE {target_name} {dx:.4f},{dy:.4f}")
+            self.executor.execute(cmd)
+            commands_applied.append(cmd)
             return True
 
         elif ctype == 'rotate':
             angle = correction.get('angle_deg', 0.0)
             if abs(angle) < 0.1:
                 return False
+            cmd = f"ROTATE {target_name} {angle:.4f}"
             self._log(f"    -> ROTATE {target_name} {angle:.2f}deg", verbose)
-            self.executor.execute(f"ROTATE {target_name} {angle:.4f}")
+            self.executor.execute(cmd)
+            commands_applied.append(cmd)
             return True
 
         elif ctype == 'scale':
             factor = correction.get('factor', 1.0)
             if abs(factor - 1.0) < 0.001:
                 return False
+            cmd = f"SCALE {target_name} {factor:.6f}"
             self._log(f"    -> SCALE {target_name} {factor:.4f}", verbose)
-            self.executor.execute(f"SCALE {target_name} {factor:.6f}")
+            self.executor.execute(cmd)
+            commands_applied.append(cmd)
             return True
 
         else:
