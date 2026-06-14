@@ -577,6 +577,23 @@ HELP = {
             "LOAD <composition_name> reloads a saved composition."
         ),
     },
+    'REFLECT': {
+        'synopsis': 'Mirror a polygon across an axis through its centroid',
+        'usage': (
+            "REFLECT <name> AXIS=horizontal|vertical|major|minor\n"
+            "\n"
+            "  name   Polygon shape to reflect\n"
+            "  AXIS   Mirror axis:\n"
+            "           horizontal — reflect top/bottom (across horizontal line)\n"
+            "           vertical   — reflect left/right (across vertical line)\n"
+            "           major      — reflect across the shape's major principal axis\n"
+            "           minor      — reflect across the shape's minor principal axis\n"
+            "\n"
+            "Examples:\n"
+            "  REFLECT shape1 AXIS=horizontal\n"
+            "  REFLECT shape1 AXIS=major"
+        ),
+    },
     'HELP': {
         'synopsis': 'Show command help in the log',
         'usage': (

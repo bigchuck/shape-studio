@@ -62,6 +62,7 @@ class CommandParser:
             'DEFORM': self._parse_deform,
             'CONFIG': self._parse_config,
             'COMPOSE': self._parse_compose,
+            'REFLECT': self._parse_reflect,
             'HELP': self._parse_help,
         }
         
@@ -1072,3 +1073,33 @@ class CommandParser:
             "COMPOSE is only valid inside an executable JSON command list.\n"
             "Use: {\"command\": \"COMPOSE\", \"compose_parameters\": {...}}"
         )
+    
+    def _parse_reflect(self, parts):
+        """Parse REFLECT command: REFLECT <name> AXIS=horizontal|vertical|major|minor"""
+        if len(parts) < 2:
+            raise MissingParamsError(
+                "REFLECT requires: REFLECT <name> AXIS=horizontal|vertical|major|minor"
+            )
+
+        name = parts[1]
+        axis = 'horizontal'
+
+        for part in parts[2:]:
+            if '=' not in part:
+                raise ValueError(f"REFLECT: expected KEY=value, got '{part}'")
+            key, val = part.split('=', 1)
+            key = key.upper()
+            if key == 'AXIS':
+                if val.lower() not in ('horizontal', 'vertical', 'major', 'minor'):
+                    raise ValueError(
+                        f"REFLECT AXIS must be horizontal|vertical|major|minor, got '{val}'"
+                    )
+                axis = val.lower()
+            else:
+                raise ValueError(f"REFLECT: unknown parameter '{key}'")
+
+        return {
+            'command': 'REFLECT',
+            'name': name,
+            'axis': axis,
+        }

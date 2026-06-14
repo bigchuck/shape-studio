@@ -133,3 +133,65 @@ def deform_points(points, axis='major', along=1.0, across=1.0):
         result.append((int(round(nx)), int(round(ny))))
 
     return result
+
+
+def reflect_points(points, axis='horizontal'):
+    """Reflect a polygon across an axis through its centroid.
+
+    Unlike rotation (which preserves handedness), reflection reverses it —
+    the mirrored image is the true geometric inverse across the axis.
+
+    Args:
+        points: List of (x, y) tuples
+        axis:   'horizontal' — reflect top/bottom (across horizontal line through centroid)
+                'vertical'   — reflect left/right (across vertical line through centroid)
+                'major'      — reflect across the shape's major principal axis
+                'minor'      — reflect across the shape's minor principal axis
+
+    Returns:
+        List of reflected (x, y) tuples (integers)
+
+    Raises:
+        ValueError: if points is empty or axis is invalid
+    """
+    _VALID_AXES = ('horizontal', 'vertical', 'major', 'minor')
+    if not points:
+        raise ValueError("reflect_points: points list is empty")
+    if axis not in _VALID_AXES:
+        raise ValueError(
+            f"reflect_points: axis must be one of {_VALID_AXES}, got '{axis}'"
+        )
+
+    centroid = _compute_centroid(points)
+    cx, cy = centroid
+
+    if axis == 'horizontal':
+        # Reflect across horizontal line y=cy: (x, y) -> (x, 2*cy - y)
+        return [(int(round(px)), int(round(2 * cy - py))) for px, py in points]
+
+    elif axis == 'vertical':
+        # Reflect across vertical line x=cx: (x, y) -> (2*cx - x, y)
+        return [(int(round(2 * cx - px)), int(round(py))) for px, py in points]
+
+    else:
+        # major or minor — reflect across the named principal axis line
+        major_u, minor_u = _compute_principal_axis(points, centroid)
+        # axis_u is the direction of the mirror line
+        axis_u = major_u if axis == 'major' else minor_u
+
+        result = []
+        for px, py in points:
+            # Translate to centroid-relative
+            rx = px - cx
+            ry = py - cy
+
+            # Project onto axis (component parallel to mirror line)
+            dot = rx * axis_u[0] + ry * axis_u[1]
+            # Reflected = 2*(projection onto axis) - original
+            nx = 2 * dot * axis_u[0] - rx
+            ny = 2 * dot * axis_u[1] - ry
+
+            # Translate back
+            result.append((int(round(cx + nx)), int(round(cy + ny))))
+
+        return result

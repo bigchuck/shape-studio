@@ -51,7 +51,7 @@ logger = logging.getLogger(__name__)
 # Supported commands in a command_loop — maps to executor string commands
 # ---------------------------------------------------------------------------
 _SUPPORTED_COMMANDS = {'MOVE', 'ROTATE', 'SCALE', 'DEFORM', 'COLOR', 'WIDTH',
-                       'FILL', 'ALPHA', 'ZORDER'}
+                       'FILL', 'ALPHA', 'ZORDER', 'REFLECT'}
 
 
 # ---------------------------------------------------------------------------
@@ -431,6 +431,8 @@ class CommandLoopRunner:
             return self._dispatch_deform(cmd_spec, shape_name)
         elif cmd_name in ('COLOR', 'WIDTH', 'FILL', 'ALPHA', 'ZORDER'):
             return self._dispatch_simple(cmd_name, cmd_spec, shape_name)
+        elif cmd_name == 'REFLECT':
+            return self._dispatch_reflect(cmd_spec, shape_name)
         else:
             raise ValueError(f"command_loop: unsupported command '{cmd_name}'")
 
@@ -610,6 +612,40 @@ class CommandLoopRunner:
             value = cmd_spec.get('value', 0)
             self.executor.execute(f"ZORDER {shape_name} {value}")
         return f"{cmd_name} -> '{shape_name}' (value={value})"
+
+    def _dispatch_reflect(self, cmd_spec, shape_name):
+        axis = self._resolve_axis(cmd_spec.get('axis', 'horizontal'))
+        self.executor.execute(f"REFLECT {shape_name} AXIS={axis}")
+        return f"REFLECT -> '{shape_name}' (axis={axis})"
+    
+    def _resolve_axis(self, axis_spec):
+        """Resolve an axis spec — fixed string or random choice dict.
+
+        Fixed:  'horizontal'
+        Random: {"random": "choice", "values": ["horizontal", "vertical", "major", "minor"]}
+        Random: "random" shorthand — picks from all four axis types
+
+        Returns: axis string
+        """
+        _ALL_AXES = ['horizontal', 'vertical', 'major', 'minor']
+
+        if isinstance(axis_spec, str):
+            if axis_spec.lower() == 'random':
+                return random.choice(_ALL_AXES)
+            return axis_spec.lower()
+
+        if isinstance(axis_spec, dict):
+            dist = axis_spec.get('random', '').lower()
+            if dist == 'choice':
+                values = axis_spec.get('values', _ALL_AXES)
+                return random.choice(values).lower()
+            raise ValueError(
+                f"_resolve_axis: unsupported random type '{dist}'. Use 'choice'."
+            )
+
+        raise ValueError(
+            f"_resolve_axis: expected string or dict, got {type(axis_spec).__name__}"
+        )
 
     # -----------------------------------------------------------------------
     # Utilities

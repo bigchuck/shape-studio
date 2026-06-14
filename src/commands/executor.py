@@ -126,6 +126,7 @@ class CommandExecutor:
             'CONFIG': self._execute_config,
             'DEFORM': self._execute_deform,
             'COMPOSE': self._execute_compose,
+            'REFLECT': self._execute_reflect,
             'HELP': self._execute_help,
         }
         
@@ -2235,6 +2236,7 @@ class CommandExecutor:
             'CONFIG': self._execute_config,
             'DEFORM': self._execute_deform,
             'COMPOSE': self._execute_compose,
+            'REFLECT': self._execute_reflect,
             'HELP': self._execute_help,
         }
         
@@ -2741,6 +2743,32 @@ class CommandExecutor:
         # Load shapes under working names
         records = builder.load_specified_shapes(specified, self)
 
+        # Apply on_load commands to every loaded shape immediately after arrival
+        on_load = compose_params.get('on_load', [])
+        on_load_applied = []
+        if on_load:
+            import random as _random
+            for record in records:
+                working_name = record['working_name']
+                for cmd_spec in on_load:
+                    chance = float(cmd_spec.get('chance', 1.0))
+                    if chance < 1.0 and _random.random() > chance:
+                        continue
+                    cmd_name = cmd_spec.get('command', '').upper()
+                    if cmd_name == 'REFLECT':
+                        # axis may be a random spec — resolve via command_loop machinery
+                        from src.composition.command_loop import CommandLoopRunner
+                        _runner = CommandLoopRunner(self)
+                        axis = _runner._resolve_axis(cmd_spec.get('axis', 'horizontal'))
+                        cmd_str = f"REFLECT {working_name} AXIS={axis}"
+                    else:
+                        value = cmd_spec.get('value', '')
+                        cmd_str = f"{cmd_name} {working_name} {value}".strip()
+                    self.execute(cmd_str)
+                    on_load_applied.append(cmd_str)
+                    if hasattr(self, 'ui_instance') and self.ui_instance:
+                        self.ui_instance._log_output(f"    [on_load] {cmd_str}")
+
         # Derive composition_id from batch index and active executable context
         batch_idx = self._batch_index or '0000'
         exec_name = getattr(self, '_current_exec_name', 'compose')
@@ -2752,8 +2780,9 @@ class CommandExecutor:
         json_path = self.project_store_dir / f"{output_prefix}_{batch_idx}.json"
 
         # Execute command_loop if present — collect commands_applied
+        # on_load commands are first in the log so they replay in correct order
         loop_result = None
-        commands_applied = []
+        commands_applied = list(on_load_applied)
         command_loop = compose_params.get('command_loop')
         if command_loop:
             from src.composition.command_loop import CommandLoopRunner
@@ -2775,6 +2804,8 @@ class CommandExecutor:
             f"COMPOSE: loaded {len(records)} shapes as {names}. "
             f"Construction JSON: {json_path.name}"
         )
+        if on_load_applied:
+            msg += f"\n  on_load: {len(on_load_applied)} command(s) applied"
         if loop_result:
             msg += f"\n  {loop_result}"
         return msg
@@ -2837,3 +2868,28 @@ class CommandExecutor:
             f"{len(loaded)} shapes ({', '.join(loaded)}) on {self.active_canvas_name}"
             + (f", {replayed} command(s) replayed" if replayed else "")
         )
+    
+    def _execute_reflect(self, cmd_dict, command_text):
+        """Execute REFLECT command - mirror a polygon across an axis"""
+        from src.composition.deform import reflect_points
+
+        name = self._resolve_shape_name(cmd_dict.get('name'))
+        axis = cmd_dict.get('axis', 'horizontal')
+
+        shapes = self.get_active_shapes()
+        if name not in shapes:
+            raise ValueError(f"Shape '{name}' not found on {self.active_canvas_name} canvas")
+
+        shape = shapes[name]
+        if shape.attrs['type'] != 'Polygon':
+            raise ValueError(
+                f"REFLECT only supports Polygon shapes, '{name}' is {shape.attrs['type']}"
+            )
+
+        points = shape.attrs['geometry']['points']
+        new_points = reflect_points(points, axis=axis)
+        shape.attrs['geometry']['points'] = new_points
+        shape.add_history('REFLECT', command_text)
+        self.active_canvas.redraw()
+
+        return f"Reflected '{name}': axis={axis}"

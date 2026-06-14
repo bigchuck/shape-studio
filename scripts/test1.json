@@ -263,10 +263,22 @@
           "shapes": {
             "specified": ["sa224/gen1_0033", "sa224/gen4_0050"]
           },
+          "on_load": [
+            {"command": "FILL",  "value": "#e8e8e8"},
+            {"command": "REFLECT", "axis": "random", "chance": 0.5}
+          ],
           "command_loop": {
             "iterations": 1,
             "commands": [],
-            "select_blocks": [],
+            "select_blocks": [
+              {
+                "chance": 0.4,
+                "target": "random",
+                "commands": [
+                  {"command": "REFLECT", "axis": {"random": "choice", "values": ["horizontal", "vertical"]}}
+                ]
+              }
+            ],
             "placement_blocks": [
               {
                 "target": "compose_shape_1",
