@@ -272,7 +272,7 @@
             "commands": [],
             "select_blocks": [
               {
-                "chance": 0.4,
+                "chance": 1.0,
                 "target": "random",
                 "commands": [
                   {"command": "REFLECT", "axis": {"random": "choice", "values": ["horizontal", "vertical"]}}
