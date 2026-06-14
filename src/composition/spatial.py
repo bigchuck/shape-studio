@@ -288,7 +288,123 @@ def hull_separation(hull_a, hull_b):
     return best_dist, best_pa, best_pb
 
 
-def point_to_hull_distance(point, hull):
+def _point_in_hull(point, hull):
+    """Test if a point is strictly inside a convex hull using cross products.
+
+    Args:
+        point: (x, y) tuple
+        hull:  Ordered convex hull (counter-clockwise)
+
+    Returns:
+        True if point is inside or on boundary of hull
+    """
+    n = len(hull)
+    if n < 3:
+        return False
+    px, py = point
+    for i in range(n):
+        ax, ay = hull[i]
+        bx, by = hull[(i + 1) % n]
+        # Cross product of edge vector and point vector
+        # Negative means point is to the right (outside for CCW hull)
+        cross = (bx - ax) * (py - ay) - (by - ay) * (px - ax)
+        if cross < 0:
+            return False
+    return True
+
+
+def hull_overlaps(hull_a, hull_b):
+    """Test whether two convex hulls overlap (intersect or one contains the other).
+
+    Args:
+        hull_a, hull_b: Ordered convex hull point lists
+
+    Returns:
+        True if hulls overlap
+    """
+    # Check if any point of A is inside B
+    for p in hull_a:
+        if _point_in_hull(p, hull_b):
+            return True
+    # Check if any point of B is inside A
+    for p in hull_b:
+        if _point_in_hull(p, hull_a):
+            return True
+    # Check if any edges intersect
+    n_a = len(hull_a)
+    n_b = len(hull_b)
+    for i in range(n_a):
+        a1 = hull_a[i]
+        a2 = hull_a[(i + 1) % n_a]
+        for j in range(n_b):
+            b1 = hull_b[j]
+            b2 = hull_b[(j + 1) % n_b]
+            if _segments_intersect(a1, a2, b1, b2):
+                return True
+    return False
+
+
+def _segments_intersect(p1, p2, p3, p4):
+    """Test if segment p1-p2 intersects segment p3-p4."""
+    def _ccw(a, b, c):
+        return (c[1]-a[1]) * (b[0]-a[0]) > (b[1]-a[1]) * (c[0]-a[0])
+    return (_ccw(p1,p3,p4) != _ccw(p2,p3,p4) and
+            _ccw(p1,p2,p3) != _ccw(p1,p2,p4))
+
+
+def hull_push_apart(hull_a, hull_b):
+    """Compute the minimum translation vector to separate overlapping hulls.
+
+    Uses centroid-to-centroid direction as the push direction,
+    with magnitude = current overlap depth + small buffer.
+
+    Args:
+        hull_a: Hull to push (target)
+        hull_b: Fixed reference hull
+
+    Returns:
+        (dx, dy) translation to apply to hull_a to clear hull_b,
+        or (0, 0) if hulls do not overlap
+    """
+    if not hull_overlaps(hull_a, hull_b):
+        return 0.0, 0.0
+
+    ca = hull_centroid(hull_a)
+    cb = hull_centroid(hull_b)
+
+    # Push direction: from b centroid toward a centroid
+    dx = ca[0] - cb[0]
+    dy = ca[1] - cb[1]
+    length = math.hypot(dx, dy)
+
+    if length < 1e-6:
+        # Coincident centroids — push right
+        dx, dy = 1.0, 0.0
+        length = 1.0
+
+    ux = dx / length
+    uy = dy / length
+
+    # Find push distance: move until hull_separation > 0
+    # Binary search between 0 and 2x canvas diagonal
+    lo = 0.0
+    hi = math.hypot(768, 768)
+
+    for _ in range(30):  # 30 iterations gives sub-pixel precision
+        mid = (lo + hi) / 2.0
+        shifted_a = [(p[0] + ux * mid, p[1] + uy * mid) for p in hull_a]
+        shifted_hull = convex_hull(shifted_a)
+        if hull_overlaps(shifted_hull, hull_b):
+            lo = mid
+        else:
+            hi = mid
+
+    # Add 1px buffer to land just clear
+    push = hi + 1.0
+    return ux * push, uy * push
+
+
+
     """Minimum distance from a point to a hull boundary.
 
     Args:

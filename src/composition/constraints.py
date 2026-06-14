@@ -152,6 +152,93 @@ def check_canvas_size_limit(target_points, canvas_w, canvas_h, max_fraction=0.25
 
 
 # ---------------------------------------------------------------------------
+# canvas_bounds
+# ---------------------------------------------------------------------------
+
+def check_canvas_bounds(target_points, canvas_w, canvas_h, margin_px=0.0):
+    """All hull points must lie within canvas bounds (with optional margin).
+
+    When points exceed the canvas, the shape is scaled down around its
+    centroid until it fits — preserving contact relationships rather than
+    moving the shape.
+
+    Correction type: 'scale_to_fit' — includes centroid so solver can
+    apply the scale correctly without breaking contact points.
+
+    Args:
+        target_points:  Point list for shape being constrained
+        canvas_w/h:     Canvas dimensions in pixels
+        margin_px:      Additional inset margin from canvas edge. Default 0.
+
+    Returns:
+        ConstraintResult
+    """
+    hull = sp.convex_hull(target_points)
+    if not hull:
+        return ConstraintResult(True, 'canvas_bounds', "Empty hull — skipped")
+
+    x_min_allowed = margin_px
+    y_min_allowed = margin_px
+    x_max_allowed = canvas_w - margin_px
+    y_max_allowed = canvas_h - margin_px
+
+    xs = [p[0] for p in hull]
+    ys = [p[1] for p in hull]
+
+    x_lo = min(xs)
+    x_hi = max(xs)
+    y_lo = min(ys)
+    y_hi = max(ys)
+
+    if (x_lo >= x_min_allowed and x_hi <= x_max_allowed and
+            y_lo >= y_min_allowed and y_hi <= y_max_allowed):
+        return ConstraintResult(
+            True, 'canvas_bounds',
+            f"Hull within canvas bounds (OK)"
+        )
+
+    # Compute centroid for scale_to_fit correction
+    centroid = sp.hull_centroid(hull)
+    cx, cy = centroid
+
+    # How much do we need to shrink so all points fit?
+    # For each point, the max scale factor that keeps it inside:
+    # new_x = cx + factor * (px - cx) must be in [x_min, x_max]
+    # => factor <= (x_max - cx) / (px - cx)  when px > cx
+    # => factor <= (cx - x_min) / (cx - px)  when px < cx
+    min_factor = 1.0
+    for px, py in hull:
+        if px > cx and (px - cx) > 1e-6:
+            min_factor = min(min_factor, (x_max_allowed - cx) / (px - cx))
+        elif px < cx and (cx - px) > 1e-6:
+            min_factor = min(min_factor, (cx - x_min_allowed) / (cx - px))
+        if py > cy and (py - cy) > 1e-6:
+            min_factor = min(min_factor, (y_max_allowed - cy) / (py - cy))
+        elif py < cy and (cy - py) > 1e-6:
+            min_factor = min(min_factor, (cy - y_min_allowed) / (cy - py))
+
+    # Apply a small additional shrink to land cleanly inside
+    factor = max(0.01, min_factor * 0.98)
+
+    violations = []
+    if x_lo < x_min_allowed: violations.append(f"left={x_lo:.0f}")
+    if x_hi > x_max_allowed: violations.append(f"right={x_hi:.0f}")
+    if y_lo < y_min_allowed: violations.append(f"top={y_lo:.0f}")
+    if y_hi > y_max_allowed: violations.append(f"bottom={y_hi:.0f}")
+
+    return ConstraintResult(
+        False, 'canvas_bounds',
+        f"Hull exceeds canvas ({', '.join(violations)}) — scale_to_fit by {factor:.4f}",
+        correction={
+            'type':    'scale_to_fit',
+            'factor':  factor,
+            'cx':      cx,
+            'cy':      cy,
+        }
+    )
+
+
+# ---------------------------------------------------------------------------
 # grid_placement
 # ---------------------------------------------------------------------------
 
@@ -389,15 +476,16 @@ def check_tangent(target_points, reference_points,
                   tolerance_px=3.0, max_contact_points=1):
     """Target hull should touch reference hull at approximately one point.
 
-    Near-tangency: hulls are within tolerance_px of touching.
-    Contact count should not exceed max_contact_points.
+    reference_points may be a single point list OR a list of point lists
+    (for reference_group support). When multiple point lists are provided,
+    the combined convex hull is used as the reference.
 
-    This constraint drives the solver to move target toward reference
-    until separation <= tolerance_px.
+    Near-tangency: hulls are within tolerance_px of touching.
+    Correction: move toward reference along closest-approach vector.
 
     Args:
         target_points:      Point list for shape being constrained
-        reference_points:   Point list for reference shape
+        reference_points:   Point list OR list of point lists (group)
         tolerance_px:       Distance threshold for contact
         max_contact_points: Maximum allowed contact segments
 
@@ -405,7 +493,26 @@ def check_tangent(target_points, reference_points,
         ConstraintResult with correction = move toward reference
     """
     target_hull = sp.convex_hull(target_points)
-    ref_hull    = sp.convex_hull(reference_points)
+
+    # Support both single reference and group reference
+    if reference_points and isinstance(reference_points[0], (list, tuple)) and \
+            isinstance(reference_points[0][0], (list, tuple)):
+        ref_hull = sp.combined_hull(reference_points)
+    else:
+        ref_hull = sp.convex_hull(reference_points)
+
+    # Check for overlap first — hull_separation returns 0 for both
+    # touching and overlapping, so we must distinguish them explicitly
+    if sp.hull_overlaps(target_hull, ref_hull):
+        push_dx, push_dy = sp.hull_push_apart(target_hull, ref_hull)
+        # Push apart plus an extra tolerance_px gap so tangency can re-establish
+        total_dx = push_dx + (push_dx / max(abs(push_dx), 1e-6)) * tolerance_px
+        total_dy = push_dy + (push_dy / max(abs(push_dy), 1e-6)) * tolerance_px
+        return ConstraintResult(
+            False, 'tangent',
+            f"Hulls overlap — push apart ({push_dx:.1f},{push_dy:.1f})",
+            correction={'type': 'move', 'dx': push_dx, 'dy': push_dy}
+        )
 
     dist, pt_target, pt_ref = sp.hull_separation(target_hull, ref_hull)
 
@@ -428,7 +535,6 @@ def check_tangent(target_points, reference_points,
     dy = pt_ref[1] - pt_target[1]
     length = math.hypot(dx, dy)
     if length > 1e-6:
-        # Move by dist minus tolerance to land just touching
         move_dist = dist - tolerance_px
         dx = dx / length * move_dist
         dy = dy / length * move_dist
@@ -551,6 +657,14 @@ def evaluate(constraint_spec, target_points, shape_registry):
             max_fraction=float(constraint_spec.get('max_fraction', 0.25))
         )
 
+    elif ctype == 'canvas_bounds':
+        return check_canvas_bounds(
+            target_points,
+            canvas_w=float(constraint_spec.get('canvas_w', 768)),
+            canvas_h=float(constraint_spec.get('canvas_h', 768)),
+            margin_px=float(constraint_spec.get('margin_px', 0.0))
+        )
+
     elif ctype == 'grid_placement':
         return check_grid_placement(
             target_points,
@@ -595,9 +709,15 @@ def evaluate(constraint_spec, target_points, shape_registry):
         )
 
     elif ctype == 'tangent':
+        # Support single reference or reference_group (list of names)
+        ref_group = constraint_spec.get('reference_group')
+        if ref_group:
+            ref_pts = [_pts(n) for n in ref_group]
+        else:
+            ref_pts = _pts(constraint_spec['reference'])
         return check_tangent(
             target_points,
-            _pts(constraint_spec['reference']),
+            ref_pts,
             tolerance_px=float(constraint_spec.get('tolerance_px', 3.0)),
             max_contact_points=int(constraint_spec.get('max_contact_points', 1))
         )
@@ -617,7 +737,7 @@ def evaluate(constraint_spec, target_points, shape_registry):
     else:
         raise ValueError(
             f"Unknown constraint type '{ctype}'. "
-            f"Supported: size_ratio, canvas_size_limit, grid_placement, "
-            f"axis_align, axis_misalign, axis_collinear, axis_not_collinear, "
-            f"tangent, separation_from_group"
+            f"Supported: size_ratio, canvas_size_limit, canvas_bounds, "
+            f"grid_placement, axis_align, axis_misalign, axis_collinear, "
+            f"axis_not_collinear, tangent, separation_from_group"
         )

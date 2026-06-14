@@ -265,21 +265,24 @@ class CommandLoopRunner:
                     continue
 
                 target = block.get('target', 'random')
-                resolved = self._resolve_single_target(target, working_names)
-                if resolved is None:
+                resolved_targets = self._resolve_targets(target, working_names)
+                resolved_targets = [t for t in resolved_targets if t is not None]
+
+                if not resolved_targets:
                     if verbose:
                         self._log(f"  block[{bidx}] target '{target}' unresolved, skipping")
                     continue
 
                 if verbose:
-                    self._log(f"  block[{bidx}] target='{target}' resolved to '{resolved}'")
+                    self._log(f"  block[{bidx}] target='{target}' resolved to {resolved_targets}")
 
-                for cidx, cmd_spec in enumerate(block.get('commands', [])):
-                    actual = self._dispatch(cmd_spec, resolved)
-                    if verbose:
-                        self._log(f"    cmd[{cidx}] {actual}")
-                    commands_applied.append(actual)
-                    applied_count += 1
+                for resolved in resolved_targets:
+                    for cidx, cmd_spec in enumerate(block.get('commands', [])):
+                        actual = self._dispatch(cmd_spec, resolved)
+                        if verbose:
+                            self._log(f"    cmd[{cidx}] {actual}")
+                        commands_applied.append(actual)
+                        applied_count += 1
 
             # Placement blocks — constraint-based solver for each
             for pidx, pb in enumerate(placement_blocks):

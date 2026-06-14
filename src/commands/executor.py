@@ -2733,15 +2733,14 @@ class CommandExecutor:
 
         compose_params = cmd_dict.get('compose_parameters', {})
         shapes_spec = compose_params.get('shapes', {})
-        specified = shapes_spec.get('specified', [])
 
-        if not specified:
-            raise ValueError("COMPOSE: compose_parameters.shapes.specified is empty or missing")
+        if not shapes_spec:
+            raise ValueError("COMPOSE: compose_parameters.shapes is empty or missing")
 
         builder = CompositionBuilder()
 
-        # Load shapes under working names
-        records = builder.load_specified_shapes(specified, self)
+        # Load shapes under working names — supports specified, pool, wildcard
+        records = builder.load_shapes(shapes_spec, self)
 
         # Apply on_load commands to every loaded shape immediately after arrival
         on_load = compose_params.get('on_load', [])
