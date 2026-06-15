@@ -394,6 +394,76 @@
       }]
     },
 
+    "compose_scenario3": {
+      "commands": [{
+        "template": "compose_1",
+        "compose_parameters": {
+          "shapes": {
+            "selection": [
+              {"method": "wildcard", "pattern": "sa224/gen4_*", "count": {"random": "uniform_int", "min": 5, "max": 15}}
+            ]
+          },
+          "on_load": [
+            {"command": "FILL",  "value": "#e8e8e8"},
+            {"command": "REFLECT", "axis": "random", "chance": 0.5}
+          ],
+          "command_loop": {
+            "iterations": 1,
+            "commands": [],
+            "select_blocks": [
+              {
+                "chance": 0.4,
+                "target": "random",
+                "commands": [
+                  {"command": "REFLECT", "axis": {"random": "choice", "values": ["horizontal", "vertical"]}}
+                ]
+              }
+            ],
+            "placement_blocks": [
+              {
+                "target": "compose_shape_1",
+                "constraints": [
+                  {"type": "canvas_size_limit", "max_fraction": 0.25},
+                  {"type": "grid_placement", "division": 2, "position": "center"}
+                ]
+              },
+              {
+                "target": "compose_shape_2",
+                "pre_constraints": [
+                  {"type": "size_ratio", "reference": "compose_shape_1", "max": 0.8},
+                  {"type": "axis_align", "reference": "compose_shape_1", "axis": "major"}
+                ],
+                "placement": {
+                  "type": "tangent",
+                  "reference": "compose_shape_1",
+                  "approach": {"axis": "minor", "reference": "compose_shape_1", "random_sign": true},
+                  "tolerance_px": 3,
+                  "canvas_bounds_margin_px": 5,
+                  "overlap_allowed": false
+                }
+              },
+              {
+                "target": "compose_shape_3",
+                "pre_constraints": [
+                  {"type": "size_ratio", "reference": "compose_shape_2", "max": 0.8},
+                  {"type": "axis_align", "reference": "compose_shape_1", "axis": "major", "tolerance_deg": 10},
+                  {"type": "axis_not_collinear", "reference": "compose_shape_1", "axis": "minor", "min_offset_px": 20}
+                ],
+                "placement": {
+                  "type": "tangent",
+                  "reference_group": ["compose_shape_1", "compose_shape_2"],
+                  "approach": {"axis": "minor", "reference": "compose_shape_1", "random_sign": true},
+                  "tolerance_px": 3,
+                  "canvas_bounds_margin_px": 5,
+                  "overlap_allowed": false
+                }
+              }            
+            ]
+          }
+        }
+      }]
+    },
+
 
 
 
