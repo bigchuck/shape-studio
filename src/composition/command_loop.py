@@ -87,19 +87,19 @@ def validate_command_loop(spec):
             f"got: {iterations!r}"
         )
 
-    # top-level commands
-    top_commands = spec.get('commands', [])
+    # always_transforms (was: commands)
+    top_commands = spec.get('always_transforms', spec.get('commands', []))
     if not isinstance(top_commands, list):
-        messages.append("command_loop.commands must be a list")
+        messages.append("command_loop.always_transforms must be a list")
     else:
         for i, cmd in enumerate(top_commands):
-            msgs = _validate_command_entry(cmd, f"commands[{i}]", require_target=True)
+            msgs = _validate_command_entry(cmd, f"always_transforms[{i}]", require_target=True)
             messages.extend(msgs)
 
-    # select_blocks
-    select_blocks = spec.get('select_blocks', [])
+    # conditional_transforms (was: select_blocks)
+    select_blocks = spec.get('conditional_transforms', spec.get('select_blocks', []))
     if not isinstance(select_blocks, list):
-        messages.append("command_loop.select_blocks must be a list")
+        messages.append("command_loop.conditional_transforms must be a list")
     else:
         for i, block in enumerate(select_blocks):
             msgs = _validate_select_block(block, i)
@@ -215,8 +215,8 @@ class CommandLoopRunner:
         verbose = bool(spec.get('verbose', self._verbose_default))
 
         iterations = int(self._resolve_numeric(spec.get('iterations', 1), default=1))
-        top_commands = spec.get('commands', [])
-        select_blocks = spec.get('select_blocks', [])
+        top_commands    = spec.get('always_transforms', spec.get('commands', []))
+        select_blocks   = spec.get('conditional_transforms', spec.get('select_blocks', []))
 
         applied_count = 0
         skipped_count = 0
@@ -227,8 +227,8 @@ class CommandLoopRunner:
         if verbose:
             self._log(
                 f"Start: {iterations} iteration(s), "
-                f"{len(top_commands)} top command(s), "
-                f"{len(select_blocks)} select block(s), "
+                f"{len(top_commands)} always_transform(s), "
+                f"{len(select_blocks)} conditional_transform(s), "
                 f"{len(placement_blocks)} placement block(s). "
                 f"Shapes: {', '.join(working_names)}"
             )
@@ -237,18 +237,18 @@ class CommandLoopRunner:
             if verbose:
                 self._log(f"--- Iteration {iteration + 1}/{iterations} ---")
 
-            # Top-level commands — apply unconditionally
+            # always_transforms — apply unconditionally
             for idx, cmd_spec in enumerate(top_commands):
                 target = cmd_spec.get('target', 'all')
                 targets = self._resolve_targets(target, working_names)
                 for name in targets:
                     actual = self._dispatch(cmd_spec, name)
                     if verbose:
-                        self._log(f"  top[{idx}] {actual}")
+                        self._log(f"  always[{idx}] {actual}")
                     commands_applied.append(actual)
                     applied_count += 1
 
-            # Select blocks — each fires independently by chance
+            # conditional_transforms — each fires independently by chance
             for bidx, block in enumerate(select_blocks):
                 chance = float(block.get('chance', 1.0))
                 roll = random.random()
@@ -256,7 +256,7 @@ class CommandLoopRunner:
 
                 if verbose:
                     self._log(
-                        f"  block[{bidx}] chance={chance:.2f} "
+                        f"  cond[{bidx}] chance={chance:.2f} "
                         f"roll={roll:.3f} -> {'FIRED' if fired else 'SKIPPED'}"
                     )
 
@@ -270,11 +270,11 @@ class CommandLoopRunner:
 
                 if not resolved_targets:
                     if verbose:
-                        self._log(f"  block[{bidx}] target '{target}' unresolved, skipping")
+                        self._log(f"  cond[{bidx}] target '{target}' unresolved, skipping")
                     continue
 
                 if verbose:
-                    self._log(f"  block[{bidx}] target='{target}' resolved to {resolved_targets}")
+                    self._log(f"  cond[{bidx}] target='{target}' resolved to {resolved_targets}")
 
                 for resolved in resolved_targets:
                     for cidx, cmd_spec in enumerate(block.get('commands', [])):
@@ -284,7 +284,7 @@ class CommandLoopRunner:
                         commands_applied.append(actual)
                         applied_count += 1
 
-            # Placement blocks — constraint-based solver for each
+            # placement_blocks — constraint-based solver for each
             for pidx, pb in enumerate(placement_blocks):
                 target = pb.get('target', 'random')
                 resolved = self._resolve_single_target(target, working_names)
@@ -314,7 +314,7 @@ class CommandLoopRunner:
         summary = (
             f"command_loop done: {iterations} iteration(s), "
             f"{applied_count} command(s) applied, "
-            f"{skipped_count} select block(s) skipped"
+            f"{skipped_count} conditional_transform(s) skipped"
         )
         if verbose:
             self._log(summary)
@@ -326,22 +326,51 @@ class CommandLoopRunner:
     # -----------------------------------------------------------------------
 
     def _resolve_targets(self, target, working_names):
-        """Resolve a target spec to a list of shape names."""
+        """Resolve a target spec to a list of shape names.
+
+        Accepts:
+          'all'                        — all working names
+          'random'                     — one random working name
+          'compose_shape_N'            — specific name
+          {'range': [lo, hi]}          — compose_shape_lo through compose_shape_hi
+          {'list': [2, 3, 4]}          — compose_shape_2, compose_shape_3, etc.
+          {'list': ['compose_shape_2']}— explicit name list
+
+        Missing names are silently skipped.
+        """
         if target == 'all':
             return list(working_names)
+
+        if isinstance(target, dict):
+            if 'range' in target:
+                lo, hi = int(target['range'][0]), int(target['range'][1])
+                names = [f"compose_shape_{n}" for n in range(lo, hi + 1)]
+                return [n for n in names if n in working_names]
+
+            if 'list' in target:
+                items = target['list']
+                names = []
+                for item in items:
+                    if isinstance(item, int):
+                        names.append(f"compose_shape_{item}")
+                    else:
+                        names.append(str(item))
+                return [n for n in names if n in working_names]
+
         return [self._resolve_single_target(target, working_names)]
 
     def _resolve_single_target(self, target, working_names):
-        """Resolve a single target to one shape name."""
+        """Resolve a single target to one shape name.
+        Returns None silently if not found — caller decides whether to log.
+        """
         if not working_names:
             return None
-        if target == 'random':
-            return random.choice(working_names)
-        if target in working_names:
-            return target
-        logger.warning(
-            f"command_loop: target '{target}' not found in {working_names}. Skipping."
-        )
+        if isinstance(target, str):
+            if target == 'random':
+                return random.choice(working_names)
+            if target in working_names:
+                return target
+        # Not found — return None silently (no warning log)
         return None
 
     # -----------------------------------------------------------------------
@@ -434,7 +463,7 @@ class CommandLoopRunner:
             return self._dispatch_deform(cmd_spec, shape_name)
         elif cmd_name in ('COLOR', 'WIDTH', 'FILL', 'ALPHA', 'ZORDER'):
             return self._dispatch_simple(cmd_name, cmd_spec, shape_name)
-        elif cmd_name == 'REFLECT':
+        elif cmd_name == 'REFLECT': 
             return self._dispatch_reflect(cmd_spec, shape_name)
         else:
             raise ValueError(f"command_loop: unsupported command '{cmd_name}'")
@@ -616,40 +645,28 @@ class CommandLoopRunner:
             self.executor.execute(f"ZORDER {shape_name} {value}")
         return f"{cmd_name} -> '{shape_name}' (value={value})"
 
+    # -----------------------------------------------------------------------
+    # Utilities
+    # -----------------------------------------------------------------------
+
     def _dispatch_reflect(self, cmd_spec, shape_name):
         axis = self._resolve_axis(cmd_spec.get('axis', 'horizontal'))
         self.executor.execute(f"REFLECT {shape_name} AXIS={axis}")
         return f"REFLECT -> '{shape_name}' (axis={axis})"
-    
+
     def _resolve_axis(self, axis_spec):
-        """Resolve an axis spec — fixed string or random choice dict.
-
-        Fixed:  'horizontal'
-        Random: {"random": "choice", "values": ["horizontal", "vertical", "major", "minor"]}
-        Random: "random" shorthand — picks from all four axis types
-
-        Returns: axis string
-        """
+        """Resolve an axis spec — fixed string or random choice dict."""
         _ALL_AXES = ['horizontal', 'vertical', 'major', 'minor']
-
         if isinstance(axis_spec, str):
             if axis_spec.lower() == 'random':
                 return random.choice(_ALL_AXES)
             return axis_spec.lower()
-
         if isinstance(axis_spec, dict):
             dist = axis_spec.get('random', '').lower()
             if dist == 'choice':
                 values = axis_spec.get('values', _ALL_AXES)
                 return random.choice(values).lower()
-            raise ValueError(
-                f"_resolve_axis: unsupported random type '{dist}'. Use 'choice'."
-            )
-
+            raise ValueError(f"_resolve_axis: unsupported random type '{dist}'. Use 'choice'.")
         raise ValueError(
             f"_resolve_axis: expected string or dict, got {type(axis_spec).__name__}"
         )
-
-    # -----------------------------------------------------------------------
-    # Utilities
-    # -----------------------------------------------------------------------

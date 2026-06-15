@@ -255,22 +255,37 @@
         "compose_parameters": {
           "shapes": {
             "selection": [
-              {"method": "wildcard", "pattern": "sa224/gen*", "count": {"random": "uniform_int", "min": 3, "max": 5}}
+              {
+                "method": "wildcard",
+                "pattern": "sa224/gen*",
+                "count": {"random": "uniform_int", "min": 3, "max": 5}
+              }
             ]
           },
           "on_load": [
-            {"command": "FILL",  "value": "#e8e8e8"},
+            {"command": "FILL",    "value": "#e8e8e8"},
             {"command": "REFLECT", "axis": "random", "chance": 0.5}
           ],
           "command_loop": {
             "iterations": 1,
-            "commands": [],
-            "select_blocks": [
+            "conditional_transforms": [
               {
                 "chance": 0.4,
                 "target": "random",
                 "commands": [
                   {"command": "REFLECT", "axis": {"random": "choice", "values": ["horizontal", "vertical"]}}
+                ]
+              },
+              {
+                "chance": 0.6,
+                "target": {"range": [1, 5]},
+                "commands": [
+                  {
+                    "command": "DEFORM",
+                    "axis": "major",
+                    "along":  {"random": "uniform", "min": 0.75, "max": 1.25},
+                    "across": {"random": "uniform", "min": 0.80, "max": 1.20}
+                  }
                 ]
               }
             ],
@@ -279,78 +294,49 @@
                 "target": "compose_shape_1",
                 "constraints": [
                   {"type": "canvas_size_limit", "max_fraction": 0.25},
-                  {"type": "grid_placement", "division": 3, "position": "top_left"}
+                  {
+                    "type": "grid_placement",
+                    "division": 3,
+                    "position": "random",
+                    "random_mode": "per_iteration"
+                  }
                 ]
               },
               {
                 "target": "compose_shape_2",
-                "pre_constraints": [
+                "fit_rules": [
                   {"type": "size_ratio", "reference": "compose_shape_1", "max": 0.75},
-                  {"type": "axis_align", "reference": "compose_shape_1", "axis": "major"}
+                  {"type": "axis_align", "reference": "compose_shape_1", "axis": "major", "tolerance_deg": 10}
                 ],
                 "placement": {
                   "type": "tangent",
                   "reference": "compose_shape_1",
-                  "approach": {"axis": "minor", "reference": "compose_shape_1", "random_sign": true},
+                  "approach": "random",
                   "tolerance_px": 3,
                   "canvas_bounds_margin_px": 5,
                   "overlap_allowed": false
                 }
               },
               {
-                "target": "compose_shape_3",
-                "pre_constraints": [
-                  {"type": "size_ratio", "reference": "compose_shape_2", "max": 0.75},
-                  {"type": "axis_align", "reference": "compose_shape_1", "axis": "major", "tolerance_deg": 10},
-                  {"type": "axis_not_collinear", "reference": "compose_shape_1", "axis": "minor", "min_offset_px": 20}
+                "target": {"range": [3, 5]},
+                "fit_rules": [
+                  {"type": "size_ratio", "reference": "compose_shape_1", "max": 0.65},
+                  {"type": "axis_align", "reference": "compose_shape_1", "axis": "major", "tolerance_deg": 10}
                 ],
                 "placement": {
                   "type": "tangent",
                   "reference_group": ["compose_shape_1", "compose_shape_2"],
-                  "approach": {"axis": "minor", "reference": "compose_shape_1", "random_sign": true},
+                  "approach": "random",
                   "tolerance_px": 3,
                   "canvas_bounds_margin_px": 5,
                   "overlap_allowed": false
                 }
-              },
-              {
-                "target": "compose_shape_4",
-                "pre_constraints": [
-                  {"type": "size_ratio", "reference": "compose_shape_2", "max": 0.75},
-                  {"type": "axis_align", "reference": "compose_shape_1", "axis": "major", "tolerance_deg": 10},
-                  {"type": "axis_not_collinear", "reference": "compose_shape_1", "axis": "minor", "min_offset_px": 20}
-                ],
-                "placement": {
-                  "type": "tangent",
-                  "reference_group": ["compose_shape_1", "compose_shape_2"],
-                  "approach": {"axis": "minor", "reference": "compose_shape_1", "random_sign": true},
-                  "tolerance_px": 3,
-                  "canvas_bounds_margin_px": 5,
-                  "overlap_allowed": false
-                }
-              },
-              {
-                "target": "compose_shape_5",
-                "pre_constraints": [
-                  {"type": "size_ratio", "reference": "compose_shape_2", "max": 0.75},
-                  {"type": "axis_align", "reference": "compose_shape_1", "axis": "major", "tolerance_deg": 10},
-                  {"type": "axis_not_collinear", "reference": "compose_shape_1", "axis": "minor", "min_offset_px": 20}
-                ],
-                "placement": {
-                  "type": "tangent",
-                  "reference_group": ["compose_shape_1", "compose_shape_2"],
-                  "approach": {"axis": "minor", "reference": "compose_shape_1", "random_sign": true},
-                  "tolerance_px": 3,
-                  "canvas_bounds_margin_px": 5,
-                  "overlap_allowed": false
-                }
-              }            
+              }
             ]
           }
         }
       }]
     }
-
 
 
   }

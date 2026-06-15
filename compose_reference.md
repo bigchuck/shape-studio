@@ -14,8 +14,8 @@ inline command syntax is used for composition directives.
 The system is built around three layers:
 
 1. **COMPOSE command** — loads shapes onto the canvas
-2. **command_loop** — drives transforms, random selection, and constraint-based placement
-3. **Placement solver** — applies geometry constraints iteratively until satisfied
+2. **command_loop** — drives transforms and constraint-based placement
+3. **Placement solver** — applies geometry constraints until satisfied
 
 Canvas dimensions are 768 x 768 pixels.  
 All shapes are Polygons. Geometric primitive is the **convex hull** of the shape's point set.
@@ -38,7 +38,8 @@ The COMPOSE command is invoked via a template reference inside the executable's 
         "width": "2"
       },
       "compose_parameters": {
-        "shapes": { ... },
+        "shapes":       { ... },
+        "on_load":      [ ... ],
         "command_loop": { ... }
       }
     }
@@ -80,7 +81,8 @@ Top-level key in the executable command dict. Contains all composition directive
 ```json
 "compose_parameters": {
   "shapes":       { ... },    // shape loading specification
-  "command_loop": { ... }     // optional transform and placement loop
+  "on_load":      [ ... ],    // commands applied to each shape immediately on arrival
+  "command_loop": { ... }     // transform and placement loop
 }
 ```
 
@@ -90,7 +92,8 @@ Top-level key in the executable command dict. Contains all composition directive
 
 ### Specified (explicit list)
 
-Load named shapes from the `shapes/` store by exact name.
+Load named shapes from the `shapes/` store by exact name. All shapes in the
+list are always loaded.
 
 ```json
 "shapes": {
@@ -98,12 +101,133 @@ Load named shapes from the `shapes/` store by exact name.
 }
 ```
 
+### Pool (random selection from list)
+
+Pick N shapes at random from an explicit list, without replacement by default.
+
+```json
+"shapes": {
+  "selection": [
+    {
+      "method": "pool",
+      "shapes": ["sa224/gen4_0050", "sa224/gen4_0051", "sa224/gen4_0052"],
+      "count": 2,
+      "replacement": false
+    }
+  ]
+}
+```
+
+- `count` — fixed integer or `{"random": "uniform_int", "min": 2, "max": 4}`
+- `replacement` — if `true`, same shape may appear more than once. Default `false`.
+
+### Wildcard (filesystem glob)
+
+Match shapes in the `shapes/` store by full-path pattern. `*` and `?` supported.
+
+```json
+"shapes": {
+  "selection": [
+    {
+      "method": "wildcard",
+      "pattern": "sa224/gen4_*",
+      "count": 3,
+      "replacement": false
+    }
+  ]
+}
+```
+
+### Combined selection (anchor + pool)
+
+Use `selection` array to mix methods. Shapes load in order; working names
+are assigned sequentially across all entries.
+
+```json
+"shapes": {
+  "selection": [
+    {"method": "specified", "shapes": ["sa224/gen1_0033"]},
+    {"method": "wildcard",  "pattern": "sa224/gen4_*", "count": 2}
+  ]
+}
+```
+
+Shape 1 is always the specified anchor; shapes 2-3 are random wildcard picks.
+
+### Working names
+
 Shapes are assigned sequential working names: `compose_shape_1`, `compose_shape_2`, ...
 
-Working names are predictable and can be referenced by name in subsequent
-`command_loop` commands and `placement_blocks`.
+Working names are stable and predictable — they can be referenced by name,
+range, or list in `command_loop` and `placement_blocks`. Missing working names
+(when random count produces fewer shapes than controls expect) are skipped silently.
 
-### Source Shape for DERIVE
+---
+
+## on_load
+
+Commands applied to every loaded shape immediately after it arrives on canvas,
+before `command_loop` runs. No `target` field needed — each loaded shape is
+the target in turn.
+
+```json
+"on_load": [
+  {"command": "FILL",    "value": "#d0d0d0"},
+  {"command": "WIDTH",   "value": 1},
+  {"command": "REFLECT", "axis": "random",       "chance": 0.5},
+  {"command": "REFLECT", "axis": {"random": "choice", "values": ["horizontal", "vertical"]}, "chance": 0.3}
+]
+```
+
+- `chance` — optional float 0.0–1.0. Each shape independently rolls against this value.
+  Default 1.0 (always applies).
+- `on_load` commands are recorded in `commands_applied` and replayed on LOAD.
+
+---
+
+## Outputs
+
+Each COMPOSE batch iteration produces:
+
+- **PNG** — canvas image saved to `output/<prefix>_<NNNN>.png`
+- **Construction JSON** — saved to `shapes/<prefix>_<NNNN>.json`
+
+### Construction JSON format
+
+```json
+{
+  "composition_id":   "compose_test1_0001",
+  "executable":       "compose_test1",
+  "timestamp":        "2026-06-10T...",
+  "shapes_loaded": [
+    { "working_name": "compose_shape_1", "source": "sa224/gen1_0033" },
+    { "working_name": "compose_shape_2", "source": "sa224/gen4_0050" }
+  ],
+  "commands_applied": [
+    "FILL compose_shape_1 #d0d0d0",
+    "REFLECT compose_shape_1 AXIS=horizontal",
+    "MOVE compose_shape_2 34.5000,12.2000",
+    ...
+  ]
+}
+```
+
+`commands_applied` records every transform applied during the run, in order.
+These are replayed when the composition is reloaded.
+
+### Reloading a Composition
+
+`LOAD <composition_name>` detects the `composition_id` key and reloads
+all component shapes under their original working names, then replays
+`commands_applied` to reconstruct the exact composition state.
+
+```
+LOAD sa224/compose_test1_0001
+```
+
+---
+
+## Source Shape for DERIVE
 
 When a template has `source_shape` set, the named shape is loaded as a seed
 for subsequent PROC calls. The loaded geometry is passed as `seed_points`
@@ -125,79 +249,58 @@ The derived shape carries a `derived_from` breadcrumb in its stored JSON:
 
 ---
 
-## Outputs
-
-Each COMPOSE batch iteration produces:
-
-- **PNG** — canvas image saved to `output/<prefix>_<NNNN>.png`
-- **Construction JSON** — saved to `shapes/<prefix>_<NNNN>.json`
-
-### Construction JSON format
-
-```json
-{
-  "composition_id": "compose_test1_0001",
-  "executable":     "compose_test1",
-  "timestamp":      "2026-06-10T...",
-  "shapes_loaded": [
-    { "working_name": "compose_shape_1", "source": "sa224/gen1_0033" },
-    { "working_name": "compose_shape_2", "source": "sa224/gen4_0050" }
-  ],
-  "commands_applied": []
-}
-```
-
-`commands_applied` is reserved for future RL-oriented logging.
-
-### Reloading a Composition
-
-`LOAD <composition_name>` detects the `composition_id` key and reloads
-all component shapes under their original working names.
-
-```
-LOAD sa224/compose_test1_0001
-```
-
----
-
 ## command_loop
 
-Optional loop that runs after shapes are loaded. Drives transforms,
-random selection blocks, and constraint-based placement blocks.
+Optional loop that runs after shapes are loaded and `on_load` commands execute.
 
 ```json
 "command_loop": {
-  "verbose":         true,
-  "iterations":      3,
-  "commands":        [ ... ],
-  "select_blocks":   [ ... ],
-  "placement_blocks": [ ... ]
+  "verbose":                true,
+  "iterations":             1,
+  "always_transforms":      [ ... ],
+  "conditional_transforms": [ ... ],
+  "placement_blocks":       [ ... ]
 }
 ```
 
-### verbose
+**`verbose`** — `true` (default) emits decision trace to the app UI log.
 
-`true` (default) — emit decision trace to the app UI log.  
-`false` — silent execution.
-
-### iterations
-
-Number of loop iterations. Accepts a fixed integer or a random spec.
-
+**`iterations`** — fixed integer or random spec:
 ```json
 "iterations": 3
 "iterations": {"random": "uniform_int", "min": 2, "max": 8}
 ```
 
+**Backward-compatible aliases:** `commands` = `always_transforms`,
+`select_blocks` = `conditional_transforms`.
+
 ---
 
-## commands (top-level)
+## Target Specification
 
-Commands applied unconditionally to a target on every iteration.
-`target` is required at this level.
+All blocks that specify a `target` accept these forms:
 
 ```json
-"commands": [
+"target": "compose_shape_2"              // specific name
+"target": "all"                          // every loaded shape
+"target": "random"                       // one shape at random (with replacement)
+"target": {"range": [2, 5]}             // compose_shape_2 through compose_shape_5
+"target": {"list": [1, 3, 5]}           // compose_shape_1, compose_shape_3, compose_shape_5
+"target": {"list": ["compose_shape_2"]} // explicit name list
+```
+
+Range and list targets skip any working name not present on canvas — safe to use
+when shape count varies via random selection.
+
+---
+
+## always_transforms
+
+Commands applied unconditionally to a target on every iteration.
+`target` is required.
+
+```json
+"always_transforms": [
   {
     "command": "MOVE",
     "target": "all",
@@ -206,34 +309,31 @@ Commands applied unconditionally to a target on every iteration.
 ]
 ```
 
-**target values:**
-- `"all"` — every working name in the composition
-- `"random"` — one shape chosen at random (with replacement)
-- `"compose_shape_N"` — a specific working name
-
 ---
 
-## select_blocks
+## conditional_transforms
 
-Each block fires independently, controlled by `chance`. Multiple blocks
-in the list are each evaluated independently per iteration.
+Each block fires independently, controlled by `chance`.
 
 ```json
-"select_blocks": [
+"conditional_transforms": [
   {
     "chance":  0.7,
-    "target":  "random",
+    "target":  {"range": [1, 5]},
     "commands": [
-      { "command": "DEFORM", "axis": "major", "along": 0.8, "across": 1.0 },
-      { "command": "MOVE",   "direction": "SE", "distance": 40 }
+      { "command": "DEFORM", "axis": "major",
+        "along":  {"random": "uniform", "min": 0.8, "max": 1.2},
+        "across": {"random": "uniform", "min": 0.8, "max": 1.2} },
+      { "command": "REFLECT", "axis": "random" }
     ]
   }
 ]
 ```
 
-- `chance` — float 0.0–1.0. Probability this block fires. Default 1.0.
-- `target` — same values as top-level commands. Resolved once per block execution; all commands in the block use the same resolved target.
-- `commands` — list of transform commands. `name`/`target` field not required inside a block — the block's resolved target is used.
+- `chance` — float 0.0–1.0. Default 1.0.
+- `target` — any target spec form above. Resolved once per block per iteration;
+  all commands in the block use the same resolved target(s).
+- `commands` — list of transform commands.
 
 ---
 
@@ -245,19 +345,17 @@ All numeric parameters accept fixed values or random specs (see Random Values se
 
 ```json
 { "command": "MOVE", "delta": [dx, dy] }
-{ "command": "MOVE", "direction": "SE",  "distance": 40 }
-{ "command": "MOVE", "direction": 135,   "distance": {"random": "uniform", "min": 20, "max": 80} }
+{ "command": "MOVE", "direction": "SE",     "distance": 40 }
+{ "command": "MOVE", "direction": 135,      "distance": {"random": "uniform", "min": 20, "max": 80} }
 { "command": "MOVE", "direction": "random", "distance": 40 }
 { "command": "MOVE", "direction": {"random": "choice",  "values": ["N","SE","W"]}, "distance": 40 }
 { "command": "MOVE", "direction": {"random": "degrees", "min": 0, "max": 360},    "distance": 40 }
 ```
 
-**Compass directions — 16-point:**  
+**Compass directions — 16-point:**
 `N  NNE  NE  ENE  E  ESE  SE  SSE  S  SSW  SW  WSW  W  WNW  NW  NNW`
 
 **Numeric degrees:** 0 = North, 90 = East, 180 = South, 270 = West (clockwise).
-
-**`"random"`** as a direction string — picks any of the 16 compass points.
 
 ### DEFORM
 
@@ -267,13 +365,13 @@ Stretch or compress along the shape's computed principal axis.
 {
   "command": "DEFORM",
   "axis":   "major",
-  "along":  1.25,
-  "across": 0.85
+  "along":  {"random": "uniform", "min": 0.8, "max": 1.2},
+  "across": {"random": "uniform", "min": 0.8, "max": 1.2}
 }
 ```
 
-- `axis` — `"major"` (longest) or `"minor"` (shortest). `along` applies to this axis; `across` is perpendicular.
-- `along` / `across` — scale factors. 1.0 = no change. > 1.0 stretches, < 1.0 compresses.
+- `axis` — `"major"` (longest) or `"minor"` (shortest).
+- `along` / `across` — scale factors. 1.0 = no change.
 
 ### ROTATE
 
@@ -282,8 +380,6 @@ Stretch or compress along the shape's computed principal axis.
 { "command": "ROTATE", "angle": {"random": "uniform", "min": -45, "max": 45} }
 ```
 
-- `angle` — degrees, positive = clockwise.
-
 ### SCALE
 
 ```json
@@ -291,35 +387,28 @@ Stretch or compress along the shape's computed principal axis.
 { "command": "SCALE", "factor": {"random": "uniform", "min": 0.6, "max": 1.4} }
 ```
 
-- `factor` — uniform scale. 1.0 = no change, < 1.0 = shrink, > 1.0 = grow.
+### REFLECT
 
-### COLOR
+Mirror a polygon across an axis through its centroid. Reverses handedness
+(distinct from ROTATE).
 
 ```json
-{ "command": "COLOR", "value": "black" }
+{ "command": "REFLECT", "axis": "horizontal" }
+{ "command": "REFLECT", "axis": "random" }
+{ "command": "REFLECT", "axis": {"random": "choice", "values": ["horizontal", "vertical"]} }
 ```
 
-### WIDTH
+- `axis` — `"horizontal"` (top/bottom swap), `"vertical"` (left/right swap),
+  `"major"` (across major axis), `"minor"` (across minor axis),
+  `"random"` (pick any of the four).
+
+### COLOR / WIDTH / FILL / ALPHA / ZORDER
 
 ```json
-{ "command": "WIDTH", "value": 2 }
-```
-
-### FILL
-
-```json
-{ "command": "FILL", "value": "red" }
-```
-
-### ALPHA
-
-```json
-{ "command": "ALPHA", "value": 0.7 }
-```
-
-### ZORDER
-
-```json
+{ "command": "COLOR",  "value": "black" }
+{ "command": "WIDTH",  "value": 2 }
+{ "command": "FILL",   "value": "#d0d0d0" }
+{ "command": "ALPHA",  "value": 0.7 }
 { "command": "ZORDER", "value": 1 }
 ```
 
@@ -327,78 +416,109 @@ Stretch or compress along the shape's computed principal axis.
 
 ## Random Values
 
-Any numeric parameter in a transform command accepts a random spec in place
-of a fixed number.
-
-### uniform
-
-Uniform distribution between min and max.
+Any numeric parameter accepts a fixed value or a random spec.
 
 ```json
-{"random": "uniform", "min": 0.7, "max": 1.3}
-```
-
-### normal
-
-Normal (Gaussian) distribution. `min`/`max` clamp the result.
-
-```json
-{"random": "normal", "mean": 1.0, "std": 0.2, "min": 0.5, "max": 1.5}
-```
-
-### uniform_int
-
-Uniform integer distribution. Used for `iterations`.
-
-```json
+{"random": "uniform",     "min": 0.7, "max": 1.3}
+{"random": "normal",      "mean": 1.0, "std": 0.2, "min": 0.5, "max": 1.5}
 {"random": "uniform_int", "min": 2, "max": 8}
 ```
+
+`min`/`max` on `normal` clamp the result. `uniform_int` returns a whole number
+(used for `iterations`).
 
 ---
 
 ## placement_blocks
 
-Constraint-based placement. Each block runs the placement solver against
-the target shape, applying corrective transforms iteratively until all
-constraints are satisfied or `max_iterations` is reached.
+Constraint-based placement blocks. Each block runs the placement solver against
+the target shape. Unlike `conditional_transforms`, placement blocks always execute
+(no `chance` parameter). Missing targets are skipped silently.
 
-Unlike `select_blocks`, placement blocks do not have a `chance` parameter —
-they always execute.
+### Legacy format
+
+Simple iterative constraint loop — used for shape 1 placement (grid, size limit):
 
 ```json
 "placement_blocks": [
   {
-    "target":           "compose_shape_2",
-    "max_iterations":   20,
+    "target": "compose_shape_1",
+    "max_iterations": 20,
+    "tolerance_iterations": 3,
     "constraints": [
-      { "type": "size_ratio",       "reference": "compose_shape_1", "max": 0.8 },
-      { "type": "axis_align",       "reference": "compose_shape_1", "axis": "major", "tolerance_deg": 10 },
-      { "type": "axis_not_collinear","reference": "compose_shape_1", "axis": "minor", "min_offset_px": 20 },
-      { "type": "tangent",          "reference": "compose_shape_1", "tolerance_px": 3 }
+      {"type": "canvas_size_limit", "max_fraction": 0.25},
+      {"type": "grid_placement", "division": 3, "position": "random", "random_mode": "per_iteration"}
     ]
   }
 ]
 ```
 
-- `target` — working name of the shape to place. Accepts `"random"`.
+- `target` — any target spec (name, range, list). Missing names skipped silently.
 - `max_iterations` — solver iteration limit. Default 20.
-- `tolerance_iterations` — stop early if no progress for N iterations. Default 3.
-- `constraints` — ordered list. Evaluated and applied in sequence.
+- `tolerance_iterations` — stop if no progress for N iterations. Default 3.
+- `constraints` — ordered list evaluated and corrected in sequence.
+
+### New format (pre-placement transforms + tangent placement)
+
+Used for shapes 2+ that need tangent placement against a reference cluster:
+
+```json
+"placement_blocks": [
+  {
+    "target": "compose_shape_2",
+    "max_iterations": 10,
+    "fit_rules": [
+      {"type": "size_ratio", "reference": "compose_shape_1", "max": 0.8}
+    ],
+    "placement": {
+      "type": "tangent",
+      "reference": "compose_shape_1",
+      "approach": "random",
+      "tolerance_px": 3,
+      "canvas_bounds_margin_px": 5,
+      "overlap_allowed": false
+    }
+  }
+]
+```
+
+**Execution sequence:**
+1. `fit_rules` — iterative constraint loop on shape in loaded position
+2. Pre-size — scale shape to fit within usable canvas area
+3. Pre-position — move to approach side of reference (clamped to canvas)
+4. Tangent move — close gap to reference hull in one direct move
+5. Bounds fit — if hull exceeds canvas: exact resize + re-tangent
+6. Overlap check — push off any overlapping shapes (if `overlap_allowed: false`)
+
+**`fit_rules`** (alias: `pre_constraints`) — constraints evaluated before placement.
+Typically `size_ratio` and axis constraints.
+
+**`placement.approach`** — direction to approach the reference from:
+```json
+"approach": "random"
+"approach": "SE"
+"approach": 135
+"approach": {"random": "degrees", "min": 0, "max": 360}
+"approach": {"random": "choice", "values": ["N", "S", "E", "W"]}
+```
+
+**`placement.reference_group`** — reference the combined hull of multiple shapes:
+```json
+"reference_group": ["compose_shape_1", "compose_shape_2"]
+```
+
+**`placement.overlap_allowed`** — if `false` (default), push shape off any overlapping
+shapes after placement. If `true`, overlaps are permitted.
 
 ---
 
 ## Constraints
 
-Constraints are evaluated in order within a placement block.
-Each constraint that is not satisfied applies a corrective transform
-(MOVE, ROTATE, or SCALE) and re-evaluates from the next constraint.
-
-All constraints that reference another shape use `"reference"` — a working name.
+Used in `constraints` (legacy) and `fit_rules` (new format) lists.
 
 ### size_ratio
 
-Target convex hull area must be no more than `max` times the reference hull area.  
-Correction: uniform scale.
+Target hull area <= `max` * reference hull area. Correction: scale.
 
 ```json
 {"type": "size_ratio", "reference": "compose_shape_1", "max": 0.8}
@@ -406,63 +526,71 @@ Correction: uniform scale.
 
 ### canvas_size_limit
 
-Target hull must not exceed `max_fraction` of canvas width or height.  
-Correction: uniform scale.
+Target hull must not exceed `max_fraction` of canvas in either dimension. Correction: scale.
 
 ```json
 {"type": "canvas_size_limit", "max_fraction": 0.25}
 ```
 
-`canvas_w` and `canvas_h` default to 768 and are injected automatically.
+### canvas_bounds
+
+All hull points must lie within canvas bounds. When exceeded, shape is scaled
+down around its centroid (preserving contact). Used internally by `placement`
+via `canvas_bounds_margin_px` — not typically needed in `constraints` list directly.
+
+```json
+{"type": "canvas_bounds", "margin_px": 5}
+```
 
 ### grid_placement
 
-Target centroid must be within `tolerance_px` of a compositional grid point.  
-Correction: move centroid to the grid point.
+Target centroid must be within `tolerance_px` of a compositional grid point.
+Correction: move to grid point.
 
 ```json
-{"type": "grid_placement", "division": 3, "position": "top_left", "tolerance_px": 20}
+{"type": "grid_placement", "division": 3, "position": "top_left",   "tolerance_px": 20}
+{"type": "grid_placement", "division": 3, "position": "random",      "random_mode": "per_iteration"}
+{"type": "grid_placement", "division": 4, "position": "random",      "random_mode": "per_batch"}
 ```
 
-**`division`** — integer N creates an NxN grid. 3=thirds, 5=fifths, 7=sevenths.
+**`division`** — integer N creates an NxN grid. 3=thirds (4 intersections),
+4=quarters (9 intersections), 5=fifths (16 intersections).
 
 **`position` values:**
 
 | Name | Description |
 |---|---|
-| `nearest` | Closest grid intersection to current centroid (default) |
-| `center` | Canvas dead-center (always canvas_w/2, canvas_h/2) |
-| `top_left` | First row, first column intersection |
-| `top_center` | First row, second column (use division >= 3) |
+| `nearest` | Closest intersection to current centroid (default) |
+| `center` | Canvas dead-center |
+| `top_left` | First row, first column |
+| `top_center` | First row, center column |
 | `top_right` | First row, last column |
-| `center_left` | Second row, first column |
-| `center_right` | Second row, last column |
+| `center_left` | Middle row, first column |
+| `center_right` | Middle row, last column |
 | `bottom_left` | Last row, first column |
-| `bottom_center` | Last row, second column |
+| `bottom_center` | Last row, center column |
 | `bottom_right` | Last row, last column |
-| `upper_left` | Alias for top_left |
-| `upper_right` | Alias for top_right |
-| `lower_left` | Alias for bottom_left |
-| `lower_right` | Alias for bottom_right |
 | `portrait_top` | 1/3 down, horizontally centered |
+| `random` | Randomly chosen intersection — see `random_mode` |
+
+**`random_mode`** (when `position` is `"random"`):
+
+| Mode | Behavior |
+|---|---|
+| `per_iteration` | New random intersection chosen each batch iteration (default) |
+| `per_batch` | Random intersection chosen once before the batch run, same for all iterations |
 
 ### axis_align
 
-Target's named axis must be aligned with the reference's named axis within `tolerance_deg`.  
-Correction: rotate.
+Target axis aligned with reference axis within `tolerance_deg`. Correction: rotate.
 
 ```json
 {"type": "axis_align", "reference": "compose_shape_1", "axis": "major", "tolerance_deg": 10}
 ```
 
-- `axis` — `"major"` or `"minor"`
-- `tolerance_deg` — acceptable angular deviation. Default 10.
-
 ### axis_misalign
 
-Target's named axis must differ from reference's axis by at least `min_deg`.  
-Guarantees the axes are NOT aligned.  
-Correction: rotate to push past minimum threshold.
+Target axis must differ from reference by at least `min_deg`. Correction: rotate.
 
 ```json
 {"type": "axis_misalign", "reference": "compose_shape_1", "axis": "minor", "min_deg": 15}
@@ -470,56 +598,27 @@ Correction: rotate to push past minimum threshold.
 
 ### axis_collinear
 
-Target's named axis must be both parallel to and on the same line as the reference's axis.  
-Two-stage: first aligns (parallel), then translates (collinear).  
-Correction: rotate then move perpendicular to axis.
+Target axis parallel to and on the same line as reference axis. Two-stage correction:
+rotate then move perpendicular.
 
 ```json
-{
-  "type": "axis_collinear",
-  "reference": "compose_shape_1",
-  "axis": "minor",
-  "align_tolerance_deg": 5,
-  "collinear_tolerance_px": 10
-}
+{"type": "axis_collinear", "reference": "compose_shape_1", "axis": "minor",
+ "align_tolerance_deg": 5, "collinear_tolerance_px": 10}
 ```
 
 ### axis_not_collinear
 
-Target's named axis must be parallel but offset from reference's axis by at least `min_offset_px`.  
-Ensures axes are parallel but NOT on the same line — staggered relationship.  
-Correction: move perpendicular to axis direction.
+Target axis parallel but offset from reference axis by at least `min_offset_px`.
+Correction: move perpendicular to axis.
 
 ```json
-{
-  "type": "axis_not_collinear",
-  "reference": "compose_shape_1",
-  "axis": "minor",
-  "min_offset_px": 20
-}
-```
-
-### axis_near_parallel
-
-*(Planned — not yet implemented)*  
-Target axis aligned with reference then deliberately offset by `misalign_deg`.  
-Intended for secondary cluster shapes that read as a family but are not exact.
-
-```json
-{
-  "type": "axis_near_parallel",
-  "reference": "compose_shape_4",
-  "axis": "major",
-  "misalign_deg": {"random": "uniform", "min": 5, "max": 20}
-}
+{"type": "axis_not_collinear", "reference": "compose_shape_1", "axis": "minor", "min_offset_px": 20}
 ```
 
 ### tangent
 
-Target hull must be within `tolerance_px` of touching the reference hull
-at no more than `max_contact_points` contact segments.  
-Near-tangency (approximate). Exact tangency is a future enhancement.  
-Correction: move toward reference along the closest-approach vector.
+Target hull within `tolerance_px` of touching reference hull. Correction: move toward
+reference. Overlap is detected and corrected (push apart then re-approach).
 
 ```json
 {
@@ -530,16 +629,24 @@ Correction: move toward reference along the closest-approach vector.
 }
 ```
 
+Supports `reference_group` for combined cluster hull:
+```json
+{
+  "type": "tangent",
+  "reference_group": ["compose_shape_1", "compose_shape_2"],
+  "tolerance_px": 3
+}
+```
+
 ### separation_from_group
 
-Target hull must be separated from the collective convex hull of a named group
-by at least `min_separation_px`.  
-Optionally, target must be further from the group than a reference shape (`greater_than`).
+Target hull separated from group's combined hull by at least `min_separation_px`.
+Optionally must be further than `greater_than` shape.
 
 ```json
 {
   "type": "separation_from_group",
-  "reference_group": ["compose_shape_1", "compose_shape_2", "compose_shape_3"],
+  "reference_group": ["compose_shape_1", "compose_shape_2"],
   "min_separation_px": 30,
   "greater_than": "compose_shape_4"
 }
@@ -549,82 +656,80 @@ Optionally, target must be further from the group than a reference shape (`great
 
 ## Solver Behavior
 
-The placement solver works through constraints in order within each iteration:
+**Legacy constraint loop** (`constraints`):
+1. Evaluate each constraint in order
+2. Apply corrective transform if not satisfied
+3. Repeat until all satisfied or `max_iterations` reached
+4. Early stop if no progress for `tolerance_iterations` consecutive iterations
 
-1. Evaluate constraint against current shape geometry
-2. If not satisfied, apply the corrective transform immediately
-3. Refresh shape geometry
-4. Continue to next constraint
-5. Repeat until all satisfied or `max_iterations` reached
-
-Early stopping: if no corrections are applied for `tolerance_iterations`
-consecutive iterations, the solver stops.
-
-Corrections applied:
-- `move` — `MOVE shape_name dx,dy`
-- `rotate` — `ROTATE shape_name angle`
-- `scale` — `SCALE shape_name factor`
+**New placement solver** (`fit_rules` + `placement`):
+1. Run `fit_rules` constraint loop (shape in loaded position)
+2. Pre-size: scale to fit usable canvas area
+3. Pre-position: move to approach side (clamped to canvas bounds)
+4. Tangent move: single direct move to contact
+5. Bounds fit: if out of bounds, resize to fit + re-tangent (no loop)
+6. Overlap check: push off all overlapping shapes if `overlap_allowed: false`
 
 All solver activity is logged to the app UI log when `verbose: true`.
 
 ---
 
-## Scenario 1 — Two Shapes in Adjacency
-
-Full executable example implementing the two-shape adjacency scenario.
+## Full Example — Multi-shape Composition
 
 ```json
-"compose_scenario1": {
+"compose_multi": {
   "commands": [
     {
       "template": "compose_1",
-      "params": { "color": "black", "width": "2" },
+      "params": {"color": "black", "width": "2"},
       "compose_parameters": {
         "shapes": {
-          "specified": ["sa224/gen1_0033", "sa224/gen4_0050"]
+          "selection": [
+            {"method": "specified", "shapes": ["sa224/gen1_0033"]},
+            {"method": "wildcard",  "pattern": "sa224/gen4_*",
+             "count": {"random": "uniform_int", "min": 2, "max": 4}}
+          ]
         },
+        "on_load": [
+          {"command": "FILL",    "value": "#d0d0d0"},
+          {"command": "REFLECT", "axis": "random", "chance": 0.5}
+        ],
         "command_loop": {
           "verbose": true,
           "iterations": 1,
-          "commands": [],
-          "select_blocks": [
+          "conditional_transforms": [
             {
               "chance": 1.0,
-              "target": "compose_shape_1",
+              "target": {"range": [1, 5]},
               "commands": [
-                { "command": "DEFORM", "axis": "major",
-                  "along": {"random": "uniform", "min": 0.8, "max": 1.2},
-                  "across": {"random": "uniform", "min": 0.8, "max": 1.2} }
-              ]
-            },
-            {
-              "chance": 1.0,
-              "target": "compose_shape_2",
-              "commands": [
-                { "command": "DEFORM", "axis": "major",
-                  "along": {"random": "uniform", "min": 0.7, "max": 1.1},
-                  "across": {"random": "uniform", "min": 0.7, "max": 1.1} }
+                {"command": "DEFORM", "axis": "major",
+                 "along":  {"random": "uniform", "min": 0.8, "max": 1.2},
+                 "across": {"random": "uniform", "min": 0.8, "max": 1.2}}
               ]
             }
           ],
           "placement_blocks": [
             {
               "target": "compose_shape_1",
-              "max_iterations": 20,
               "constraints": [
-                { "type": "canvas_size_limit", "max_fraction": 0.25 },
-                { "type": "grid_placement", "division": 3, "position": "top_left" }
+                {"type": "canvas_size_limit", "max_fraction": 0.25},
+                {"type": "grid_placement", "division": 3,
+                 "position": "random", "random_mode": "per_iteration"}
               ]
             },
             {
-              "target": "compose_shape_2",
-              "max_iterations": 30,
-              "constraints": [
-                { "type": "size_ratio",        "reference": "compose_shape_1", "max": 0.8 },
-                { "type": "axis_align",        "reference": "compose_shape_1", "axis": "major", "tolerance_deg": 10 },
-                { "type": "axis_not_collinear","reference": "compose_shape_1", "axis": "minor", "min_offset_px": 20 },
-                { "type": "tangent",           "reference": "compose_shape_1", "tolerance_px": 3 }
-              ]
+              "target": {"range": [2, 5]},
+              "fit_rules": [
+                {"type": "size_ratio", "reference": "compose_shape_1", "max": 0.8}
+              ],
+              "placement": {
+                "type": "tangent",
+                "reference_group": ["compose_shape_1"],
+                "approach": "random",
+                "tolerance_px": 3,
+                "canvas_bounds_margin_px": 5,
+                "overlap_allowed": false
+              }
             }
           ]
         }
@@ -638,13 +743,12 @@ Full executable example implementing the two-shape adjacency scenario.
 
 ## Planned / Not Yet Implemented
 
-- **Wildcard shape selection** — `"wildcard": {"pattern": "sa224/gen1_*", "count": 2}`
-- **axis_near_parallel constraint** — deliberate small misalignment
+- **axis_near_parallel constraint** — deliberate small axis misalignment
 - **separation_from_shape constraint** — controlled distance between two named shapes
-- **commands_applied logging** — full transform log in construction JSON for RL
-- **COMPOSE load with command replay** — replay `commands_applied` on reload
+- **RL command logging** — full transform log for reinforcement learning analysis
 - **Exact tangency** — currently approximate within `tolerance_px`
 - **fit_to bounding polygon** in DEFORM
+- **Cluster definitions** — named groups of shapes for compositional reference
 
 ---
 

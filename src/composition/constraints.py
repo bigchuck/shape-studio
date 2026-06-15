@@ -243,7 +243,8 @@ def check_canvas_bounds(target_points, canvas_w, canvas_h, margin_px=0.0):
 # ---------------------------------------------------------------------------
 
 def check_grid_placement(target_points, canvas_w, canvas_h,
-                          division=3, position='nearest', tolerance_px=20.0):
+                          division=3, position='nearest', tolerance_px=20.0,
+                          resolved_pt=None):
     """Target centroid must be within tolerance of a grid point.
 
     Correction: move centroid to the target grid point.
@@ -252,17 +253,27 @@ def check_grid_placement(target_points, canvas_w, canvas_h,
         target_points:  Point list for shape being constrained
         canvas_w/h:     Canvas dimensions
         division:       Grid division (3=thirds, 5=fifths, ...)
-        position:       Named position or 'nearest'
+        position:       Named position, 'nearest', or 'random'
+                        'random' picks one intersection at random each evaluation.
         tolerance_px:   Acceptable distance from grid point
+        resolved_pt:    Pre-resolved (x,y) for 'random' — locks the target across
+                        solver iterations so it doesn't change each pass.
 
     Returns:
         ConstraintResult
     """
+    import random as _random
+
     hull     = sp.convex_hull(target_points)
     centroid = sp.hull_centroid(hull)
 
-    if position == 'nearest':
+    if resolved_pt is not None:
+        target_pt = resolved_pt
+    elif position == 'nearest':
         target_pt = sp.nearest_grid_point(centroid, canvas_w, canvas_h, division)
+    elif position == 'random':
+        pts = sp.grid_points(canvas_w, canvas_h, division)
+        target_pt = _random.choice(pts) if pts else (canvas_w / 2, canvas_h / 2)
     else:
         target_pt = sp.named_grid_point(canvas_w, canvas_h, division, position)
 
@@ -672,7 +683,8 @@ def evaluate(constraint_spec, target_points, shape_registry):
             canvas_h=float(constraint_spec.get('canvas_h', 768)),
             division=int(constraint_spec.get('division', 3)),
             position=constraint_spec.get('position', 'nearest'),
-            tolerance_px=float(constraint_spec.get('tolerance_px', 20.0))
+            tolerance_px=float(constraint_spec.get('tolerance_px', 20.0)),
+            resolved_pt=constraint_spec.get('_resolved_random_pt')
         )
 
     elif ctype == 'axis_align':

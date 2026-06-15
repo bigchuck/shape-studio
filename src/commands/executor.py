@@ -2755,10 +2755,7 @@ class CommandExecutor:
                         continue
                     cmd_name = cmd_spec.get('command', '').upper()
                     if cmd_name == 'REFLECT':
-                        # axis may be a random spec — resolve via command_loop machinery
-                        from src.composition.command_loop import CommandLoopRunner
-                        _runner = CommandLoopRunner(self)
-                        axis = _runner._resolve_axis(cmd_spec.get('axis', 'horizontal'))
+                        axis = self._resolve_reflect_axis(cmd_spec.get('axis', 'horizontal'))
                         cmd_str = f"REFLECT {working_name} AXIS={axis}"
                     else:
                         value = cmd_spec.get('value', '')
@@ -2892,3 +2889,30 @@ class CommandExecutor:
         self.active_canvas.redraw()
 
         return f"Reflected '{name}': axis={axis}"
+    
+    def _resolve_reflect_axis(self, axis_spec):
+        """Resolve a REFLECT axis spec — no dependency on CommandLoopRunner.
+        
+        Fixed:    'horizontal'
+        Random:   'random' — picks from all four axis types
+        Dict:     {"random": "choice", "values": ["horizontal", "vertical"]}
+        """
+        import random as _random
+        _ALL_AXES = ['horizontal', 'vertical', 'major', 'minor']
+
+        if isinstance(axis_spec, str):
+            if axis_spec.lower() == 'random':
+                return _random.choice(_ALL_AXES)
+            return axis_spec.lower()
+
+        if isinstance(axis_spec, dict):
+            dist = axis_spec.get('random', '').lower()
+            if dist == 'choice':
+                values = axis_spec.get('values', _ALL_AXES)
+                return _random.choice(values).lower()
+            raise ValueError(f"_resolve_reflect_axis: unsupported random type '{dist}'")
+
+        raise ValueError(
+            f"_resolve_reflect_axis: expected string or dict, "
+            f"got {type(axis_spec).__name__}"
+        )

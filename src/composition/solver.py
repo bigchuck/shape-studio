@@ -66,6 +66,18 @@ class PlacementSolver:
         commands_applied = []
         applied_count    = 0
 
+        # Silent skip if target not on canvas — handles random shape count
+        shape_registry = self._build_shape_registry()
+        if target_name not in shape_registry:
+            self._log(
+                f"  [solver] '{target_name}' not on canvas — skipping",
+                verbose
+            )
+            return (
+                f"PlacementSolver: '{target_name}' not found — skipped",
+                []
+            )
+
         # Detect format: new (pre_constraints + placement) vs legacy (constraints)
         has_placement_key = 'placement' in placement_block
 
@@ -489,9 +501,11 @@ class PlacementSolver:
             shape_registry = self._build_shape_registry()
 
             if target_name not in shape_registry:
-                raise ValueError(
-                    f"PlacementSolver: target '{target_name}' not found on canvas"
+                self._log(
+                    f"  [{iteration+1}] '{target_name}' not on canvas — stopping",
+                    verbose
                 )
+                return applied_count
 
             target_points = shape_registry[target_name]
             augmented     = self._augment_constraints(constraints)
@@ -628,13 +642,31 @@ class PlacementSolver:
     # -----------------------------------------------------------------------
 
     def _augment_constraints(self, constraints):
-        """Inject canvas dimensions into constraint specs that need them."""
+        """Inject canvas dimensions and resolve random grid positions."""
+        import random as _random
+        from src.composition import spatial as sp
+
         augmented = []
         for c in constraints:
             c = dict(c)
             if c.get('type') in ('canvas_size_limit', 'canvas_bounds', 'grid_placement'):
                 c.setdefault('canvas_w', CANVAS_W)
                 c.setdefault('canvas_h', CANVAS_H)
+            # Resolve random grid position
+            if (c.get('type') == 'grid_placement' and
+                    c.get('position') == 'random'):
+                mode = c.get('random_mode', 'per_iteration')
+                if mode == 'per_iteration' and '_resolved_random_pt' not in c:
+                    # Pick fresh each iteration
+                    division = int(c.get('division', 3))
+                    pts = sp.grid_points(
+                        c.get('canvas_w', CANVAS_W),
+                        c.get('canvas_h', CANVAS_H),
+                        division
+                    )
+                    if pts:
+                        c['_resolved_random_pt'] = _random.choice(pts)
+                # per_batch: _resolved_random_pt already injected by executor
             augmented.append(c)
         return augmented
 
