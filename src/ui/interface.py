@@ -28,6 +28,7 @@ class ShapeStudioUI:
         self.command_history = []
         self.history_index = -1
         self.zoom_level = 1.0  # Default zoom level (100%)
+        self.replay_dialog = None
         self._load_command_history()
         
         self._setup_ui()
@@ -357,11 +358,19 @@ class ShapeStudioUI:
             result = self.executor.execute(command)
             if result:
                 self._log_output(f"    >> {result}")
-            
+
             self._update_canvas_indicators()
             self._update_canvas_display()
             self._update_replay_prompt()
-            
+
+            # Open replay dialog when REPLAY arms, refresh if already open
+            if self.executor.replay_state is not None:
+                if self.replay_dialog is None or not self.replay_dialog.alive:
+                    self.command_input.config(state='disabled')
+                    self.replay_dialog = ReplayDialog(self.root, self.executor, self)
+                else:
+                    self.replay_dialog.refresh()
+
             self.status_label.config(text=f"Command executed: {command}")
         except MissingParamsError as e:
             # Auto-invoke help for bare required-param commands
@@ -429,6 +438,253 @@ class ShapeStudioUI:
     def run(self):
         """Start the UI main loop"""
         self.root.mainloop()
+
+# ---------------------------------------------------------------------------
+# Replay Dialog
+# ---------------------------------------------------------------------------
+
+class ReplayDialog:
+    """Non-modal Toplevel dialog for stepping through REPLAY sessions.
+    Provides command list with current-position highlight, NEXT/SKIP/QUIT
+    buttons, and a restricted command entry for visual adjustments.
+    """
+
+    _ALLOWED_COMMANDS = {'FILL', 'COLOR', 'WIDTH', 'ALPHA', 'ZORDER', 'HIGH'}
+
+    def __init__(self, parent, executor, ui):
+        self.executor = executor
+        self.ui       = ui
+        self.alive    = True
+
+        self.win = tk.Toplevel(parent)
+        self.win.title("REPLAY")
+        self.win.protocol("WM_DELETE_WINDOW", self._on_close)
+
+        # Center over the command log panel (left panel, sash at ~500px)
+        self.win.update_idletasks()
+        dlg_w  = 480
+        dlg_h  = 700
+        rx     = parent.winfo_x()
+        ry     = parent.winfo_y()
+        # Left panel spans from root x to approximately sash x (500px)
+        try:
+            sash_x = parent.winfo_rootx() + self.ui.main_pane.sash_coord(0)[0]
+        except Exception:
+            sash_x = rx + 500
+        panel_center_x = rx + (sash_x - rx) // 2
+        px = panel_center_x - dlg_w // 2
+        py = ry + 40
+        self.win.geometry(f"{dlg_w}x{dlg_h}+{px}+{py}")
+        self.win.resizable(True, True)
+
+        self._build()
+        self.refresh()
+
+        # Enter key on dialog drives NEXT when entry is empty
+        self.win.bind('<Return>', self._on_enter)
+
+    def _build(self):
+        """Build dialog layout."""
+        # --- Status bar ---
+        self.status_var = tk.StringVar(value="")
+        status = tk.Label(
+            self.win, textvariable=self.status_var,
+            font=('Consolas', 10, 'bold'), anchor='w',
+            bg='darkred', fg='white', padx=6
+        )
+        status.pack(fill=tk.X, side=tk.TOP)
+
+        # --- Command list ---
+        list_frame = tk.Frame(self.win)
+        list_frame.pack(fill=tk.BOTH, expand=True, padx=4, pady=4)
+
+        scrollbar = tk.Scrollbar(list_frame)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+
+        self.listbox = tk.Listbox(
+            list_frame, font=('Consolas', 10),
+            yscrollcommand=scrollbar.set,
+            selectmode=tk.BROWSE, activestyle='none',
+            bg='#1e1e1e', fg='#cccccc',
+            selectbackground='#3a3a3a',
+        )
+        self.listbox.pack(fill=tk.BOTH, expand=True)
+        scrollbar.config(command=self.listbox.yview)
+
+        # --- Button row ---
+        btn_frame = tk.Frame(self.win, pady=4)
+        btn_frame.pack(fill=tk.X, side=tk.BOTTOM)
+
+        self.next_btn = tk.Button(
+            btn_frame, text="NEXT", width=10, bg='#2e7d32', fg='white',
+            font=('Arial', 10, 'bold'), command=self._do_next
+        )
+        self.next_btn.pack(side=tk.LEFT, padx=6)
+
+        self.skip_btn = tk.Button(
+            btn_frame, text="SKIP", width=10, bg='#e65100', fg='white',
+            font=('Arial', 10, 'bold'), command=self._do_skip
+        )
+        self.skip_btn.pack(side=tk.LEFT, padx=2)
+
+        self.quit_btn = tk.Button(
+            btn_frame, text="QUIT", width=10, bg='#b71c1c', fg='white',
+            font=('Arial', 10, 'bold'), command=self._do_quit
+        )
+        self.quit_btn.pack(side=tk.LEFT, padx=2)
+
+        # --- Command entry ---
+        entry_frame = tk.Frame(self.win, pady=2)
+        entry_frame.pack(fill=tk.X, side=tk.BOTTOM)
+
+        tk.Label(entry_frame, text="Cmd:", font=('Consolas', 9)).pack(side=tk.LEFT, padx=4)
+        self.cmd_entry = tk.Entry(entry_frame, font=('Consolas', 10))
+        self.cmd_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=2)
+        self.cmd_entry.bind('<Return>', self._on_entry_return)
+
+        tk.Button(
+            entry_frame, text="Run", command=self._do_entry_cmd
+        ).pack(side=tk.LEFT, padx=4)
+
+    def refresh(self):
+        """Rebuild listbox content to reflect current replay_state."""
+        state = self.executor.replay_state
+        if state is None:
+            return
+
+        commands = state['commands']
+        idx      = state['index']
+        total    = state['total']
+        high     = state.get('highlight_active', False)
+        h_shape  = state.get('highlight_shape')
+
+        # Update status
+        shape_info = f"  shape: {h_shape}" if high and h_shape else ""
+        pending    = "  [NEXT to transition]" if state.get('pending_transition') else ""
+        self.status_var.set(f"Step {idx}/{total}{shape_info}{pending}")
+
+        # Rebuild list
+        self.listbox.delete(0, tk.END)
+
+        # Pre-scan transition boundaries for spacers
+        boundaries = set()
+        if high:
+            prev_target = None
+            for i, cmd in enumerate(commands):
+                t = self._parse_target(cmd)
+                if t and t != prev_target and prev_target is not None:
+                    boundaries.add(i)
+                if t:
+                    prev_target = t
+
+        # Offset tracks inserted spacer rows
+        offset = 0
+        for i, cmd in enumerate(commands):
+            if i in boundaries:
+                self.listbox.insert(tk.END, "")
+                self.listbox.itemconfig(tk.END, bg='#333333', fg='#333333')
+                offset += 1
+
+            self.listbox.insert(tk.END, f"  {cmd}")
+
+            list_i = i + offset
+            if i < idx:
+                # Already executed
+                self.listbox.itemconfig(list_i, bg='#2a2a2a', fg='#555555')
+            elif i == idx:
+                # Current / pending
+                self.listbox.itemconfig(list_i, bg='#3a3000', fg='#ffee88')
+            else:
+                # Not yet reached
+                self.listbox.itemconfig(list_i, bg='#1e1e1e', fg='#cccccc')
+
+        # Scroll current command into view
+        visible_idx = idx + offset
+        if visible_idx < self.listbox.size():
+            self.listbox.see(visible_idx)
+
+    def _parse_target(self, cmd_str):
+        tokens = cmd_str.strip().split()
+        return tokens[1] if len(tokens) >= 2 else None
+
+    def _do_next(self):
+        msg, done = self.executor.replay_next()
+        self.ui._log_output(f"    >> {msg}")
+        self.ui._update_canvas_display()
+        self.ui._update_replay_prompt()
+        if done:
+            self._finish()
+        else:
+            self.refresh()
+
+    def _do_skip(self):
+        msg, done = self.executor.replay_skip()
+        self.ui._log_output(f"    >> {msg}")
+        self.ui._update_replay_prompt()
+        if done:
+            self._finish()
+        else:
+            self.refresh()
+
+    def _do_quit(self):
+        msg = self.executor.replay_quit()
+        self.ui._log_output(f"    >> {msg}")
+        self.ui._update_replay_prompt()
+        self._close()
+
+    def _do_entry_cmd(self):
+        cmd = self.cmd_entry.get().strip()
+        if not cmd:
+            return
+        verb = cmd.split()[0].upper()
+        if verb not in self._ALLOWED_COMMANDS:
+            self.cmd_entry.config(bg='#ffcccc')
+            self.win.after(600, lambda: self.cmd_entry.config(bg='white'))
+            return
+        self.cmd_entry.delete(0, tk.END)
+        try:
+            result = self.executor.execute(cmd)
+            if result:
+                self.ui._log_output(f"    >> {result}")
+            self.ui._update_canvas_display()
+            self.refresh()
+        except Exception as e:
+            self.ui._log_output(f"    !! {e}")
+
+    def _on_entry_return(self, event):
+        """Enter in entry field: submit if text present, else NEXT."""
+        if self.cmd_entry.get().strip():
+            self._do_entry_cmd()
+        else:
+            self._do_next()
+
+    def _on_enter(self, event):
+        """Enter key on dialog window (not in entry): drive NEXT."""
+        # Only fire if focus is not on the entry field
+        if self.win.focus_get() is not self.cmd_entry:
+            self._do_next()
+
+    def _finish(self):
+        """Replay completed — show status then auto-close."""
+        self.status_var.set("REPLAY complete.")
+        self.next_btn.config(state='disabled')
+        self.skip_btn.config(state='disabled')
+        self.win.after(1500, self._close)
+
+    def _on_close(self):
+        """X button pressed — treat as QUIT."""
+        if self.executor.replay_state is not None:
+            self.executor.replay_quit()
+            self.ui._update_replay_prompt()
+        self._close()
+
+    def _close(self):
+        """Tear down dialog and re-enable main command bar."""
+        self.alive = False
+        self.ui.replay_dialog = None
+        self.ui.command_input.config(state='normal')
+        self.ui.command_input.focus()
+        self.win.destroy()
 
 
 def create_ui(executor):
