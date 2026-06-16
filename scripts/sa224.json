@@ -279,13 +279,14 @@
               },
               {
                 "chance": 0.6,
-                "target": {"range": [1, 5]},
+                "_target": {"range": [1, 5]},
+                "target": "random",
                 "commands": [
                   {
                     "command": "DEFORM",
                     "axis": "major",
-                    "along":  {"random": "uniform", "min": 0.75, "max": 1.25},
-                    "across": {"random": "uniform", "min": 0.80, "max": 1.20}
+                    "along":  {"random": "uniform", "min": 0.80, "max": 1.25},
+                    "across": {"random": "uniform", "min": 0.30, "max": 0.50}
                   }
                 ]
               }

@@ -242,10 +242,10 @@ class CommandLoopRunner:
                 target = cmd_spec.get('target', 'all')
                 targets = self._resolve_targets(target, working_names)
                 for name in targets:
-                    actual = self._dispatch(cmd_spec, name)
+                    exec_str, log_str = self._dispatch(cmd_spec, name)
                     if verbose:
-                        self._log(f"  always[{idx}] {actual}")
-                    commands_applied.append(actual)
+                        self._log(f"  always[{idx}] {log_str}")
+                    commands_applied.append(exec_str)
                     applied_count += 1
 
             # conditional_transforms — each fires independently by chance
@@ -278,10 +278,10 @@ class CommandLoopRunner:
 
                 for resolved in resolved_targets:
                     for cidx, cmd_spec in enumerate(block.get('commands', [])):
-                        actual = self._dispatch(cmd_spec, resolved)
+                        exec_str, log_str = self._dispatch(cmd_spec, resolved)
                         if verbose:
-                            self._log(f"    cmd[{cidx}] {actual}")
-                        commands_applied.append(actual)
+                            self._log(f"    cmd[{cidx}] {log_str}")
+                        commands_applied.append(exec_str)
                         applied_count += 1
 
             # placement_blocks — constraint-based solver for each
@@ -453,7 +453,7 @@ class CommandLoopRunner:
 
     def _dispatch(self, cmd_spec, shape_name):
         """Build and execute a command string for the given shape.
-        Returns a summary string showing actual resolved values.
+        Returns (exec_str, log_str) — exec_str is replayable, log_str is human-readable.
         """
         cmd_name = cmd_spec['command'].upper()
 
@@ -467,7 +467,7 @@ class CommandLoopRunner:
             return self._dispatch_deform(cmd_spec, shape_name)
         elif cmd_name in ('COLOR', 'WIDTH', 'FILL', 'ALPHA', 'ZORDER'):
             return self._dispatch_simple(cmd_name, cmd_spec, shape_name)
-        elif cmd_name == 'REFLECT': 
+        elif cmd_name == 'REFLECT':
             return self._dispatch_reflect(cmd_spec, shape_name)
         else:
             raise ValueError(f"command_loop: unsupported command '{cmd_name}'")
@@ -496,8 +496,9 @@ class CommandLoopRunner:
             detail = f"dir={resolved_dir} dist={distance:.2f} -> dx={dx:.2f},dy={dy:.2f}"
         else:
             raise ValueError("MOVE in command_loop requires 'delta' or 'direction'+'distance'")
-        self.executor.execute(f"MOVE {shape_name} {dx},{dy}")
-        return f"MOVE -> '{shape_name}' ({detail})"
+        exec_str = f"MOVE {shape_name} {dx},{dy}"
+        self.executor.execute(exec_str)
+        return exec_str, f"MOVE -> '{shape_name}' ({detail})"
 
     def _resolve_direction(self, direction_spec):
         """Resolve a direction spec to a (direction_value, display_string) pair.
@@ -613,41 +614,39 @@ class CommandLoopRunner:
 
     def _dispatch_rotate(self, cmd_spec, shape_name):
         angle = self._resolve_numeric(cmd_spec.get('angle'), default=0.0)
-        self.executor.execute(f"ROTATE {shape_name} {angle}")
-        return f"ROTATE -> '{shape_name}' (angle={angle:.3f})"
+        exec_str = f"ROTATE {shape_name} {angle}"
+        self.executor.execute(exec_str)
+        return exec_str, f"ROTATE -> '{shape_name}' (angle={angle:.3f})"
 
     def _dispatch_scale(self, cmd_spec, shape_name):
         factor = self._resolve_numeric(cmd_spec.get('factor'), default=1.0)
-        self.executor.execute(f"SCALE {shape_name} {factor}")
-        return f"SCALE -> '{shape_name}' (factor={factor:.3f})"
+        exec_str = f"SCALE {shape_name} {factor}"
+        self.executor.execute(exec_str)
+        return exec_str, f"SCALE -> '{shape_name}' (factor={factor:.3f})"
 
     def _dispatch_deform(self, cmd_spec, shape_name):
         axis   = cmd_spec.get('axis', 'major')
         along  = self._resolve_numeric(cmd_spec.get('along'),  default=1.0)
         across = self._resolve_numeric(cmd_spec.get('across'), default=1.0)
-        self.executor.execute(
-            f"DEFORM {shape_name} AXIS={axis} ALONG={along} ACROSS={across}"
-        )
-        return f"DEFORM -> '{shape_name}' (axis={axis} along={along:.3f} across={across:.3f})"
+        exec_str = f"DEFORM {shape_name} AXIS={axis} ALONG={along} ACROSS={across}"
+        self.executor.execute(exec_str)
+        return exec_str, f"DEFORM -> '{shape_name}' (axis={axis} along={along:.3f} across={across:.3f})"
 
     def _dispatch_simple(self, cmd_name, cmd_spec, shape_name):
         """Dispatch single-value commands: COLOR, WIDTH, FILL, ALPHA, ZORDER."""
         if cmd_name == 'COLOR':
             value = cmd_spec.get('value', 'black')
-            self.executor.execute(f"COLOR {shape_name} {value}")
         elif cmd_name == 'WIDTH':
             value = float(cmd_spec.get('value', 1))
-            self.executor.execute(f"WIDTH {shape_name} {value}")
         elif cmd_name == 'FILL':
             value = cmd_spec.get('value', 'none')
-            self.executor.execute(f"FILL {shape_name} {value}")
         elif cmd_name == 'ALPHA':
             value = float(cmd_spec.get('value', 1.0))
-            self.executor.execute(f"ALPHA {shape_name} {value}")
         elif cmd_name == 'ZORDER':
             value = cmd_spec.get('value', 0)
-            self.executor.execute(f"ZORDER {shape_name} {value}")
-        return f"{cmd_name} -> '{shape_name}' (value={value})"
+        exec_str = f"{cmd_name} {shape_name} {value}"
+        self.executor.execute(exec_str)
+        return exec_str, f"{cmd_name} -> '{shape_name}' (value={value})"
 
     # -----------------------------------------------------------------------
     # Utilities
@@ -655,8 +654,9 @@ class CommandLoopRunner:
 
     def _dispatch_reflect(self, cmd_spec, shape_name):
         axis = self._resolve_axis(cmd_spec.get('axis', 'horizontal'))
-        self.executor.execute(f"REFLECT {shape_name} AXIS={axis}")
-        return f"REFLECT -> '{shape_name}' (axis={axis})"
+        exec_str = f"REFLECT {shape_name} AXIS={axis}"
+        self.executor.execute(exec_str)
+        return exec_str, f"REFLECT -> '{shape_name}' (axis={axis})"
 
     def _resolve_axis(self, axis_spec):
         """Resolve an axis spec — fixed string or random choice dict."""

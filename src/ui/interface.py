@@ -64,8 +64,8 @@ class ShapeStudioUI:
         input_bar = tk.Frame(self.root, bd=1, relief=tk.RAISED)
         input_bar.pack(side=tk.BOTTOM, fill=tk.X, padx=5, pady=5)
 
-        input_label = tk.Label(input_bar, text="Command:")
-        input_label.pack(side=tk.LEFT, padx=(5, 2))
+        self.input_label = tk.Label(input_bar, text="Command:")
+        self.input_label.pack(side=tk.LEFT, padx=(5, 2))
 
         self.command_input = tk.Entry(input_bar, font=('Consolas', 10))
         self.command_input.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=5)
@@ -269,6 +269,21 @@ class ShapeStudioUI:
             self.status_label.config(
                 text=f"Active: MAIN{ww_text} | up/dn for history | ESC/F11 = fullscreen"
             )
+
+    def _update_replay_prompt(self):
+        """Update the command label to reflect replay mode state."""
+        state = self.executor.replay_state
+        if state is not None:
+            idx   = state['index'] + 1   # next to execute, 1-based
+            total = state['total']
+            self.input_label.config(
+                text=f"[REPLAY {idx}/{total}]",
+                fg='white', bg='darkred'
+            )
+        else:
+            self.input_label.config(
+                text="Command:", fg='black', bg=self.root.cget('bg')
+            )
         
     def _toggle_rulers(self):
         """Toggle ruler visibility"""
@@ -315,7 +330,28 @@ class ShapeStudioUI:
         
         # Clear input
         self.command_input.delete(0, tk.END)
-        
+
+        # REPLAY mode intercept
+        if self.executor.replay_state is not None or command.upper() in ('NEXT', 'SKIP', 'QUIT'):
+            verb = command.strip().upper()
+            if verb == 'NEXT':
+                msg, done = self.executor.replay_next()
+                self._log_output(f"    >> {msg}")
+                self._update_canvas_display()
+                self._update_replay_prompt()
+                return
+            elif verb == 'SKIP':
+                msg, done = self.executor.replay_skip()
+                self._log_output(f"    >> {msg}")
+                self._update_replay_prompt()
+                return
+            elif verb == 'QUIT':
+                msg = self.executor.replay_quit()
+                self._log_output(f"    >> {msg}")
+                self._update_replay_prompt()
+                return
+            # Non-NEXT/SKIP/QUIT in replay mode: fall through to normal execute
+
         # Execute
         try:
             result = self.executor.execute(command)
@@ -324,6 +360,7 @@ class ShapeStudioUI:
             
             self._update_canvas_indicators()
             self._update_canvas_display()
+            self._update_replay_prompt()
             
             self.status_label.config(text=f"Command executed: {command}")
         except MissingParamsError as e:

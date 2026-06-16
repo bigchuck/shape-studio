@@ -45,6 +45,8 @@ class CommandExecutor:
         self._last_storage_name = None
         # WORKWITH context: storage name of the implicitly targeted shape, or None
         self.workwith = None
+        # REPLAY mode state — None when inactive
+        self.replay_state = None
 
         # Persistence directories
         self.project_store_dir = Path(config.paths.shapes)
@@ -127,6 +129,7 @@ class CommandExecutor:
             'DEFORM': self._execute_deform,
             'COMPOSE': self._execute_compose,
             'REFLECT': self._execute_reflect,
+            'REPLAY': self._execute_replay,
             'HELP': self._execute_help,
         }
         
@@ -2784,7 +2787,8 @@ class CommandExecutor:
             from src.composition.command_loop import CommandLoopRunner
             working_names = [r['working_name'] for r in records]
             runner = CommandLoopRunner(self, verbose=command_loop.get('verbose', True))
-            loop_result, commands_applied = runner.run(command_loop, working_names)
+            loop_result, loop_commands = runner.run(command_loop, working_names)
+            commands_applied.extend(loop_commands)
 
         # Save construction JSON with full commands_applied log
         construction = builder.build_construction_json(
@@ -2916,3 +2920,137 @@ class CommandExecutor:
             f"_resolve_reflect_axis: expected string or dict, "
             f"got {type(axis_spec).__name__}"
         )
+    
+    # -----------------------------------------------------------------------
+    # REPLAY mode
+    # -----------------------------------------------------------------------
+
+    def _execute_replay(self, cmd_dict, command_text):
+        """Enter REPLAY mode for a composition construction JSON.
+        Pre-loads component shapes (no transforms applied), then arms
+        replay_state for the UI layer to step through via NEXT/SKIP/QUIT.
+        """
+        composition_name = cmd_dict.get('name')
+        if not composition_name:
+            raise ValueError("REPLAY requires a composition name")
+
+        json_path = self.project_store_dir / f"{composition_name}.json"
+        if not json_path.exists():
+            raise ValueError(f"REPLAY: composition JSON not found: {json_path}")
+
+        with open(json_path, 'r') as f:
+            composition_data = json.load(f)
+
+        if 'composition_id' not in composition_data:
+            raise ValueError(
+                f"REPLAY: '{composition_name}' does not appear to be a composition JSON"
+            )
+
+        composition_id = composition_data['composition_id']
+        shapes_loaded  = composition_data.get('shapes_loaded', [])
+        commands       = composition_data.get('commands_applied', [])
+
+        if not shapes_loaded:
+            raise ValueError(f"REPLAY: no shapes_loaded in '{composition_name}'")
+
+        # Pre-load shapes under working names — no transforms
+        loaded = []
+        for entry in shapes_loaded:
+            source       = entry['source']
+            working_name = entry['working_name']
+            self.execute(f"LOAD {source}")
+            shapes = self.get_active_shapes()
+            storage_name = None
+            for sname, shape in shapes.items():
+                canonical = getattr(shape, 'canonical_name', shape.name)
+                if canonical == source:
+                    storage_name = sname
+                    break
+            if storage_name:
+                self.execute(f"RENAME {storage_name} {working_name}")
+                loaded.append(working_name)
+
+        self.replay_state = {
+            'composition_id': composition_id,
+            'commands':       commands,
+            'index':          0,
+            'total':          len(commands),
+        }
+
+        names = ', '.join(loaded)
+        return (
+            f"REPLAY: loaded {len(loaded)} shape(s) ({names}). "
+            f"{len(commands)} command(s) queued. "
+            f"Use NEXT / SKIP / QUIT to step."
+        )
+
+    def replay_next(self):
+        """Execute the current replay command and advance.
+        Returns (msg, done) — done=True when list exhausted.
+        """
+        if self.replay_state is None:
+            return "Not in replay mode.", True
+
+        state = self.replay_state
+        idx   = state['index']
+        total = state['total']
+
+        if idx >= total:
+            self.replay_state = None
+            return "REPLAY complete.", True
+
+        cmd = state['commands'][idx]
+        state['index'] += 1
+
+        try:
+            result = self.execute(cmd)
+        except Exception as e:
+            result = f"ERROR: {e}"
+
+        done = state['index'] >= total
+        if done:
+            self.replay_state = None
+
+        msg = f"[{idx + 1}/{total}] {cmd}"
+        if result:
+            msg += f"\n    >> {result}"
+        if done:
+            msg += "\nREPLAY complete — exiting replay mode."
+        return msg, done
+
+    def replay_skip(self):
+        """Advance index without executing.
+        Returns (msg, done).
+        """
+        if self.replay_state is None:
+            return "Not in replay mode.", True
+
+        state = self.replay_state
+        idx   = state['index']
+        total = state['total']
+
+        if idx >= total:
+            self.replay_state = None
+            return "REPLAY complete.", True
+
+        cmd = state['commands'][idx]
+        state['index'] += 1
+
+        done = state['index'] >= total
+        if done:
+            self.replay_state = None
+
+        msg = f"[{idx + 1}/{total}] SKIP: {cmd}"
+        if done:
+            msg += "\nREPLAY complete — exiting replay mode."
+        return msg, done
+
+    def replay_quit(self):
+        """Exit replay mode, leave canvas as-is."""
+        if self.replay_state is None:
+            return "Not in replay mode."
+        cid = self.replay_state['composition_id']
+        idx = self.replay_state['index']
+        tot = self.replay_state['total']
+        self.replay_state = None
+        return f"REPLAY quit at step {idx}/{tot} for '{cid}'."

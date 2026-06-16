@@ -63,6 +63,7 @@ class CommandParser:
             'CONFIG': self._parse_config,
             'COMPOSE': self._parse_compose,
             'REFLECT': self._parse_reflect,
+            'REPLAY': self._parse_replay,
             'HELP': self._parse_help,
         }
         
@@ -1102,4 +1103,13 @@ class CommandParser:
             'command': 'REFLECT',
             'name': name,
             'axis': axis,
+        }
+    
+    def _parse_replay(self, parts):
+        """Parse REPLAY command: REPLAY <composition_name>"""
+        if len(parts) < 2:
+            raise MissingParamsError("REPLAY requires: REPLAY <composition_name>")
+        return {
+            'command': 'REPLAY',
+            'name':    parts[1],
         }
