@@ -130,6 +130,7 @@ class CommandExecutor:
             'COMPOSE': self._execute_compose,
             'REFLECT': self._execute_reflect,
             'REPLAY': self._execute_replay,
+            'HIGH':   self._execute_high,
             'HELP': self._execute_help,
         }
         
@@ -2240,6 +2241,7 @@ class CommandExecutor:
             'DEFORM': self._execute_deform,
             'COMPOSE': self._execute_compose,
             'REFLECT': self._execute_reflect,
+            'HIGH':   self._execute_high,
             'HELP': self._execute_help,
         }
         
@@ -2929,6 +2931,7 @@ class CommandExecutor:
         """Enter REPLAY mode for a composition construction JSON.
         Pre-loads component shapes (no transforms applied), then arms
         replay_state for the UI layer to step through via NEXT/SKIP/QUIT.
+        HIGH command activates highlight mode after REPLAY is armed.
         """
         composition_name = cmd_dict.get('name')
         if not composition_name:
@@ -2971,34 +2974,141 @@ class CommandExecutor:
                 loaded.append(working_name)
 
         self.replay_state = {
-            'composition_id': composition_id,
-            'commands':       commands,
-            'index':          0,
-            'total':          len(commands),
+            'composition_id':    composition_id,
+            'commands':          commands,
+            'index':             0,
+            'total':             len(commands),
+            # HIGH mode fields — populated by _execute_high
+            'highlight_active':  False,
+            'highlight_color':   'red',
+            'highlight_shape':   None,
+            'stored_fills':      {},
+            'pending_transition': False,
         }
 
         names = ', '.join(loaded)
         return (
             f"REPLAY: loaded {len(loaded)} shape(s) ({names}). "
             f"{len(commands)} command(s) queued. "
-            f"Use NEXT / SKIP / QUIT to step."
+            f"Use HIGH to enable highlight mode, then NEXT / SKIP / QUIT to step."
         )
+
+    def _execute_high(self, cmd_dict, command_text):
+        """Activate highlight mode for the current REPLAY session.
+        Scans leading FILL commands, stores their colors, advances index
+        past them, then FILLs the first target shape with the highlight color.
+        Only valid at index == 0 (before any NEXT has been issued).
+        """
+        if self.replay_state is None:
+            raise ValueError("HIGH is only valid during an active REPLAY session")
+
+        state = self.replay_state
+        if state['index'] != 0:
+            raise ValueError("HIGH must be entered before the first NEXT")
+        if state['highlight_active']:
+            raise ValueError("Highlight mode is already active")
+
+        color = cmd_dict.get('color', 'red')
+        commands = state['commands']
+        total    = state['total']
+
+        # Scan leading contiguous FILL commands — store colors, skip execution
+        stored_fills = {}
+        idx = 0
+        while idx < total:
+            cmd = commands[idx].strip()
+            tokens = cmd.split()
+            if tokens and tokens[0].upper() == 'FILL' and len(tokens) >= 3:
+                shape_name  = tokens[1]
+                fill_color  = tokens[2]
+                stored_fills[shape_name] = fill_color
+                idx += 1
+            else:
+                break
+
+        state['stored_fills'] = stored_fills
+        state['index']        = idx
+
+        if idx >= total:
+            raise ValueError("HIGH: no non-FILL commands found in replay sequence")
+
+        # Identify first target shape and highlight it
+        first_target = self._replay_parse_target(commands[idx])
+        if first_target:
+            self.execute(f"FILL {first_target} {color}")
+            state['highlight_shape'] = first_target
+
+        state['highlight_active']   = True
+        state['highlight_color']    = color
+        state['pending_transition'] = False
+
+        skipped = idx
+        remaining = total - idx
+        return (
+            f"HIGH: skipped {skipped} leading FILL(s), stored {len(stored_fills)} color(s). "
+            f"'{first_target}' highlighted {color}. "
+            f"{remaining} command(s) remaining."
+        )
+
+    def _replay_parse_target(self, cmd_str):
+        """Extract the shape name (second token) from a commands_applied string.
+        Returns None if the string has fewer than 2 tokens.
+        """
+        tokens = cmd_str.strip().split()
+        return tokens[1] if len(tokens) >= 2 else None
 
     def replay_next(self):
         """Execute the current replay command and advance.
+        In HIGH mode: handles pending shape transitions as a separate step,
+        and restores the last highlight on exhaustion.
         Returns (msg, done) — done=True when list exhausted.
         """
         if self.replay_state is None:
             return "Not in replay mode.", True
 
-        state = self.replay_state
-        idx   = state['index']
-        total = state['total']
+        state  = self.replay_state
+        idx    = state['index']
+        total  = state['total']
 
+        # --- Exhausted ---
         if idx >= total:
+            if state.get('highlight_active') and state.get('highlight_shape'):
+                # Final cleanup: restore last highlighted shape
+                last = state['highlight_shape']
+                original = state['stored_fills'].get(last)
+                if original:
+                    self.execute(f"FILL {last} {original}")
+                else:
+                    self.execute(f"FILL {last} none")
+                state['highlight_shape'] = None
+                self.replay_state = None
+                return "REPLAY complete — highlight cleared.", True
             self.replay_state = None
             return "REPLAY complete.", True
 
+        # --- HIGH mode: pending transition step ---
+        if state.get('highlight_active') and state.get('pending_transition'):
+            new_target = self._replay_parse_target(state['commands'][idx])
+            old_shape  = state['highlight_shape']
+            color      = state['highlight_color']
+
+            # Restore old shape to its stored fill
+            if old_shape:
+                original = state['stored_fills'].get(old_shape)
+                if original:
+                    self.execute(f"FILL {old_shape} {original}")
+                else:
+                    self.execute(f"FILL {old_shape} none")
+
+            # Highlight new shape
+            if new_target:
+                self.execute(f"FILL {new_target} {color}")
+                state['highlight_shape'] = new_target
+
+            state['pending_transition'] = False
+            return f"[transition] '{old_shape}' restored, '{new_target}' highlighted {color}.", False
+
+        # --- Normal execution ---
         cmd = state['commands'][idx]
         state['index'] += 1
 
@@ -3007,15 +3117,27 @@ class CommandExecutor:
         except Exception as e:
             result = f"ERROR: {e}"
 
-        done = state['index'] >= total
-        if done:
-            self.replay_state = None
-
         msg = f"[{idx + 1}/{total}] {cmd}"
         if result:
             msg += f"\n    >> {result}"
+
+        # --- HIGH mode: check if next command targets a different shape ---
+        if state.get('highlight_active'):
+            next_idx = state['index']
+            if next_idx < total:
+                next_target = self._replay_parse_target(state['commands'][next_idx])
+                if next_target and next_target != state.get('highlight_shape'):
+                    state['pending_transition'] = True
+                    msg += f"\n    [next shape: '{next_target}' — NEXT to transition]"
+            else:
+                # Last command just executed — one more NEXT to clean up
+                msg += "\n    [end of commands — NEXT to clear highlight]"
+
+        done = state['index'] >= total and not state.get('highlight_active')
         if done:
-            msg += "\nREPLAY complete — exiting replay mode."
+            self.replay_state = None
+            msg += "\nREPLAY complete."
+
         return msg, done
 
     def replay_skip(self):

@@ -64,6 +64,7 @@ class CommandParser:
             'COMPOSE': self._parse_compose,
             'REFLECT': self._parse_reflect,
             'REPLAY': self._parse_replay,
+            'HIGH':   self._parse_high,
             'HELP': self._parse_help,
         }
         
@@ -1112,4 +1113,13 @@ class CommandParser:
         return {
             'command': 'REPLAY',
             'name':    parts[1],
+        }
+    
+    def _parse_high(self, parts):
+        """Parse HIGH command: HIGH [<color>]
+        Activates highlight mode during REPLAY. Optional color defaults to red."""
+        color = parts[1] if len(parts) >= 2 else 'red'
+        return {
+            'command': 'HIGH',
+            'color':   color,
         }

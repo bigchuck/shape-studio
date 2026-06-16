@@ -263,16 +263,15 @@
             ]
           },
           "on_load": [
-            {"command": "FILL",    "value": "#e8e8e8"},
-            {"command": "REFLECT", "axis": "random", "chance": 0.5}
+            {"command": "FILL",    "value": "#e8e8e8"}
           ],
           "command_loop": {
             "verbose": true,
             "iterations": 1,
             "conditional_transforms": [
               {
-                "chance": 0.4,
-                "target": "random",
+                "chance": 0.12,
+                "target": {"range": [1, 5]},
                 "commands": [
                   {"command": "REFLECT", "axis": {"random": "choice", "values": ["horizontal", "vertical"]}}
                 ]
