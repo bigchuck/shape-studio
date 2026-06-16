@@ -287,7 +287,7 @@ class CommandLoopRunner:
             # placement_blocks — constraint-based solver for each
             for pidx, pb in enumerate(placement_blocks):
                 target = pb.get('target', 'random')
-                resolved = self._resolve_single_target(target, working_names)
+                resolved = self._resolve_targets(target, working_names)
                 if resolved is None:
                     if verbose:
                         self._log(f"  placement[{pidx}] target '{target}' unresolved, skipping")
@@ -357,7 +357,8 @@ class CommandLoopRunner:
                         names.append(str(item))
                 return [n for n in names if n in working_names]
 
-        return [self._resolve_single_target(target, working_names)]
+        result = self._resolve_single_target(target, working_names)
+        return [result] if result is not None else []
 
     def _resolve_single_target(self, target, working_names):
         """Resolve a single target to one shape name.

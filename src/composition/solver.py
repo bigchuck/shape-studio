@@ -83,7 +83,8 @@ class PlacementSolver:
 
         if has_placement_key:
             # --- New format ---
-            pre_constraints = placement_block.get('pre_constraints', [])
+            pre_constraints = placement_block.get('fit_rules',
+                              placement_block.get('pre_constraints', []))
             placement_spec  = placement_block['placement']
             max_iters       = int(placement_block.get('max_iterations', 10))
 
@@ -271,20 +272,31 @@ class PlacementSolver:
 
         # Step 5: bounds fit — only if canvas_bounds_margin_px specified
         if margin_px > 0 and target_name in shape_registry:
+            ref_exclude = set(placement_spec.get('reference_group', []))
+            ref_single  = placement_spec.get('reference')
+            if ref_single:
+                ref_exclude.add(ref_single)
             n = self._fit_and_retangent(
                 target_name, ref_hull, margin_px, tolerance_px,
-                overlap_allowed, verbose, commands_applied
+                overlap_allowed, ref_exclude, verbose, commands_applied
             )
             applied += n
 
         # Final overlap cleanup — catch any residual overlaps
+        # Exclude reference cluster shapes — target is intentionally touching them
         if not overlap_allowed:
-            applied += self._push_off_all(target_name, commands_applied, verbose)
+            ref_exclude = set(placement_spec.get('reference_group', []))
+            ref_single  = placement_spec.get('reference')
+            if ref_single:
+                ref_exclude.add(ref_single)
+            applied += self._push_off_all(
+                target_name, commands_applied, verbose, exclude=ref_exclude
+            )
 
         return applied
 
     def _fit_and_retangent(self, target_name, ref_hull, margin_px, tolerance_px,
-                            overlap_allowed, verbose, commands_applied):
+                            overlap_allowed, ref_exclude, verbose, commands_applied):
         """If shape exceeds canvas bounds after placement: exact resize + re-tangent.
 
         Direct calculation — no iteration:
@@ -366,10 +378,8 @@ class PlacementSolver:
                         commands_applied.append(cmd)
                         applied += 1
             if not overlap_allowed:
-                applied += self._push_off_all(target_name, commands_applied, verbose)
+                applied += self._push_off_all(target_name, commands_applied, verbose, exclude=ref_exclude)
             return applied
-
-        # Shape is genuinely too large for canvas.
         # Find the contact direction — vector from target centroid toward
         # the nearest point on the reference hull.
         _, pt_contact_target, pt_contact_ref = sp.hull_separation(
@@ -477,7 +487,7 @@ class PlacementSolver:
             applied += 1
 
         if not overlap_allowed:
-            applied += self._push_off_all(target_name, commands_applied, verbose)
+            applied += self._push_off_all(target_name, commands_applied, verbose, exclude=ref_exclude)
 
         return applied
 
@@ -494,6 +504,22 @@ class PlacementSolver:
         Returns:
             Total corrections applied
         """
+        # Resolve per_iteration random grid points ONCE before the loop —
+        # inject into the original constraint dicts so every iteration copy
+        # carries the same resolved point (no re-randomizing each iteration).
+        import random as _random
+        from src.composition import spatial as sp
+        for c in constraints:
+            if (isinstance(c, dict) and
+                    c.get('type') == 'grid_placement' and
+                    c.get('position') == 'random' and
+                    c.get('random_mode', 'per_iteration') == 'per_iteration' and
+                    '_resolved_random_pt' not in c):
+                division = int(c.get('division', 3))
+                pts = sp.grid_points(CANVAS_W, CANVAS_H, division)
+                if pts:
+                    c['_resolved_random_pt'] = _random.choice(pts)
+
         applied_count = 0
         no_progress   = 0
 
@@ -827,22 +853,25 @@ class PlacementSolver:
         label = f"{axis}_axis({'+'if sign>0 else'-'})"
         return ux, uy, label
 
-    def _push_off_all(self, target_name, commands_applied, verbose):
+    def _push_off_all(self, target_name, commands_applied, verbose, exclude=None):
         """Push target shape off any shapes it overlaps on the canvas.
 
         Checks every other shape — not just the reference cluster.
-        Iterates until no overlaps remain or max_attempts is reached.
+        Shapes in `exclude` are skipped — used to protect reference cluster
+        shapes that the target is intentionally touching.
 
         Args:
             target_name:      Working name of shape to deconflict
             commands_applied: Command log list
             verbose:          Log flag
+            exclude:          Set/list of shape names to skip (reference cluster)
 
         Returns:
             Number of corrections applied
         """
         from src.composition import spatial as sp
 
+        exclude_set  = set(exclude) if exclude else set()
         applied      = 0
         max_attempts = 8
 
@@ -851,11 +880,13 @@ class PlacementSolver:
             if target_name not in shape_registry:
                 return applied
 
-            target_hull  = sp.convex_hull(shape_registry[target_name])
+            target_hull   = sp.convex_hull(shape_registry[target_name])
             found_overlap = False
 
             for other_name, other_pts in shape_registry.items():
                 if other_name == target_name:
+                    continue
+                if other_name in exclude_set:
                     continue
                 other_hull = sp.convex_hull(other_pts)
                 if sp.hull_overlaps(target_hull, other_hull):

@@ -267,6 +267,7 @@
             {"command": "REFLECT", "axis": "random", "chance": 0.5}
           ],
           "command_loop": {
+            "verbose": true,
             "iterations": 1,
             "conditional_transforms": [
               {
