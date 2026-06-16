@@ -287,29 +287,32 @@ class CommandLoopRunner:
             # placement_blocks — constraint-based solver for each
             for pidx, pb in enumerate(placement_blocks):
                 target = pb.get('target', 'random')
-                resolved = self._resolve_targets(target, working_names)
-                if resolved is None:
+                resolved_list = self._resolve_targets(target, working_names)
+                resolved_list = [t for t in resolved_list if t is not None]
+
+                if not resolved_list:
                     if verbose:
                         self._log(f"  placement[{pidx}] target '{target}' unresolved, skipping")
                     continue
 
-                # Inject resolved target back into block for solver
-                pb_resolved = dict(pb)
-                pb_resolved['target'] = resolved
-                pb_resolved['verbose'] = verbose
-
-                if verbose:
-                    self._log(
-                        f"  placement[{pidx}] target='{target}' resolved to '{resolved}' — running solver"
-                    )
-
                 from src.composition.solver import PlacementSolver
                 solver = PlacementSolver(self.executor, verbose=verbose)
-                solver_summary, solver_cmds = solver.solve(pb_resolved)
-                commands_applied.extend(solver_cmds)
-                applied_count += 1
-                if verbose:
-                    self._log(f"  placement[{pidx}] {solver_summary}")
+
+                for resolved in resolved_list:
+                    pb_resolved = dict(pb)
+                    pb_resolved['target'] = resolved
+                    pb_resolved['verbose'] = verbose
+
+                    if verbose:
+                        self._log(
+                            f"  placement[{pidx}] target='{target}' resolved to '{resolved}' — running solver"
+                        )
+
+                    solver_summary, solver_cmds = solver.solve(pb_resolved)
+                    commands_applied.extend(solver_cmds)
+                    applied_count += 1
+                    if verbose:
+                        self._log(f"  placement[{pidx}] {solver_summary}")
 
         summary = (
             f"command_loop done: {iterations} iteration(s), "
