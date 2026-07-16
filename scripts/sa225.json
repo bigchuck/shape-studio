@@ -1,0 +1,68 @@
+{
+  "version": "1.0",
+  "description": "Generate single outline polygons for SA224 design",
+  "author": "Mr. Chuck",
+  "created": "2026-05-05",
+  "comments": "Executable scripts for generating images. References templates from library.json",
+  
+  "template_libraries": [
+    "library.json"
+  ],
+  
+  "executables": {
+    
+    "clear_main": {
+      "description": "Clear main",
+      "author": "Mr. Chuck",
+      "created": "2026-05-05",
+      "target_canvas": "MAIN",
+      "comments": "Clear the canvas independent of drawing",
+      "commands": [
+        {
+          "template": "clear_main_template"
+        }
+      ]
+
+    },
+
+    "gen225a": {
+      "description": "Single image - simple organic outline",
+      "author": "Mr. Chuck",
+      "created": "2026-07-16",
+      "target_canvas": "MAIN",
+      "comments": "Entry for SA225, form as a block",
+      "randomization": {
+        "projection": {
+          "type": "normal",
+          "min": 0.5,
+          "max": 1.5,
+          "mean": 1.0,
+          "std": 0.3
+        },
+        "_projection": [0.5, 1.5],
+        "iters": [10,25],
+        "_color": ["black","red","green"]
+      },
+
+      "commands": [
+        {
+          "template": "organic_outline_nofill",
+          "params": {
+            "name": "shape1",
+            "_verts": "6,10",
+            "_bounds": "64,275,706,475",
+            "break_width": "0.15",
+            "projection": "4.0",
+            "color": "black",
+            "width": "3",
+            "_connect": "convex_hull",
+            "ops": "split_offset:10,sawtooth:1,squarewave:1,remove_point:1,distort_original:1",
+            "_ops": "split_offset:1,squarewave:1,sawtooth:1",
+            "bias": "random"
+          }
+        }
+      ]
+    }
+
+  }
+}

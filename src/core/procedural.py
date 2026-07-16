@@ -424,7 +424,7 @@ class ProceduralGenerators:
         else:
             initial_points = self._generate_initial_vertices(num_vertices, bounds)
             connected_points = self._connect_vertices(initial_points, connect)
-            connected_points = [self._round_point(tuple(p)) for p in seed_points]
+            connected_points = [self._round_point(tuple(p)) for p in connected_points]
 
         # Track original vertices for distort_original operation
         distortable_points = connected_points[:]  # Independent copy

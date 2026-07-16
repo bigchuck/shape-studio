@@ -258,7 +258,7 @@
               {
                 "method": "wildcard",
                 "pattern": "sa224/gen*",
-                "count": {"random": "uniform_int", "min": 3, "max": 5}
+                "count": {"random": "uniform_int", "min": 5, "max": 8}
               }
             ]
           },
@@ -270,15 +270,16 @@
             "iterations": 1,
             "conditional_transforms": [
               {
-                "chance": 0.12,
+                "_comment": "do all shapes at proportionately random and a reflection, 1/8",
+                "chance": 0.125,
                 "target": {"range": [1, 5]},
                 "commands": [
-                  {"command": "REFLECT", "axis": {"random": "choice", "values": ["horizontal", "vertical"]}}
+                  {"command": "REFLECT", "axis": {"random": "choice", "values": ["horizontal", "vertical", "major", "minor"]}}
                 ]
               },
               {
+                "_comment": "60% chance of one randomly selected shape deformation",
                 "chance": 0.6,
-                "_target": {"range": [1, 5]},
                 "target": "random",
                 "commands": [
                   {
@@ -288,10 +289,25 @@
                     "across": {"random": "uniform", "min": 0.30, "max": 0.50}
                   }
                 ]
+              },
+              {
+                "_comment": "75% chance of 2nd shape deformation, which could be compounded",
+                "chance": 0.75,
+                "target": "compose_shape_2",
+                "commands": [
+                  {
+                    "command": "DEFORM",
+                    "axis": "major",
+                    "along":  {"random": "uniform", "min": 0.80, "max": 1.25},
+                    "across": {"random": "uniform", "min": 0.30, "max": 0.50}
+                  }
+                ]
               }
+
             ],
             "placement_blocks": [
               {
+                "_comment": "primary shape max is 1/4 of canvas and is placed at grid intersection",
                 "target": "compose_shape_1",
                 "constraints": [
                   {"type": "canvas_size_limit", "max_fraction": 0.25},
@@ -304,6 +320,7 @@
                 ]
               },
               {
+                "_comment": "2nd shape near primary but smaller",
                 "target": "compose_shape_2",
                 "fit_rules": [
                   {"type": "size_ratio", "reference": "compose_shape_1", "max": 0.75},
@@ -319,7 +336,8 @@
                 }
               },
               {
-                "target": {"range": [3, 5]},
+                "_comment": "all other shapes are sized relevant to primary and placed in conjunction with 1st and 2nd",
+                "target": {"range": [3, 8]},
                 "fit_rules": [
                   {"type": "size_ratio", "reference": "compose_shape_1", "max": 0.65},
                   {"type": "axis_align", "reference": "compose_shape_1", "axis": "major", "tolerance_deg": 10}
