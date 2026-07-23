@@ -65,6 +65,7 @@ class CommandParser:
             'REFLECT': self._parse_reflect,
             'REPLAY': self._parse_replay,
             'HIGH':   self._parse_high,
+            'IMPORT': self._parse_import,
             'HELP': self._parse_help,
         }
         
@@ -565,6 +566,28 @@ class CommandParser:
         return {
             'command': 'LOAD',
             'name': shape_name
+        }
+        
+    def _parse_import(self, parts):
+        """Parse IMPORT command: IMPORT <path>
+        
+        Path is relative to the interface directory. Subdirectories are
+        allowed (e.g. sa225/drawing_1). The .json extension is optional.
+        """
+        if len(parts) < 2:
+            raise MissingParamsError("IMPORT requires: IMPORT <path>")
+        
+        rel_path = parts[1]
+        
+        # Containment: no absolute paths, no parent traversal
+        if rel_path.startswith('/') or rel_path.startswith('\\'):
+            raise ValueError("IMPORT path must be relative to the interface directory")
+        if '..' in rel_path.replace('\\', '/').split('/'):
+            raise ValueError("IMPORT path may not contain '..'")
+        
+        return {
+            'command': 'IMPORT',
+            'path': rel_path
         }
         
     def _parse_save_project(self, parts):

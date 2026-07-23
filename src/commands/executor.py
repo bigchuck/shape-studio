@@ -133,6 +133,7 @@ class CommandExecutor:
             'REFLECT': self._execute_reflect,
             'REPLAY': self._execute_replay,
             'HIGH':   self._execute_high,
+            'IMPORT': self._execute_import,
             'HELP': self._execute_help,
         }
         
@@ -973,6 +974,112 @@ class CommandExecutor:
         shapes[storage_name] = shape
         
         return f"Loaded '{shape_name}' from {source} to {self.active_canvas_name}"
+    
+    def _execute_import(self, cmd_dict, command_text):
+        """Execute IMPORT command - build a Polygon from an interface point list.
+        
+        Reads interface/<path>.json in the exchange format written by
+        STORE POINTS:
+            {"source": {"w": W, "h": H}, "points": [[x, y], ...]}
+        
+        The source frame is mapped onto the canvas by a single uniform
+        factor and centered, so the entire frame lands on the canvas and
+        no distortion occurs. For a square source frame this is the exact
+        inverse of the STORE POINTS transform.
+        """
+        rel_path = cmd_dict['path']
+        if not rel_path.endswith('.json'):
+            rel_path += '.json'
+        
+        filepath = self.interface_dir / rel_path
+        
+        # Containment re-check after path resolution
+        try:
+            filepath.resolve().relative_to(self.interface_dir.resolve())
+        except ValueError:
+            raise ValueError(
+                f"IMPORT path escapes the interface directory: {rel_path}"
+            )
+        
+        if not filepath.exists():
+            raise ValueError(f"IMPORT: file not found: {filepath}")
+        
+        with open(filepath, 'r') as f:
+            data = json.load(f)
+        
+        if not isinstance(data, dict):
+            raise ValueError(f"IMPORT: {filepath} must contain a JSON object")
+        
+        # --- source frame (mandatory) ---
+        source = data.get('source')
+        if not isinstance(source, dict):
+            raise ValueError(f"IMPORT: {filepath} missing required 'source' block")
+        if 'w' not in source or 'h' not in source:
+            raise ValueError("IMPORT: 'source' must contain both 'w' and 'h'")
+        try:
+            source_w = float(source['w'])
+            source_h = float(source['h'])
+        except (TypeError, ValueError):
+            raise ValueError("IMPORT: source w and h must be numeric")
+        if source_w <= 0 or source_h <= 0:
+            raise ValueError("IMPORT: source w and h must be positive")
+        
+        # --- points (mandatory) ---
+        raw_points = data.get('points')
+        if not isinstance(raw_points, list):
+            raise ValueError(f"IMPORT: {filepath} missing required 'points' list")
+        if len(raw_points) < 3:
+            raise ValueError(
+                f"IMPORT: need at least 3 points, found {len(raw_points)}"
+            )
+        
+        canvas_w = config.canvas.width
+        canvas_h = config.canvas.height
+        
+        scale = min(canvas_w / source_w, canvas_h / source_h)
+        offset_x = (canvas_w - source_w * scale) / 2
+        offset_y = (canvas_h - source_h * scale) / 2
+        
+        points = []
+        for i, p in enumerate(raw_points):
+            if not isinstance(p, (list, tuple)) or len(p) != 2:
+                raise ValueError(
+                    f"IMPORT: point {i} is malformed (expected [x, y]): {p!r}"
+                )
+            try:
+                x = float(p[0])
+                y = float(p[1])
+            except (TypeError, ValueError):
+                raise ValueError(f"IMPORT: point {i} has non-numeric values: {p!r}")
+            points.append((x * scale + offset_x, y * scale + offset_y))
+        
+        # --- geometry validation: self-intersection is a hard reject ---
+        if not self.procedural_gen._is_valid_polygon(points):
+            raise ValueError(
+                f"IMPORT: '{rel_path}' is self-intersecting - not imported"
+            )
+        
+        # --- build and place on the active canvas ---
+        shape_name = Path(rel_path).stem
+        shapes = self.get_active_shapes()
+        
+        polygon = Polygon(shape_name, points)
+        polygon.add_history('IMPORT', command_text)
+        
+        storage_name = self._resolve_collision(shape_name, shapes)
+        polygon.canonical_name = shape_name
+        if storage_name != shape_name:
+            polygon.name = storage_name
+            self._log_collision(shape_name, storage_name, self.active_canvas_name)
+        
+        self.active_canvas.add_shape(polygon)
+        shapes[storage_name] = polygon
+        
+        return (
+            f"Imported {len(points)} points from {filepath} "
+            f"(source {source_w:g}x{source_h:g}, scale {scale:g}) "
+            f"as '{storage_name}' on {self.active_canvas_name}"
+        )
     
     def _execute_save_project(self, cmd_dict, command_text):
         """Execute SAVE_PROJECT command - save entire session"""
@@ -2304,6 +2411,7 @@ class CommandExecutor:
             'COMPOSE': self._execute_compose,
             'REFLECT': self._execute_reflect,
             'HIGH':   self._execute_high,
+            'IMPORT': self._execute_import,
             'HELP': self._execute_help,
         }
         

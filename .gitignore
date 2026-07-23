@@ -3,6 +3,7 @@ output/
 # project files
 # scripts/
 # templates/
+interface/
 /history.json
 
 # Python

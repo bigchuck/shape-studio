@@ -314,6 +314,30 @@ HELP = {
             "  LOAD tri"
         ),
     },
+    'IMPORT': {
+        'synopsis': 'Build a polygon from a point list in the interface directory',
+        'usage': (
+            "IMPORT <path>\n"
+            "\n"
+            "  path   File under interface/, .json optional.\n"
+            "         Subdirectories allowed: IMPORT sa225/drawing_1\n"
+            "\n"
+            "Reads the exchange format written by STORE POINTS:\n"
+            "  {\"source\": {\"w\": W, \"h\": H}, \"points\": [[x, y], ...]}\n"
+            "\n"
+            "Both source w and h are required. The source frame is scaled\n"
+            "by a single uniform factor and centered on the canvas, so the\n"
+            "whole frame lands on-canvas with no distortion.\n"
+            "\n"
+            "Shape name is taken from the filename; use RENAME to change it.\n"
+            "Name collisions are resolved automatically with a suffix.\n"
+            "Self-intersecting point lists are rejected.\n"
+            "\n"
+            "Examples:\n"
+            "  IMPORT tri\n"
+            "  IMPORT sa225/drawing_1"
+        ),
+    },
     'CLEAR': {
         'synopsis': 'Clear shapes from a canvas or stash',
         'usage': (
