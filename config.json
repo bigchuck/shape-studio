@@ -19,6 +19,7 @@
     "shapes": "shapes",
     "projects": "projects",
     "templates": "templates",
+    "interface": "interface",
     "global_library": "~/.shapestudio/shapes"
   },
   

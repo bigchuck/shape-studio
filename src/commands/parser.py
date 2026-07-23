@@ -495,18 +495,51 @@ class CommandParser:
         }
         
     def _parse_store(self, parts):
-        """Parse STORE command: STORE [GLOBAL] <shape>
+        """Parse STORE command: STORE [GLOBAL|POINTS] <shape> [w h]
         
         STORE <shape> - Save to project store
         STORE GLOBAL <shape> - Save to global library
+        STORE POINTS <shape> [w h] - Export point list to interface directory
         """
         if len(parts) < 2:
-            raise MissingParamsError("STORE requires: STORE [GLOBAL] <shape>")
+            raise MissingParamsError("STORE requires: STORE [GLOBAL|POINTS] <shape> [w h]")
+        
+        # Check for POINTS modifier - mutually exclusive with GLOBAL
+        if parts[1].upper() == 'POINTS':
+            if len(parts) < 3:
+                raise ValueError("STORE POINTS requires shape name")
+            if parts[2].upper() == 'GLOBAL':
+                raise ValueError("STORE POINTS and GLOBAL are mutually exclusive")
+            
+            shape_name = parts[2]
+            
+            if len(parts) == 3:
+                source_w, source_h = 768, 768
+            elif len(parts) == 5:
+                try:
+                    source_w = int(parts[3])
+                    source_h = int(parts[4])
+                except ValueError:
+                    raise ValueError("STORE POINTS w and h must be integers")
+                if source_w < 1 or source_h < 1:
+                    raise ValueError("STORE POINTS w and h must be positive")
+            else:
+                raise ValueError("STORE POINTS requires both w and h, or neither")
+            
+            return {
+                'command': 'STORE',
+                'name': shape_name,
+                'scope': 'points',
+                'source_w': source_w,
+                'source_h': source_h
+            }
         
         # Check for GLOBAL modifier
         if parts[1].upper() == 'GLOBAL':
             if len(parts) < 3:
                 raise ValueError("STORE GLOBAL requires shape name")
+            if parts[2].upper() == 'POINTS':
+                raise ValueError("STORE GLOBAL and POINTS are mutually exclusive")
             scope = 'global'
             shape_name = parts[2]
         else:

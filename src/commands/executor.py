@@ -53,6 +53,7 @@ class CommandExecutor:
         self.global_store_dir = config.paths.global_library
         self.projects_dir = Path(config.paths.projects)
         self.scripts_dir = Path(config.paths.scripts)
+        self.interface_dir = Path(config.paths.interface)
         
         # Create directories
         os.makedirs(config.paths.output, exist_ok=True)
@@ -60,6 +61,7 @@ class CommandExecutor:
         os.makedirs(self.global_store_dir, exist_ok=True)
         os.makedirs(self.projects_dir, exist_ok=True)
         os.makedirs(self.scripts_dir, exist_ok=True)
+        os.makedirs(self.interface_dir, exist_ok=True)
         
         
     def get_active_shapes(self):
@@ -852,6 +854,12 @@ class CommandExecutor:
         else:
             raise ValueError(f"Shape '{shape_name}' not found")
         
+        # POINTS export - point list only, no shape wrapper, no batch suffix
+        if scope == 'points':
+            return self._store_points(shape, shape_name,
+                                      cmd_dict['source_w'],
+                                      cmd_dict['source_h'])
+        
         # Serialize shape
         shape_data = self._serialize_shape(shape)
         
@@ -871,6 +879,60 @@ class CommandExecutor:
         
         scope_name = "global library" if scope == 'global' else "project store"
         return f"Stored '{shape_name}' to {scope_name}: {filepath}"
+    
+    def _store_points(self, shape, shape_name, source_w, source_h):
+        """Export a Polygon's points to interface/<shape>.json
+        
+        The full canvas is scaled by a single uniform factor and centered
+        within the source_w x source_h frame, so the transform is exactly
+        invertible from the recorded source dimensions. No distortion.
+        
+        Args:
+            shape: Shape object (must be a Polygon)
+            shape_name: Name used for the output filename
+            source_w: Target frame width in pixels
+            source_h: Target frame height in pixels
+        
+        Returns:
+            Result string
+        
+        Raises:
+            ValueError: If shape is not a Polygon
+        """
+        if shape.attrs['type'] != 'Polygon':
+            raise ValueError(
+                f"STORE POINTS requires a Polygon, '{shape_name}' is "
+                f"{shape.attrs['type']}"
+            )
+        
+        # Coerce - structured JSON commands may deliver these as strings
+        source_w = int(source_w)
+        source_h = int(source_h)
+        
+        canvas_w = config.canvas.width
+        canvas_h = config.canvas.height
+        
+        scale = min(source_w / canvas_w, source_h / canvas_h)
+        offset_x = (source_w - canvas_w * scale) / 2
+        offset_y = (source_h - canvas_h * scale) / 2
+        
+        points = [
+            [x * scale + offset_x, y * scale + offset_y]
+            for x, y in shape.attrs['geometry']['points']
+        ]
+        
+        data = {
+            'source': {'w': source_w, 'h': source_h},
+            'points': points
+        }
+        
+        filepath = self.interface_dir / f"{shape_name}.json"
+        filepath.parent.mkdir(parents=True, exist_ok=True)
+        with open(filepath, 'w') as f:
+            json.dump(data, f, indent=2)
+        
+        return (f"Exported {len(points)} points from '{shape_name}' "
+                f"at {source_w}x{source_h}: {filepath}")
     
     def _execute_load(self, cmd_dict, command_text):
         """Execute LOAD command - load shape from object store"""

@@ -278,16 +278,27 @@ HELP = {
         ),
     },
     'STORE': {
-        'synopsis': 'Save a shape to the project store or global library',
+        'synopsis': 'Save a shape to the project store, global library, or interface',
         'usage': (
             "STORE [GLOBAL] <shape>\n"
+            "STORE POINTS <shape> [w h]\n"
             "\n"
             "  GLOBAL   Save to global library instead of project store\n"
+            "  POINTS   Export point list only to the interface directory\n"
             "  shape    Shape name to persist\n"
+            "  w h      Source frame dimensions in pixels (default 768 768)\n"
+            "\n"
+            "POINTS writes interface/<shape>.json in the exchange format:\n"
+            "  {\"source\": {\"w\": W, \"h\": H}, \"points\": [[x, y], ...]}\n"
+            "\n"
+            "The canvas is scaled by a single uniform factor and centered\n"
+            "in the w x h frame - no distortion. Polygons only.\n"
             "\n"
             "Examples:\n"
             "  STORE tri\n"
-            "  STORE GLOBAL tri"
+            "  STORE GLOBAL tri\n"
+            "  STORE POINTS tri\n"
+            "  STORE POINTS tri 1017 1515"
         ),
     },
     'LOAD': {

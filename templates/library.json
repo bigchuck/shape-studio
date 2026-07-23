@@ -106,7 +106,7 @@
       "target_canvas": "MAIN",
       "comments": "Template for organic shapes using sawtooth operations and inward bias. Creates smooth, flowing outlines.",
       "commands": [
-        "PROC dynamic_polygon ${name} vertices=${verts} bounds=${bounds} iterations=${iters} operations=${ops} direction_bias=inward break_width_max=${break_width} projection_max=${projection} connect=${connect}",
+        "PROC dynamic_polygon ${name} vertices=${verts} bounds=${bounds} iterations=${iters} operations=${ops} direction_bias=${dirbias} break_width_max=${break_width} projection_max=${projection} connect=${connect} squarewave_independent_directions=${sqrwv_indep}",
         "COLOR ${name} ${color}",
         "WIDTH ${name} ${width}"
       ],
@@ -119,9 +119,12 @@
         "projection": "1.5",
         "color": "black",
         "width": "2",
-        "connect": "angle_sort"
+        "connect": "angle_sort",
+        "dirbias": "inward",
+        "sqrwv_indep": "False"
       }
     },
+
     "compose_1": {
       "description": "Base composition template - visual defaults",
       "target_canvas": "MAIN",

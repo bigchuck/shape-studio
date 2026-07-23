@@ -25,6 +25,41 @@
 
     },
 
+    "gen4": {
+      "description": "Single image - simple organic outline",
+      "author": "Mr. Chuck",
+      "created": "2026-05-05",
+      "target_canvas": "MAIN",
+      "comments": "FIRST STEP Initial form as a block",
+      "randomization": {
+        "projection": {
+          "type": "normal",
+          "min": 0.5,
+          "max": 1.5,
+          "mean": 1.0,
+          "std": 0.3
+        },
+        "iters": [10,25]
+      },
+
+      "commands": [
+        {
+          "template": "organic_outline_nofill",
+          "params": {
+            "name": "shape1",
+            "break_width": "0.88",
+            "__break_width": "0.01",
+            "_break_width": "0.15",
+            "projection": "2.0",
+            "color": "black",
+            "width": "3",
+            "ops": "split_offset:10,sawtooth:1,squarewave:1,remove_point:1,distort_original:1",
+            "bias": "random"
+          }
+        }
+      ]
+    },
+
     "gen225a": {
       "description": "Single image - simple organic outline",
       "author": "Mr. Chuck",
@@ -39,9 +74,7 @@
           "mean": 1.0,
           "std": 0.3
         },
-        "_projection": [0.5, 1.5],
-        "iters": [10,25],
-        "_color": ["black","red","green"]
+        "iters": [10,25]
       },
 
       "commands": [
@@ -49,20 +82,484 @@
           "template": "organic_outline_nofill",
           "params": {
             "name": "shape1",
-            "_verts": "6,10",
-            "_bounds": "64,275,706,475",
-            "break_width": "0.15",
-            "projection": "4.0",
+            "break_width": "0.88",
+            "projection": "2.0",
             "color": "black",
             "width": "3",
             "_connect": "convex_hull",
-            "ops": "split_offset:10,sawtooth:1,squarewave:1,remove_point:1,distort_original:1",
-            "_ops": "split_offset:1,squarewave:1,sawtooth:1",
+            "ops": "split_offset:1,sawtooth:1,squarewave:1,remove_point:1,distort_original:1",
             "bias": "random"
           }
         }
       ]
+    },
+
+    "gen225b": {
+      "description": "Single image - simple organic outline",
+      "author": "Mr. Chuck",
+      "created": "2026-07-16",
+      "target_canvas": "MAIN",
+      "comments": "Entry for SA225, form as a block",
+      "randomization": {
+        "projection": {
+          "type": "normal",
+          "min": 0.5,
+          "max": 1.5,
+          "mean": 1.0,
+          "std": 0.3
+        },
+        "iters": [10,25]
+      },
+
+      "commands": [
+        {
+          "template": "organic_outline_nofill",
+          "params": {
+            "name": "shape1",
+            "break_width": "0.88",
+            "projection": "1.0",
+            "color": "black",
+            "width": "3",
+            "_connect": "convex_hull",
+            "ops": "split_offset:1,sawtooth:1,squarewave:1,remove_point:1,distort_original:1",
+            "bias": "random"
+          }
+        }
+      ]
+    },
+
+        
+    "gen225c": {
+      "description": "Single image - simple organic outline",
+      "author": "Mr. Chuck",
+      "created": "2026-07-16",
+      "target_canvas": "MAIN",
+      "comments": "Entry for SA225, form as a block",
+      "randomization": {
+        "projection": {
+          "type": "normal",
+          "min": 0.5,
+          "max": 1.5,
+          "mean": 1.0,
+          "std": 0.3
+        },
+        "iters": [10,25]
+      },
+
+      "commands": [
+        {
+          "template": "organic_outline_nofill",
+          "params": {
+            "name": "shape1",
+            "break_width": "0.88",
+            "projection": "1.0",
+            "color": "black",
+            "width": "3",
+            "_connect": "convex_hull",
+            "ops": "split_offset:5,sawtooth:1,squarewave:5,remove_point:5,distort_original:5",
+            "bias": "random"
+          }
+        }
+      ]
+    },
+
+    "gen225d": {
+      "description": "Single image - simple organic outline",
+      "author": "Mr. Chuck",
+      "created": "2026-07-16",
+      "target_canvas": "MAIN",
+      "comments": "Entry for SA225, form as a block",
+      "randomization": {
+        "projection": {
+          "type": "normal",
+          "min": 0.5,
+          "max": 1.5,
+          "mean": 1.0,
+          "std": 0.3
+        },
+        "iters": [10,25]
+      },
+
+      "commands": [
+        {
+          "template": "organic_outline_nofill",
+          "params": {
+            "name": "shape1",
+            "break_width": "0.88",
+            "projection": "1.0",
+            "color": "black",
+            "width": "3",
+            "_connect": "convex_hull",
+            "ops": "split_offset:5,sawtooth:5,squarewave:1,remove_point:5,distort_original:5",
+            "bias": "random"
+          }
+        }
+      ]
+    },
+
+    "gen225e": {
+      "description": "Single image - simple organic outline",
+      "author": "Mr. Chuck",
+      "created": "2026-07-16",
+      "target_canvas": "MAIN",
+      "comments": "Entry for SA225, form as a block",
+      "randomization": {
+        "projection": {
+          "type": "normal",
+          "min": 0.5,
+          "max": 1.5,
+          "mean": 1.0,
+          "std": 0.3
+        },
+        "iters": [10,25]
+      },
+
+      "commands": [
+        {
+          "template": "organic_outline_nofill",
+          "params": {
+            "name": "shape1",
+            "break_width": "0.88",
+            "projection": "2.0",
+            "color": "black",
+            "width": "3",
+            "_connect": "convex_hull",
+            "ops": "split_offset:1,sawtooth:5,squarewave:5,remove_point:1,distort_original:1",
+            "bias": "random"
+          }
+        }
+      ]
+    },
+
+    "gen225f": {
+      "description": "Single image - simple organic outline",
+      "author": "Mr. Chuck",
+      "created": "2026-07-16",
+      "target_canvas": "MAIN",
+      "comments": "Entry for SA225, form as a block",
+      "randomization": {
+        "projection": {
+          "type": "normal",
+          "min": 0.5,
+          "max": 1.5,
+          "mean": 1.0,
+          "std": 0.3
+        },
+        "iters": [10,25]
+      },
+
+      "commands": [
+        {
+          "template": "organic_outline_nofill",
+          "params": {
+            "name": "shape1",
+            "break_width": "0.88",
+            "projection": "1.5",
+            "color": "black",
+            "width": "3",
+            "_connect": "convex_hull",
+            "ops": "split_offset:1,sawtooth:5,squarewave:5,remove_point:1,distort_original:1",
+            "bias": "random"
+          }
+        }
+      ]
+    },
+
+    "gen225g": {
+      "description": "Single image - simple organic outline",
+      "author": "Mr. Chuck",
+      "created": "2026-07-16",
+      "target_canvas": "MAIN",
+      "comments": "Entry for SA225, form as a block",
+      "randomization": {
+        "projection": {
+          "type": "normal",
+          "min": 0.5,
+          "max": 1.5,
+          "mean": 1.0,
+          "std": 0.3
+        },
+        "iters": [10,25]
+      },
+
+      "commands": [
+        {
+          "template": "organic_outline_nofill",
+          "params": {
+            "name": "shape1",
+            "break_width": "0.88",
+            "projection": ".25",
+            "color": "black",
+            "width": "3",
+            "_connect": "convex_hull",
+            "ops": "split_offset:1,sawtooth:5,squarewave:5,remove_point:1,distort_original:1",
+            "bias": "random"
+          }
+        }
+      ]
+    },
+
+    
+    "gen225h": {
+      "description": "Single image - simple organic outline",
+      "author": "Mr. Chuck",
+      "created": "2026-07-16",
+      "target_canvas": "MAIN",
+      "comments": "Entry for SA225, form as a block",
+      "randomization": {
+        "projection": {
+          "type": "normal",
+          "min": 0.05,
+          "max": 1.0,
+          "mean": 0.25,
+          "std": 0.3
+        },
+        "iters": [10,25]
+      },
+
+      "commands": [
+        {
+          "template": "organic_outline_nofill",
+          "params": {
+            "name": "shape1",
+            "break_width": "0.88",
+            "projection": ".25",
+            "color": "black",
+            "width": "3",
+            "_connect": "convex_hull",
+            "ops": "split_offset:1,sawtooth:5,squarewave:5,remove_point:1,distort_original:1",
+            "bias": "random"
+          }
+        }
+      ]
+    },
+
+    "gen225i": {
+      "description": "Single image - simple organic outline",
+      "author": "Mr. Chuck",
+      "created": "2026-07-16",
+      "target_canvas": "MAIN",
+      "comments": "Entry for SA225, form as a block",
+      "randomization": {
+        "projection": {
+          "type": "normal",
+          "min": 0.15,
+          "max": 1.5,
+          "mean": 0.5,
+          "std": 0.4
+        },
+        "iters": [10,25]
+      },
+
+      "commands": [
+        {
+          "template": "organic_outline_nofill",
+          "params": {
+            "name": "shape1",
+            "break_width": "0.88",
+            "projection": ".5",
+            "color": "black",
+            "width": "3",
+            "_connect": "convex_hull",
+            "ops": "split_offset:3,sawtooth:5,squarewave:5,remove_point:1,distort_original:2",
+            "bias": "random"
+          }
+        }
+      ]
+    },
+
+    "gen225j": {
+      "description": "Single image - simple organic outline",
+      "author": "Mr. Chuck",
+      "created": "2026-07-16",
+      "target_canvas": "MAIN",
+      "comments": "Entry for SA225, form as a block",
+      "randomization": {
+        "projection": {
+          "type": "normal",
+          "min": 0.15,
+          "max": 3.0,
+          "mean": 1.5,
+          "std": 0.4
+        },
+        "iters": [10,25]
+      },
+
+      "commands": [
+        {
+          "template": "organic_outline_nofill",
+          "params": {
+            "name": "shape1",
+            "break_width": "0.88",
+            "_projection": ".5",
+            "color": "black",
+            "width": "3",
+            "_connect": "convex_hull",
+            "ops": "split_offset:3,sawtooth:5,squarewave:5,remove_point:1,distort_original:2",
+            "bias": "random"
+          }
+        }
+      ]
+    },
+
+    "gen225k": {
+      "description": "Single image - simple organic outline",
+      "author": "Mr. Chuck",
+      "created": "2026-07-16",
+      "target_canvas": "MAIN",
+      "comments": "Entry for SA225, form as a block",
+      "randomization": {
+        "projection": {
+          "type": "normal",
+          "min": 0.15,
+          "max": 3.0,
+          "mean": 1.5,
+          "std": 0.4
+        },
+        "iters": [25,50]
+      },
+
+      "commands": [
+        {
+          "template": "organic_outline_nofill",
+          "params": {
+            "name": "shape1",
+            "break_width": "0.88",
+            "_projection": ".5",
+            "color": "black",
+            "width": "3",
+            "_connect": "convex_hull",
+            "ops": "split_offset:3,sawtooth:5,squarewave:5,remove_point:1,distort_original:2",
+            "bias": "random"
+          }
+        }
+      ]
+    },
+
+    "gen225l": {
+      "description": "Single image - simple organic outline",
+      "author": "Mr. Chuck",
+      "created": "2026-07-16",
+      "target_canvas": "MAIN",
+      "comments": "Entry for SA225, form as a block",
+      "randomization": {
+        "projection": {
+          "type": "normal",
+          "min": 0.15,
+          "max": 5.0,
+          "mean": 2.5,
+          "std": 0.8
+        },
+        "iters": [25,50]
+      },
+
+      "commands": [
+        {
+          "template": "organic_outline_nofill",
+          "params": {
+            "name": "shape1",
+            "break_width": "0.88",
+            "_projection": ".5",
+            "color": "black",
+            "width": "3",
+            "_connect": "convex_hull",
+            "ops": "split_offset:3,sawtooth:5,squarewave:5,remove_point:1,distort_original:2",
+            "bias": "random"
+          }
+        }
+      ]
+    },
+
+    "gen225m": {
+      "description": "Single image - simple organic outline",
+      "author": "Mr. Chuck",
+      "created": "2026-07-16",
+      "target_canvas": "MAIN",
+      "comments": "Entry for SA225, form as a block",
+      "randomization": {
+        "projection": {
+          "type": "normal",
+          "min": 0.15,
+          "max": 5.0,
+          "mean": 2.5,
+          "std": 0.8
+        },
+        "iters": [25,50],
+        "break_width": {
+          "type": "normal",
+          "min": 0.15,
+          "max": 0.88,
+          "mean": 0.4,
+          "std": 0.2
+        }
+      },
+
+      "commands": [
+        {
+          "template": "organic_outline_nofill",
+          "params": {
+            "name": "shape1",
+            "_break_width": "0.88",
+            "_projection": ".5",
+            "color": "black",
+            "width": "3",
+            "_connect": "convex_hull",
+            "ops": "split_offset:3,sawtooth:5,squarewave:5,remove_point:1,distort_original:2",
+            "dirbias": "random",
+            "sqrwv_indep": "True"
+          }
+        }
+      ]
+    },
+
+    "gen225n": {
+      "description": "Single image - simple organic outline",
+      "author": "Mr. Chuck",
+      "created": "2026-07-16",
+      "target_canvas": "MAIN",
+      "comments": "Entry for SA225, form as a block",
+      "randomization": {
+        "projection": {
+          "type": "normal",
+          "min": 0.15,
+          "max": 3.5,
+          "mean": 1.25,
+          "std": 0.3
+        },
+        "iters": [25,50],
+        "break_width": {
+          "type": "normal",
+          "min": 0.15,
+          "max": 0.88,
+          "mean": 0.4,
+          "std": 0.2
+        }
+      },
+
+      "commands": [
+        {
+          "template": "organic_outline_nofill",
+          "params": {
+            "name": "shape1",
+            "_break_width": "0.88",
+            "_projection": ".5",
+            "color": "black",
+            "width": "3",
+            "_connect": "convex_hull",
+            "ops": "split_offset:3,sawtooth:5,squarewave:5,remove_point:1,distort_original:2",
+            "dirbias": "random",
+            "sqrwv_indep": "True"
+          }
+        }
+      ]
     }
+
+
+
+
+
+
+
 
   }
 }

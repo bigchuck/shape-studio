@@ -193,6 +193,7 @@ class Config:
                 'shapes': 'shapes',  # project object store
                 'projects': 'projects',
                 'templates': 'templates',
+                'interface': 'interface',   # point-list exchange files
                 'global_library': '~/.shapestudio/shapes',
             },
             
