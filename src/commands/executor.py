@@ -1130,20 +1130,22 @@ class CommandExecutor:
         
         # Restore WIP shapes
         for name, shape_data in project_data['wip_shapes'].items():
-            shape = self._deserialize_shape(shape_data)
-            self.wip_shapes[name] = shape
+            self.wip_shapes[name] = self._deserialize_shape(shape_data)
+        self._relink_group_members(self.wip_shapes)
+        for shape in self.wip_shapes.values():
             self.wip_canvas.add_shape(shape)
         
         # Restore MAIN shapes
         for name, shape_data in project_data['main_shapes'].items():
-            shape = self._deserialize_shape(shape_data)
-            self.main_shapes[name] = shape
+            self.main_shapes[name] = self._deserialize_shape(shape_data)
+        self._relink_group_members(self.main_shapes)
+        for shape in self.main_shapes.values():
             self.main_canvas.add_shape(shape)
         
         # Restore stash
         for name, shape_data in project_data['stash'].items():
-            shape = self._deserialize_shape(shape_data)
-            self.stash[name] = shape
+            self.stash[name] = self._deserialize_shape(shape_data)
+        self._relink_group_members(self.stash)
         
         # Restore canvas settings
         settings = project_data.get('canvas_settings', {})
@@ -1820,6 +1822,34 @@ class CommandExecutor:
             # Returning most-recent (last inserted) match
             _ = f"Ambiguous canonical name '{name}' — matches: {all_storage}. Using '{storage_name}'."
         return storage_name, shape
+
+    def _relink_group_members(self, registry):
+        """Second pass after deserialization: convert ShapeGroup member
+        name strings back into live Shape objects from the registry.
+
+        _serialize_shape() flattens members to names; without this pass
+        ShapeGroup.draw() receives strings and raises AttributeError.
+        """
+        missing = []
+        for group_name, shape in registry.items():
+            if not isinstance(shape, ShapeGroup):
+                continue
+            resolved = []
+            for member in shape.attrs['geometry']['members']:
+                if not isinstance(member, str):
+                    resolved.append(member)
+                    continue
+                target = registry.get(member)
+                if target is None:
+                    missing.append(f"{group_name}:{member}")
+                    continue
+                target.attrs['relationships']['group'] = group_name
+                resolved.append(target)
+            shape.attrs['geometry']['members'] = resolved
+        if missing:
+            raise ValueError(
+                "LOAD_PROJECT: unresolved group members — " + ", ".join(missing)
+            )
 
     def _serialize_shape(self, shape):
         """Convert shape to JSON-serializable dict"""
