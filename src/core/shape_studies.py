@@ -426,11 +426,11 @@ class ShapeStudyRegistry:
                     },
                     # Significant segments: the 5 new segments of the U
                     'significant_segments': [
-                        (segment_idx, segment_idx + 1),      # foot A: P1-P2
-                        (segment_idx + 1, segment_idx + 2),  # inner leg A: P2-P3
-                        (segment_idx + 2, segment_idx + 3),  # crotch: P3-P4
-                        (segment_idx + 3, segment_idx + 4),  # inner leg B: P4-P5
-                        (segment_idx + 4, segment_idx + 5),  # foot B: P5-P6
+                        (segment_idx, (segment_idx + 1) % len(new_points)),            # foot A: P1-P2
+                        ((segment_idx + 1) % len(new_points), (segment_idx + 2) % len(new_points)),  # inner leg A: P2-P3
+                        ((segment_idx + 2) % len(new_points), (segment_idx + 3) % len(new_points)),  # crotch: P3-P4
+                        ((segment_idx + 3) % len(new_points), (segment_idx + 4) % len(new_points)),  # inner leg B: P4-P5
+                        ((segment_idx + 4) % len(new_points), (segment_idx + 5) % len(new_points)),  # foot B: P5-P6
                     ],
                 }
 
@@ -628,13 +628,16 @@ class ShapeStudyRegistry:
         Returns:
             (new_points, foot_info_dict) tuple
         """
-        # Index positions
+        # Index positions - modulo because when the indented segment is the
+        # closing edge (last vertex -> first), P2-P5 are appended at the end
+        # of the list and P6 is points[0]
+        m = len(points)
         idx_p1 = segment_idx
-        idx_p2 = segment_idx + 1
-        idx_p3 = segment_idx + 2
-        idx_p4 = segment_idx + 3
-        idx_p5 = segment_idx + 4
-        idx_p6 = segment_idx + 5
+        idx_p2 = (segment_idx + 1) % m
+        idx_p3 = (segment_idx + 2) % m
+        idx_p4 = (segment_idx + 3) % m
+        idx_p5 = (segment_idx + 4) % m
+        idx_p6 = (segment_idx + 5) % m
 
         # Current indent depth (average of inner leg lengths)
         p2 = points[idx_p2]
