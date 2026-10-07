@@ -321,14 +321,21 @@ PROC dynamic_polygon <name> PARAM=value [PARAM=value ...]
 | `DIRECTION_BIAS` | `inward`, `outward`, or `random` | Preferred projection direction |
 | `SQUAREWAVE_INDEPENDENT_DIRECTIONS` | bool | Each squarewave step can go a different direction |
 | `SQUAREWAVE_OPPOSITE_DIRECTION_PROB` | float 0.0–1.0 | Probability of reversing direction in squarewave |
-| `LEAN_MIN` / `LEAN_MAX` | float | Leaning sawtooth peak shift, fraction of tooth half-width (0 = upright, 1 = over the base end, >1 overhangs) |
-| `LEAN_PAIR_FACING` | `inward`, `outward`, or `random` | Pair: long flanks face the gap between the teeth (`inward`) or away from it (`outward`) |
+| `LEAN_RATIO_MIN` / `LEAN_RATIO_MAX` | float | Leaning sawtooth: long flank ÷ short flank length (default 3–5). Tooth height follows from base width and ratio; `PROJECTION_MAX` does not apply |
+| `LEAN_SLANT_MAX` | float (degrees) | Leaning sawtooth: random tilt of the short flank from upright, either way (default 15) |
+| `LEAN_EXTEND_PROB` | float 0.0–1.0 | `lean_sawtooth`: chance the long flank continues past the peak into an overhanging protrusion (default 0.3) |
+| `LEAN_PAIR_EXTEND_PROB_INWARD` / `_OUTWARD` | float 0.0–1.0 | Pair: per-tooth extension chance by facing (defaults 0.3 / 0.1); each tooth rolls separately, so 0, 1 or 2 extensions |
+| `LEAN_EXTEND_MIN` / `LEAN_EXTEND_MAX` | float | Extension length past the peak, fraction of the long flank (default 0.3–0.5) |
+| `LEAN_CAP_MIN` / `LEAN_CAP_MAX` | float | Extension end cap length, fraction of the short flank (default 0.8–1.2) |
+| `LEAN_PAIR_FACING` | `inward`, `outward`, or `random` | Pair: long flanks face the gap between the teeth (`inward`) or short flanks do (`outward`) |
 | `LEAN_PAIR_GAP_MIN` / `LEAN_PAIR_GAP_MAX` | float 0.0–1.0 | Pair: gap between teeth as fraction of the pair's span (0 = teeth share a base point) |
 | `CROOK_ANGLE_MIN` / `CROOK_ANGLE_MAX` | float (degrees) | Knee bend angle range (default 30–90) |
 | `CROOK_LIMB_RATIO` | float | Minimum limb length ÷ width to be bent (default 3.0) |
 | `CROOK_MIN_WIDTH` | float (pixels) | Ignore limbs narrower than this (default 20) |
 | `CROOK_MIN_LENGTH` | float (pixels) | Ignore limbs shorter than this, whatever their ratio (default 80) — keeps squarewave/sawtooth teeth from counting as limbs |
 | `CROOK_CENTER_JITTER` | float 0.0–0.5 | Random offset of the knee from the limb center, as fraction of limb length (default 0.15) |
+| `MIN_ANGLE` | float (degrees) | Validation: smallest vertex angle allowed, for this PROC only (default from config, 20) |
+| `MIN_CLEARANCE` | float (pixels) | Validation: smallest gap between non-adjacent segments, for this PROC only (default from config, 15) |
 | `VERBOSE` | int | Debug verbosity; 0 = off |
 
 ### Operations
@@ -342,8 +349,8 @@ Operations are what reshape the polygon each iteration. You specify which ones t
 | `squarewave` | Inserts a rectangular step on a segment |
 | `remove_point` | Removes an existing vertex (simplification) |
 | `distort_original` | Shifts an existing vertex |
-| `lean_sawtooth` | Sawtooth whose peak leans toward one end — one steep short flank, one long flank |
-| `lean_sawtooth_pair` | Matched pair of leaning teeth on one segment, same direction/depth/lean, mirrored |
+| `lean_sawtooth` | Low ramp tooth — long flank 3–5× the short flank — optionally extended past the peak into an overhanging protrusion. See note below |
+| `lean_sawtooth_pair` | Pair of leaning teeth on one segment, same direction/ratio/slant, mirrored; each tooth may be extended independently |
 | `crook` | Bends a limb (a narrow run of the shape) at a knee near its center; sharp outside corner, limb width kept. Needs a shape that already has limbs — see note below |
 
 **Specifying operations — three formats:**
@@ -359,6 +366,8 @@ OPERATIONS=split_offset:10,sawtooth:5,squarewave:3,remove_point:1,distort_origin
 ```
 
 Higher number = more likely to be chosen each iteration.
+
+**Note on leaning sawtooth extensions:** the notch under an overhang is sharper than the default 20° angle limit, and low ramps sit close to their own base, so at default validation extensions are almost always rejected. Loosen validation for the PROC that uses them, e.g. `MIN_ANGLE=12 MIN_CLEARANCE=8`. Teeth are sized automatically to clear `MIN_CLEARANCE`, so short segments may be skipped.
 
 **Note on `crook`:** it only acts on limbs — stretches of the shape at least `CROOK_LIMB_RATIO` times as long as they are wide. Freshly generated shapes rarely have them, so in a normal run most crook attempts find nothing and the iteration passes unchanged. It is most effective on a DERIVE from a stored shape that already has limbs (`source_shape`). To use it in fresh runs, lower `CROOK_LIMB_RATIO` to about 2.0; `CROOK_MIN_LENGTH` (default 80px) keeps it from treating squarewave/sawtooth teeth as limbs.
 

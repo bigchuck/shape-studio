@@ -33,7 +33,7 @@
     
     "operations": {
       "break_margin": 0.15,
-      "break_width_max": 0.5,
+      "break_width_max": 0.6,
       "projection_max": 2.0,
       "min_segment_length": 10
     },
@@ -44,8 +44,16 @@
     },
 
     "lean_sawtooth": {
-      "lean_min": 0.3,
-      "lean_max": 0.9,
+      "ratio_min": 3.0,
+      "ratio_max": 5.0,
+      "slant_max": 15.0,
+      "extend_prob": 0.3,
+      "pair_extend_prob_inward": 0.3,
+      "pair_extend_prob_outward": 0.1,
+      "extend_min": 0.3,
+      "extend_max": 0.5,
+      "cap_min": 0.8,
+      "cap_max": 1.2,
       "pair_facing": "random",
       "pair_gap_min": 0.0,
       "pair_gap_max": 0.4

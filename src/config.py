@@ -210,7 +210,7 @@ class Config:
                 # Shape modification parameters
                 'operations': {
                     'break_margin': 0.15,        # minimum distance from endpoints (0.0-0.5)
-                    'break_width_max': 0.5,      # maximum break width as fraction (0.0-1.0)
+                    'break_width_max': 0.6,      # maximum break width as fraction (0.0-1.0)
                     'projection_max': 2.0,       # maximum projection distance multiplier
                     'min_segment_length': 10,    # minimum segment length for selection (pixels)
                 },
@@ -223,8 +223,16 @@ class Config:
 
                 # Leaning sawtooth (lean_sawtooth, lean_sawtooth_pair)
                 'lean_sawtooth': {
-                    'lean_min': 0.3,         # peak shift, fraction of tooth half-width
-                    'lean_max': 0.9,         # 1.0 = peak over base end; > 1.0 overhangs
+                    'ratio_min': 3.0,        # long flank / short flank length
+                    'ratio_max': 5.0,
+                    'slant_max': 15.0,       # short flank tilt from perpendicular, +/- degrees
+                    'extend_prob': 0.3,      # lean_sawtooth: chance of an overhanging extension
+                    'pair_extend_prob_inward': 0.3,   # pairs: per-tooth chance, by facing
+                    'pair_extend_prob_outward': 0.1,  # (outward extensions crowd the gap)
+                    'extend_min': 0.3,       # extension past the peak, fraction of long flank
+                    'extend_max': 0.5,
+                    'cap_min': 0.8,          # extension end cap, fraction of short flank
+                    'cap_max': 1.2,
                     'pair_facing': 'random', # inward | outward | random
                     'pair_gap_min': 0.0,     # gap between pair teeth, fraction of span
                     'pair_gap_max': 0.4,

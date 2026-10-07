@@ -127,17 +127,65 @@ class ProceduralGenerators:
                     'default': None,
                     'description': 'Probability of opposite direction in squarewave (0.0-1.0)'
                 },
-                'lean_min': {
+                'lean_ratio_min': {
                     'type': 'float',
                     'required': False,
                     'default': None,
-                    'description': 'Minimum lean of a leaning sawtooth peak (fraction of tooth half-width; 0=upright, 1=over base end)'
+                    'description': 'Leaning sawtooth: minimum long flank / short flank length ratio'
                 },
-                'lean_max': {
+                'lean_ratio_max': {
                     'type': 'float',
                     'required': False,
                     'default': None,
-                    'description': 'Maximum lean of a leaning sawtooth peak (values > 1.0 overhang the base)'
+                    'description': 'Leaning sawtooth: maximum long flank / short flank length ratio'
+                },
+                'lean_slant_max': {
+                    'type': 'float',
+                    'required': False,
+                    'default': None,
+                    'description': 'Leaning sawtooth: max tilt of the short flank from perpendicular, either way (degrees)'
+                },
+                'lean_extend_prob': {
+                    'type': 'float',
+                    'required': False,
+                    'default': None,
+                    'description': 'lean_sawtooth: probability the tooth is extended into an overhanging protrusion'
+                },
+                'lean_pair_extend_prob_inward': {
+                    'type': 'float',
+                    'required': False,
+                    'default': None,
+                    'description': 'lean_sawtooth_pair, inward facing: per-tooth extension probability'
+                },
+                'lean_pair_extend_prob_outward': {
+                    'type': 'float',
+                    'required': False,
+                    'default': None,
+                    'description': 'lean_sawtooth_pair, outward facing: per-tooth extension probability'
+                },
+                'lean_extend_min': {
+                    'type': 'float',
+                    'required': False,
+                    'default': None,
+                    'description': 'Leaning sawtooth extension: minimum length past the peak (fraction of long flank)'
+                },
+                'lean_extend_max': {
+                    'type': 'float',
+                    'required': False,
+                    'default': None,
+                    'description': 'Leaning sawtooth extension: maximum length past the peak (fraction of long flank)'
+                },
+                'lean_cap_min': {
+                    'type': 'float',
+                    'required': False,
+                    'default': None,
+                    'description': 'Leaning sawtooth extension: minimum end cap length (fraction of short flank)'
+                },
+                'lean_cap_max': {
+                    'type': 'float',
+                    'required': False,
+                    'default': None,
+                    'description': 'Leaning sawtooth extension: maximum end cap length (fraction of short flank)'
                 },
                 'lean_pair_facing': {
                     'type': 'choice',
@@ -200,6 +248,18 @@ class ProceduralGenerators:
                     'default': None,
                     'description': 'Max attempts per modification before skipping'
                 },
+                'min_angle': {
+                    'type': 'float',
+                    'required': False,
+                    'default': None,
+                    'description': 'Validation minimum vertex angle for this PROC only (degrees; default from config)'
+                },
+                'min_clearance': {
+                    'type': 'float',
+                    'required': False,
+                    'default': None,
+                    'description': 'Validation minimum gap between non-adjacent segments for this PROC only (pixels; default from config)'
+                },
                 'direction_bias': {
                     'type': 'choice',
                     'choices': ['inward', 'outward', 'random'],
@@ -257,6 +317,11 @@ class ProceduralGenerators:
         # PROC calls, cleared after. Allows template shape_parameters blocks
         # to override config.json shape defaults.
         self._shape_parameters = None
+
+        # Per-PROC validation threshold overrides (MIN_ANGLE, MIN_CLEARANCE) -
+        # set by dynamic_polygon for the duration of one call, None otherwise
+        self._min_angle_override = None
+        self._min_clearance_override = None
     
     def call(self, method_name, shape_name, raw_params):
         """
@@ -419,13 +484,46 @@ class ProceduralGenerators:
     # PROCEDURAL METHOD IMPLEMENTATIONS
     # ========================================================================
     
-    def dynamic_polygon(self, name, vertices, bounds, iterations=None,
+    def dynamic_polygon(self, name, *args, min_angle=None, min_clearance=None,
+                        **kwargs):
+        """Generate an evolved polygon - see _dynamic_polygon.
+
+        min_angle and min_clearance override the configured validation
+        thresholds for this call only, for every check made while building
+        the shape (evolution loop, shape studies, tooth sizing).
+        """
+        previous = (self._min_angle_override, self._min_clearance_override)
+        self._min_angle_override = min_angle
+        self._min_clearance_override = min_clearance
+        try:
+            return self._dynamic_polygon(name, *args, **kwargs)
+        finally:
+            self._min_angle_override, self._min_clearance_override = previous
+
+    def _effective_min_angle(self):
+        """Validation minimum angle: per-PROC override, else config."""
+        if self._min_angle_override is not None:
+            return self._min_angle_override
+        return config.procedural.validation.min_angle
+
+    def _effective_min_clearance(self):
+        """Validation segment clearance: per-PROC override, else config."""
+        if self._min_clearance_override is not None:
+            return self._min_clearance_override
+        return config.procedural.validation.min_segment_clearance
+
+    def _dynamic_polygon(self, name, vertices, bounds, iterations=None,
                    connect=None, operations=None,
                    break_margin=None, break_width_max=None, projection_max=None,
                    max_retries=None, direction_bias=None,
                    squarewave_independent_directions=None,
                    squarewave_opposite_direction_prob=None,
-                   lean_min=None, lean_max=None, lean_pair_facing=None,
+                   lean_ratio_min=None, lean_ratio_max=None, lean_slant_max=None,
+                   lean_extend_prob=None, lean_pair_extend_prob_inward=None,
+                   lean_pair_extend_prob_outward=None,
+                   lean_extend_min=None, lean_extend_max=None,
+                   lean_cap_min=None, lean_cap_max=None,
+                   lean_pair_facing=None,
                    lean_pair_gap_min=None, lean_pair_gap_max=None,
                    crook_angle_min=None, crook_angle_max=None,
                    crook_limb_ratio=None, crook_min_width=None,
@@ -481,9 +579,18 @@ class ProceduralGenerators:
         squarewave_independent_directions = squarewave_independent_directions if squarewave_independent_directions is not None else config.procedural.squarewave.independent_directions
         squarewave_opposite_direction_prob = squarewave_opposite_direction_prob if squarewave_opposite_direction_prob is not None else config.procedural.squarewave.opposite_direction_prob
 
+        lean_cfg = config.procedural.lean_sawtooth
         lean_params = {
-            'lean_min': lean_min if lean_min is not None else config.procedural.lean_sawtooth.lean_min,
-            'lean_max': lean_max if lean_max is not None else config.procedural.lean_sawtooth.lean_max,
+            'ratio_min': lean_ratio_min if lean_ratio_min is not None else lean_cfg.ratio_min,
+            'ratio_max': lean_ratio_max if lean_ratio_max is not None else lean_cfg.ratio_max,
+            'slant_max': lean_slant_max if lean_slant_max is not None else lean_cfg.slant_max,
+            'extend_prob': lean_extend_prob if lean_extend_prob is not None else lean_cfg.extend_prob,
+            'pair_extend_prob_inward': lean_pair_extend_prob_inward if lean_pair_extend_prob_inward is not None else lean_cfg.pair_extend_prob_inward,
+            'pair_extend_prob_outward': lean_pair_extend_prob_outward if lean_pair_extend_prob_outward is not None else lean_cfg.pair_extend_prob_outward,
+            'extend_min': lean_extend_min if lean_extend_min is not None else lean_cfg.extend_min,
+            'extend_max': lean_extend_max if lean_extend_max is not None else lean_cfg.extend_max,
+            'cap_min': lean_cap_min if lean_cap_min is not None else lean_cfg.cap_min,
+            'cap_max': lean_cap_max if lean_cap_max is not None else lean_cfg.cap_max,
             'pair_facing': lean_pair_facing if lean_pair_facing is not None else config.procedural.lean_sawtooth.pair_facing,
             'pair_gap_min': lean_pair_gap_min if lean_pair_gap_min is not None else config.procedural.lean_sawtooth.pair_gap_min,
             'pair_gap_max': lean_pair_gap_max if lean_pair_gap_max is not None else config.procedural.lean_sawtooth.pair_gap_max,
@@ -807,6 +914,8 @@ class ProceduralGenerators:
                 'squarewave_opposite_direction_prob': squarewave_opposite_direction_prob,
                 'lean_sawtooth': lean_params,
                 'crook': crook_params,
+                'min_angle': self._effective_min_angle(),
+                'min_clearance': self._effective_min_clearance(),
                 'direction_bias': direction_bias,
                 'verbose': verbose,
                 'save_iterations': save_iterations,
@@ -998,8 +1107,8 @@ class ProceduralGenerators:
             distortable_points: List of original vertices (for distort_original)
             squarewave_independent_directions: Allow independent directions in squarewave
             squarewave_opposite_prob: Probability of opposite direction
-            lean_params: Dict of leaning sawtooth settings (lean_min, lean_max,
-                         pair_facing, pair_gap_min, pair_gap_max)
+            lean_params: Dict of leaning sawtooth settings (ratio, slant,
+                         extension, pair facing and gap - see dynamic_polygon)
             crook_params: Dict of crook settings (angle_min, angle_max,
                           limb_ratio, min_width, min_length, center_jitter)
 
@@ -1338,56 +1447,148 @@ class ProceduralGenerators:
 
         return new_points
 
-    def _build_lean_tooth(self, p1, p2, t_left, t_right, lean_sign, lean_frac,
-                          perp, offset_dist):
+    def _build_lean_tooth(self, p1, p2, t_left, t_right, lean_sign, ratio,
+                          slant_deg, perp, extension=None):
         """Build one leaning tooth on segment p1->p2.
 
-        The peak's foot is shifted along the segment from the base center by
-        lean_frac * half-width. lean_sign=+1 shifts toward p2 (base_right),
-        making the base_left->peak flank the long one; -1 shifts toward p1.
+        The tooth has a long flank and a short flank, long = ratio x short.
+        lean_sign=+1 puts the short flank on the p2 side, -1 on the p1 side.
+        The short flank tilts slant_deg from perpendicular to the segment:
+        positive overhangs its own foot, negative leans back.
+
+        With extension=(ext_frac, cap_frac) the long flank continues past
+        the peak by ext_frac x its length, a cap of cap_frac x the short
+        flank's length turns back toward the segment, and the underside
+        returns to the short flank's foot - an overhanging protrusion.
 
         Args:
             p1, p2: Segment endpoints
             t_left, t_right: Parametric base positions on the segment
-            lean_sign: +1 (lean toward p2) or -1 (lean toward p1)
-            lean_frac: Peak foot shift as fraction of base half-width
+            lean_sign: +1 (short flank toward p2) or -1 (toward p1)
+            ratio: Long flank / short flank length
+            slant_deg: Short flank tilt from perpendicular (degrees)
             perp: (dx, dy) unit perpendicular for the projection
-            offset_dist: Peak projection distance
+            extension: None, or (ext_frac, cap_frac)
 
         Returns:
-            (base_left, peak, base_right) rounded points
+            Rounded points to insert in p1->p2 order - 3 for a plain tooth
+            (base, peak, base), 4 for an extended one
+
+        Raises:
+            ValueError: If the tooth is degenerate
         """
         def at(t):
             return (p1[0] + t * (p2[0] - p1[0]), p1[1] + t * (p2[1] - p1[1]))
 
-        t_center = (t_left + t_right) / 2
-        t_half = (t_right - t_left) / 2
-        foot = at(t_center + lean_sign * lean_frac * t_half)
-        peak = (foot[0] + perp[0] * offset_dist, foot[1] + perp[1] * offset_dist)
+        # a: foot of the long flank, b: foot of the short flank
+        if lean_sign > 0:
+            a, b = at(t_left), at(t_right)
+        else:
+            a, b = at(t_right), at(t_left)
+        width = math.dist(a, b)
+        if width == 0:
+            raise ValueError("Degenerate leaning tooth (zero width)")
+        dx, dy = (b[0] - a[0]) / width, (b[1] - a[1]) / width
 
-        return (self._round_point(at(t_left)),
-                self._round_point(peak),
-                self._round_point(at(t_right)))
+        # Height from width, ratio and slant. The peak sits at
+        # width + h*tan(slant) along the base from a, so
+        #   long^2  = (width + h*tan)^2 + h^2
+        #   short^2 = h^2 * (1 + tan^2)
+        # and long = ratio * short gives h below.
+        tan_s = math.tan(math.radians(slant_deg))
+        denom = math.sqrt(ratio * ratio * (1 + tan_s * tan_s) - 1) - tan_s
+        if denom <= 0:
+            raise ValueError("Leaning tooth ratio too small for its slant")
+        h = width / denom
+        along = width + h * tan_s
+        peak = (a[0] + dx * along + perp[0] * h,
+                a[1] + dy * along + perp[1] * h)
+
+        if extension is None:
+            tooth = [a, peak, b]
+        else:
+            ext_frac, cap_frac = extension
+            long_len = math.dist(a, peak)
+            ux, uy = (peak[0] - a[0]) / long_len, (peak[1] - a[1]) / long_len
+            tip = (peak[0] + ux * ext_frac * long_len,
+                   peak[1] + uy * ext_frac * long_len)
+            # Cap turns from the tip toward the short flank's side
+            nx, ny = -uy, ux
+            if nx * (b[0] - peak[0]) + ny * (b[1] - peak[1]) < 0:
+                nx, ny = -nx, -ny
+            cap = cap_frac * math.dist(peak, b)
+            cap_end = (tip[0] + nx * cap, tip[1] + ny * cap)
+            tooth = [a, tip, cap_end, b]
+
+        tooth = [self._round_point(p) for p in tooth]
+        return tooth if lean_sign > 0 else tooth[::-1]
+
+    def _lean_tooth_min_width(self, ratio, slant_deg, extension):
+        """Smallest base width at which a leaning tooth clears validation.
+
+        All of a tooth's geometry scales with its base width, so build it
+        once at a reference width on a straight baseline and measure its
+        tightest gap between non-adjacent segments. Low teeth put the short
+        flank's foot close under the long flank, so narrow teeth fail the
+        segment clearance check.
+
+        Returns:
+            Minimum base width in pixels (0 if validation is off)
+        """
+        if not config.procedural.validation.enabled:
+            return 0.0
+        clearance = self._effective_min_clearance()
+        if clearance <= 0:
+            return 0.0
+
+        ref = 1000.0
+        tooth = self._build_lean_tooth((0, 0), (10 * ref, 0), 0.1, 0.2, 1,
+                                       ratio, slant_deg, (0, -1), extension)
+        line = [(0, 0)] + tooth + [(3 * ref, 0)]
+        tightest = min(
+            self._segment_to_segment_distance(line[i], line[i + 1], line[j], line[j + 1])
+            for i in range(len(line) - 1)
+            for j in range(i + 2, len(line) - 1)
+        )
+        if tightest <= 0:
+            raise ValueError("Leaning tooth touches itself")
+        # 20% headroom for rounding and for the tooth's host segment
+        return 1.2 * clearance * ref / tightest
+
+    def _roll_lean_extension(self, probability, lean_params):
+        """Decide whether a leaning tooth is extended, and by how much.
+
+        Returns:
+            None, or (ext_frac, cap_frac) for _build_lean_tooth
+        """
+        if random.random() >= probability:
+            return None
+        return (random.uniform(lean_params['extend_min'], lean_params['extend_max']),
+                random.uniform(lean_params['cap_min'], lean_params['cap_max']))
 
     def _op_lean_sawtooth(self, points, idx, break_margin, break_width_max,
                           projection_max, direction_bias, centroid, bounds=None,
                           lean_params=None):
-        """Create a sawtooth whose peak leans along the segment.
+        """Create a sawtooth with one long flank and one short flank.
 
-        Operation: like sawtooth, but the peak is shifted toward one base
-        point, giving one short steep flank and one long flank. Lean
-        direction (toward p1 or p2) is chosen at random.
+        Operation: a tooth whose long flank is ratio x its short flank,
+        leaning toward a random end of the segment. With probability
+        extend_prob the long flank continues past the peak into an
+        overhanging protrusion.
+
+        Height follows from the base width and ratio, so projection_max
+        does not apply.
 
         Args:
             points: Current polygon points
             idx: Segment index to modify
             break_margin: Minimum distance from endpoints (0.0-0.5)
-            break_width_max: Maximum break width as fraction of segment length
-            projection_max: Maximum projection distance multiplier
+            break_width_max: Maximum base width as fraction of segment length
+            projection_max: Unused (height follows from width and ratio)
             direction_bias: Direction preference ('inward', 'outward', 'random')
             centroid: Polygon centroid (cx, cy)
             bounds: Optional bounding box (x1, y1, x2, y2) for validation
-            lean_params: Dict with lean_min, lean_max
+            lean_params: Leaning sawtooth settings (see dynamic_polygon)
 
         Returns:
             new_points list
@@ -1400,63 +1601,62 @@ class ProceduralGenerators:
         p2 = points[(idx + 1) % n]
         seg_length = math.sqrt((p2[0] - p1[0])**2 + (p2[1] - p1[1])**2)
 
-        # Base placement - same as sawtooth
+        ratio = random.uniform(lean_params['ratio_min'], lean_params['ratio_max'])
+        slant = random.uniform(-lean_params['slant_max'], lean_params['slant_max'])
+        extension = self._roll_lean_extension(lean_params['extend_prob'], lean_params)
+
+        # Base placement as sawtooth. Height scales with width, so keep the
+        # base in the upper part of the range, and at least wide enough for
+        # the tooth to clear validation.
         t_center = random.uniform(break_margin, 1.0 - break_margin)
         max_width = min(break_width_max * seg_length,
                        min(t_center, 1.0 - t_center) * seg_length * 2)
-        break_width = random.uniform(0, max_width)
-        t_delta = (break_width / 2) / seg_length
+        min_width = max(0.25 * max_width,
+                        self._lean_tooth_min_width(ratio, slant, extension))
+        if min_width > max_width:
+            raise ValueError("Segment too short for this leaning tooth")
+        width = random.uniform(min_width, max_width)
+        t_delta = (width / 2) / seg_length
 
         perp = self._get_perpendicular_direction(p1, p2, direction_bias, centroid)
 
-        min_projection = seg_length * 0.05
-        max_projection = projection_max * max(break_width, min_projection)
-        offset_dist = random.uniform(min_projection, max_projection)
-
-        lean_sign = random.choice((-1, 1))
-        lean_frac = random.uniform(lean_params['lean_min'], lean_params['lean_max'])
-
-        base_left, peak, base_right = self._build_lean_tooth(
+        tooth = self._build_lean_tooth(
             p1, p2, t_center - t_delta, t_center + t_delta,
-            lean_sign, lean_frac, perp, offset_dist
+            random.choice((-1, 1)), ratio, slant, perp, extension
         )
 
-        if config.procedural.validation.enabled:
-            if not self._check_aspect_ratio([base_left, base_right], peak):
-                raise ValueError("Aspect ratio too small (needle-like protrusion)")
-
         if bounds:
-            for point in [base_left, peak, base_right]:
+            for point in tooth:
                 if not self._is_within_bounds(point, bounds):
                     raise ValueError(f"Point {point} outside bounds {bounds}")
 
-        return points[:idx+1] + [base_left, peak, base_right] + points[idx+1:]
+        return points[:idx+1] + tooth + points[idx+1:]
 
     def _op_lean_sawtooth_pair(self, points, idx, break_margin, break_width_max,
                                projection_max, direction_bias, centroid, bounds=None,
                                lean_params=None):
-        """Create a matched pair of leaning sawtooth teeth on one segment.
+        """Create a pair of leaning sawtooth teeth on one segment.
 
-        Both teeth share width, depth, lean amount and projection direction,
-        and lean in mirror image:
+        Both teeth share width, ratio, slant and projection direction, and
+        lean in mirror image:
           facing='inward'  - long flanks face the gap between the teeth
-                             (teeth lean away from each other)
-          facing='outward' - long flanks face away from the gap
-                             (teeth lean toward each other)
+          facing='outward' - short flanks face the gap
 
-        A gap of zero joins the teeth at a shared base point.
+        Each tooth is extended independently, with the probability for the
+        pair's facing, so a pair may have zero, one or two extensions of
+        differing length and cap. A gap of zero joins the teeth at a shared
+        base point.
 
         Args:
             points: Current polygon points
             idx: Segment index to modify
             break_margin: Minimum distance from endpoints (0.0-0.5)
             break_width_max: Maximum pair span as fraction of segment length
-            projection_max: Maximum projection distance multiplier
+            projection_max: Unused (height follows from width and ratio)
             direction_bias: Direction preference, shared by both teeth
             centroid: Polygon centroid (cx, cy)
             bounds: Optional bounding box (x1, y1, x2, y2) for validation
-            lean_params: Dict with lean_min, lean_max, pair_facing,
-                         pair_gap_min, pair_gap_max
+            lean_params: Leaning sawtooth settings (see dynamic_polygon)
 
         Returns:
             new_points list
@@ -1469,57 +1669,57 @@ class ProceduralGenerators:
         p2 = points[(idx + 1) % n]
         seg_length = math.sqrt((p2[0] - p1[0])**2 + (p2[1] - p1[1])**2)
 
-        # Overall pair span - placed like a single sawtooth base
+        facing = lean_params['pair_facing']
+        if facing == 'random':
+            facing = random.choice(('inward', 'outward'))
+
+        # Shared ratio and slant; extensions are independent per tooth
+        ratio = random.uniform(lean_params['ratio_min'], lean_params['ratio_max'])
+        slant = random.uniform(-lean_params['slant_max'], lean_params['slant_max'])
+        extend_prob = lean_params['pair_extend_prob_' + facing]
+        left_ext = self._roll_lean_extension(extend_prob, lean_params)
+        right_ext = self._roll_lean_extension(extend_prob, lean_params)
+        gap_frac = random.uniform(lean_params['pair_gap_min'], lean_params['pair_gap_max'])
+
+        # Overall pair span - placed like a single sawtooth base, and wide
+        # enough for both teeth to clear validation
         t_center = random.uniform(break_margin, 1.0 - break_margin)
         max_span = min(break_width_max * seg_length,
                       min(t_center, 1.0 - t_center) * seg_length * 2)
-        span = random.uniform(0, max_span)
-
-        gap_frac = random.uniform(lean_params['pair_gap_min'], lean_params['pair_gap_max'])
+        tooth_min = max(self._lean_tooth_min_width(ratio, slant, left_ext),
+                        self._lean_tooth_min_width(ratio, slant, right_ext))
+        min_span = max(0.25 * max_span, 2 * tooth_min / (1.0 - gap_frac))
+        if min_span > max_span:
+            raise ValueError("Segment too short for this leaning tooth pair")
+        span = random.uniform(min_span, max_span)
         tooth_width = span * (1.0 - gap_frac) / 2
 
         t_span_left = t_center - (span / 2) / seg_length
         t_span_right = t_center + (span / 2) / seg_length
         t_tooth = tooth_width / seg_length
 
-        facing = lean_params['pair_facing']
-        if facing == 'random':
-            facing = random.choice(('inward', 'outward'))
-
         # The gap lies on the p2 side of the left tooth and the p1 side of
-        # the right tooth. Inward: each leans away from the gap.
+        # the right tooth. Inward: short flanks away from the gap.
         if facing == 'inward':
             left_sign, right_sign = -1, 1
         else:
             left_sign, right_sign = 1, -1
 
-        # Shared direction, depth and lean - a matched pair
         perp = self._get_perpendicular_direction(p1, p2, direction_bias, centroid)
-
-        min_projection = seg_length * 0.05
-        max_projection = projection_max * max(tooth_width, min_projection)
-        offset_dist = random.uniform(min_projection, max_projection)
-
-        lean_frac = random.uniform(lean_params['lean_min'], lean_params['lean_max'])
-
         left_tooth = self._build_lean_tooth(
-            p1, p2, t_span_left, t_span_left + t_tooth,
-            left_sign, lean_frac, perp, offset_dist
+            p1, p2, t_span_left, t_span_left + t_tooth, left_sign, ratio, slant,
+            perp, left_ext
         )
         right_tooth = self._build_lean_tooth(
-            p1, p2, t_span_right - t_tooth, t_span_right,
-            right_sign, lean_frac, perp, offset_dist
+            p1, p2, t_span_right - t_tooth, t_span_right, right_sign, ratio, slant,
+            perp, right_ext
         )
 
-        if config.procedural.validation.enabled:
-            for base_left, peak, base_right in (left_tooth, right_tooth):
-                if not self._check_aspect_ratio([base_left, base_right], peak):
-                    raise ValueError("Aspect ratio too small (needle-like protrusion)")
-
-        inserted = list(left_tooth) + list(right_tooth)
         # Zero (or rounded-away) gap: teeth share a base point
-        if left_tooth[2] == right_tooth[0]:
-            inserted.pop(3)
+        if left_tooth[-1] == right_tooth[0]:
+            inserted = left_tooth + right_tooth[1:]
+        else:
+            inserted = left_tooth + right_tooth
 
         if bounds:
             for point in inserted:
@@ -1864,7 +2064,7 @@ class ProceduralGenerators:
             return True
         
         min_dist = min_distance if min_distance is not None else \
-                config.procedural.validation.min_segment_clearance
+                self._effective_min_clearance()
         
         n = len(points)
         if n < 3:
@@ -1958,7 +2158,7 @@ class ProceduralGenerators:
             return True
         
         min_ang = min_angle if min_angle is not None else \
-                config.procedural.validation.min_angle
+                self._effective_min_angle()
         
         n = len(points)
         if n < 3:
