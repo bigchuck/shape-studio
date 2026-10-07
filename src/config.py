@@ -293,7 +293,25 @@ class Config:
                     },
                 },
             },
-            
+
+            # HOLLOW command - brush-stroke hollows inside a polygon
+            'hollow': {
+                'rim_min': 12.0,          # rim width range (px), varies smoothly along the edge
+                'rim_max': 28.0,
+                'hollows_min': 1,         # number of hollows (walls = hollows - 1)
+                'hollows_max': 1,
+                'wall_min': 8.0,          # wall width range between hollows (px)
+                'wall_max': 20.0,
+                'breakout_prob': 0.3,     # per-hollow chance of breaking out (max one each)
+                'gap_min': 12.0,          # break-out channel width range (px)
+                'gap_max': 30.0,
+                'rough': 6.0,             # angular roughness amplitude of hollow edges (px)
+                'rough_spacing': 40.0,    # about one jog per this much hollow edge (px)
+                'simplify': 3.0,          # hollow outline simplification tolerance (px)
+                'wavelength': 150.0,      # rim width variation scale (px)
+                'max_attempts': 12,       # whole-hollow retries before giving up
+            },
+
             # Randomization system
             'randomization': {
                 # Normal distribution settings

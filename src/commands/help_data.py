@@ -629,6 +629,33 @@ HELP = {
             "  REFLECT shape1 AXIS=major"
         ),
     },
+    'HOLLOW': {
+        'synopsis': 'Cut brush-stroke hollows into a polygon, optionally breaking out',
+        'usage': (
+            "HOLLOW [<name>] [RIM=min,max] [HOLLOWS=min,max] [WALL=min,max]\n"
+            "       [BREAKOUT=p] [GAP=min,max] [ROUGH=px] [ROUGH_SPACING=px] [SIMPLIFY=px]\n"
+            "\n"
+            "  name           Polygon to hollow (optional if WORKWITH is set)\n"
+            "  RIM            Rim width range, px - varies smoothly along the edge\n"
+            "  HOLLOWS        Number of hollows; walls are cut between them\n"
+            "  WALL           Wall width range between hollows, px\n"
+            "  BREAKOUT       Chance each hollow breaks out to the outside (0-1).\n"
+            "                 At most one break-out per hollow, so the shape\n"
+            "                 always stays in one piece\n"
+            "  GAP            Break-out channel width range, px\n"
+            "  ROUGH          Angular roughness of hollow edges, px (0 = smooth)\n"
+            "  ROUGH_SPACING  About one roughness jog per this much edge, px\n"
+            "  SIMPLIFY       Hollow outline simplification tolerance, px\n"
+            "\n"
+            "Defaults come from config.json 'hollow'. Hollows that do not break\n"
+            "out become holes. A shape can be hollowed only once.\n"
+            "\n"
+            "Examples:\n"
+            "  HOLLOW s1\n"
+            "  HOLLOW s1 RIM=10,24 HOLLOWS=2,3 BREAKOUT=0.5\n"
+            "  HOLLOW s1 HOLLOWS=3 BREAKOUT=1 GAP=15,40"
+        ),
+    },
     'HELP': {
         'synopsis': 'Show command help in the log',
         'usage': (

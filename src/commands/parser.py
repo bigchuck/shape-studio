@@ -66,6 +66,7 @@ class CommandParser:
             'REPLAY': self._parse_replay,
             'HIGH':   self._parse_high,
             'IMPORT': self._parse_import,
+            'HOLLOW': self._parse_hollow,
             'HELP': self._parse_help,
         }
         
@@ -1162,6 +1163,57 @@ class CommandParser:
             'axis': axis,
         }
     
+    def _parse_hollow(self, parts):
+        """Parse HOLLOW command: HOLLOW [<name>] [KEY=value ...]
+
+        Ranges are min,max or a single value:
+            RIM=12,28 HOLLOWS=1,3 WALL=8,20 GAP=12,30
+        Single values:
+            BREAKOUT=0.3 ROUGH=6 ROUGH_SPACING=40 SIMPLIFY=3
+        The name may be omitted when WORKWITH is set.
+        """
+        ranges = {'RIM': 'rim', 'HOLLOWS': 'hollows', 'WALL': 'wall', 'GAP': 'gap'}
+        singles = {'BREAKOUT': 'breakout_prob', 'ROUGH': 'rough',
+                   'ROUGH_SPACING': 'rough_spacing', 'SIMPLIFY': 'simplify'}
+
+        name = None
+        args = parts[1:]
+        if args and '=' not in args[0]:
+            name = args[0]
+            args = args[1:]
+
+        overrides = {}
+        for part in args:
+            if '=' not in part:
+                raise ValueError(f"HOLLOW: expected KEY=value, got '{part}'")
+            key, val = part.split('=', 1)
+            key = key.upper()
+            if key in ranges:
+                values = [float(v) for v in val.split(',')]
+                if len(values) == 1:
+                    values = values * 2
+                if len(values) != 2 or values[0] > values[1]:
+                    raise ValueError(f"HOLLOW {key} must be min,max or a single value, got '{val}'")
+                base = ranges[key]
+                if key == 'HOLLOWS':
+                    values = [int(v) for v in values]
+                    if values[0] < 1:
+                        raise ValueError("HOLLOW HOLLOWS must be at least 1")
+                overrides[f'{base}_min'], overrides[f'{base}_max'] = values
+            elif key in singles:
+                overrides[singles[key]] = float(val)
+            else:
+                raise ValueError(f"HOLLOW: unknown parameter '{key}'")
+
+        if 'breakout_prob' in overrides and not 0 <= overrides['breakout_prob'] <= 1:
+            raise ValueError("HOLLOW BREAKOUT must be between 0 and 1")
+
+        return {
+            'command': 'HOLLOW',
+            'name': name,
+            'overrides': overrides,
+        }
+
     def _parse_replay(self, parts):
         """Parse REPLAY command: REPLAY <composition_name>"""
         if len(parts) < 2:

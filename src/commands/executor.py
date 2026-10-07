@@ -134,9 +134,10 @@ class CommandExecutor:
             'REPLAY': self._execute_replay,
             'HIGH':   self._execute_high,
             'IMPORT': self._execute_import,
+            'HOLLOW': self._execute_hollow,
             'HELP': self._execute_help,
         }
-        
+
         if command in handlers:
             return handlers[command](cmd_dict, command_text)
         else:
@@ -921,15 +922,19 @@ class CommandExecutor:
         offset_x = (source_w - canvas_w * scale) / 2
         offset_y = (source_h - canvas_h * scale) / 2
         
-        points = [
-            [x * scale + offset_x, y * scale + offset_y]
-            for x, y in shape.attrs['geometry']['points']
-        ]
-        
+        def to_frame(ring):
+            return [[x * scale + offset_x, y * scale + offset_y] for x, y in ring]
+
+        points = to_frame(shape.attrs['geometry']['points'])
+
         data = {
             'source': {'w': source_w, 'h': source_h},
             'points': points
         }
+        # Holes only when present, so plain exports are unchanged
+        holes = shape.get_holes()
+        if holes:
+            data['holes'] = [to_frame(hole) for hole in holes]
         
         filepath = self.interface_dir / f"{shape_name}.json"
         filepath.parent.mkdir(parents=True, exist_ok=True)
@@ -1039,35 +1044,54 @@ class CommandExecutor:
         
         canvas_w = config.canvas.width
         canvas_h = config.canvas.height
-        
+
         scale = min(canvas_w / source_w, canvas_h / source_h)
         offset_x = (canvas_w - source_w * scale) / 2
         offset_y = (canvas_h - source_h * scale) / 2
-        
-        points = []
-        for i, p in enumerate(raw_points):
-            if not isinstance(p, (list, tuple)) or len(p) != 2:
-                raise ValueError(
-                    f"IMPORT: point {i} is malformed (expected [x, y]): {p!r}"
-                )
-            try:
-                x = float(p[0])
-                y = float(p[1])
-            except (TypeError, ValueError):
-                raise ValueError(f"IMPORT: point {i} has non-numeric values: {p!r}")
-            points.append((x * scale + offset_x, y * scale + offset_y))
-        
+
+        def to_canvas(ring, label):
+            out = []
+            for i, p in enumerate(ring):
+                if not isinstance(p, (list, tuple)) or len(p) != 2:
+                    raise ValueError(
+                        f"IMPORT: {label} point {i} is malformed (expected [x, y]): {p!r}"
+                    )
+                try:
+                    x = float(p[0])
+                    y = float(p[1])
+                except (TypeError, ValueError):
+                    raise ValueError(f"IMPORT: {label} point {i} has non-numeric values: {p!r}")
+                out.append((x * scale + offset_x, y * scale + offset_y))
+            return out
+
+        points = to_canvas(raw_points, 'outline')
+
+        # --- holes (optional) ---
+        raw_holes = data.get('holes') or []
+        if not isinstance(raw_holes, list):
+            raise ValueError(f"IMPORT: {filepath} 'holes' must be a list of point lists")
+        holes = []
+        for k, raw_hole in enumerate(raw_holes):
+            if not isinstance(raw_hole, list) or len(raw_hole) < 3:
+                raise ValueError(f"IMPORT: hole {k + 1} needs at least 3 points")
+            holes.append(to_canvas(raw_hole, f"hole {k + 1}"))
+
         # --- geometry validation: self-intersection is a hard reject ---
         if not self.procedural_gen._is_valid_polygon(points):
             raise ValueError(
                 f"IMPORT: '{rel_path}' is self-intersecting - not imported"
             )
+        if holes:
+            from src.core.hollow import validate_rings
+            reason = validate_rings(points, holes)
+            if reason:
+                raise ValueError(f"IMPORT: '{rel_path}' has invalid holes ({reason}) - not imported")
         
         # --- build and place on the active canvas ---
         shape_name = Path(rel_path).stem
         shapes = self.get_active_shapes()
         
-        polygon = Polygon(shape_name, points)
+        polygon = Polygon(shape_name, points, holes or None)
         polygon.add_history('IMPORT', command_text)
         
         storage_name = self._resolve_collision(shape_name, shapes)
@@ -1080,7 +1104,9 @@ class CommandExecutor:
         shapes[storage_name] = polygon
         
         return (
-            f"Imported {len(points)} points from {filepath} "
+            f"Imported {len(points)} points"
+            + (f" and {len(holes)} hole(s)" if holes else "")
+            + f" from {filepath} "
             f"(source {source_w:g}x{source_h:g}, scale {scale:g}) "
             f"as '{storage_name}' on {self.active_canvas_name}"
         )
@@ -2451,9 +2477,10 @@ class CommandExecutor:
             'REFLECT': self._execute_reflect,
             'HIGH':   self._execute_high,
             'IMPORT': self._execute_import,
+            'HOLLOW': self._execute_hollow,
             'HELP': self._execute_help,
         }
-        
+
         if command in handlers:
             return handlers[command](cmd_dict, command_text)
         else:
@@ -3106,6 +3133,61 @@ class CommandExecutor:
 
         return f"Reflected '{name}': axis={axis}"
     
+    def _execute_hollow(self, cmd_dict, command_text):
+        """Execute HOLLOW command - cut brush-stroke hollows into a polygon.
+
+        Settings come from config.hollow, overridden by the command's
+        parameters. Each attempt draws fresh random choices; the command
+        fails only if every attempt is rejected. Hollowing is one level:
+        a shape that has been hollowed cannot be hollowed again.
+        """
+        import random as _random
+        from src.core.hollow import hollow_polygon
+
+        name = self._resolve_shape_name(cmd_dict.get('name'))
+        shapes = self.get_active_shapes()
+        if name not in shapes:
+            raise ValueError(f"Shape '{name}' not found on {self.active_canvas_name} canvas")
+
+        shape = shapes[name]
+        if shape.attrs['type'] != 'Polygon':
+            raise ValueError(f"HOLLOW only supports Polygon shapes, '{name}' is {shape.attrs['type']}")
+        if shape.attrs.get('hollow') or shape.get_holes():
+            raise ValueError(f"'{name}' is already hollowed - hollows are one level only")
+
+        params = config.hollow.to_dict()
+        max_attempts = int(params.pop('max_attempts', 12))
+        params.update(cmd_dict.get('overrides', {}))
+        params['hollows_min'] = int(params['hollows_min'])
+        params['hollows_max'] = int(params['hollows_max'])
+
+        points = shape.attrs['geometry']['points']
+        reasons = []
+        for attempt in range(max_attempts):
+            try:
+                outer, holes, info = hollow_polygon(points, params, _random)
+                break
+            except ValueError as e:
+                reasons.append(str(e))
+        else:
+            common = max(set(reasons), key=reasons.count)
+            raise ValueError(
+                f"HOLLOW: no valid hollow for '{name}' after {max_attempts} attempts "
+                f"(most often: {common})"
+            )
+
+        shape.attrs['geometry']['points'] = outer
+        shape._set_holes(holes)
+        shape.attrs['hollow'] = {'params': params, **info}
+        shape.add_history('HOLLOW', command_text)
+        self.active_canvas.redraw()
+
+        return (
+            f"Hollowed '{name}': {info['hollows']} hollow(s), "
+            f"{info['breakouts']} break-out(s), {len(holes)} hole(s)"
+            + (f" after {attempt + 1} attempts" if attempt else "")
+        )
+
     def _resolve_reflect_axis(self, axis_spec):
         """Resolve a REFLECT axis spec — no dependency on CommandLoopRunner.
         

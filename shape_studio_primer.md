@@ -412,6 +412,39 @@ SAVE myshape
 
 ---
 
+## HOLLOW — Brush-Stroke Hollows
+
+HOLLOW cuts one or more hollows into a finished polygon, leaving a rim that follows the outline like a brush stroke. The rim width varies smoothly along the edge, and the hollow's own edge is angular and rough.
+
+```
+HOLLOW [<name>] [RIM=min,max] [HOLLOWS=min,max] [WALL=min,max] [BREAKOUT=p] [GAP=min,max] [ROUGH=px] [ROUGH_SPACING=px] [SIMPLIFY=px]
+```
+
+| Parameter | Default | Meaning |
+|-----------|---------|---------|
+| `RIM` | 12,28 | Rim width range (px), varying smoothly along the edge |
+| `HOLLOWS` | 1,1 | Number of hollows; walls are cut between them |
+| `WALL` | 8,20 | Wall width range between hollows (px); each wall tapers |
+| `BREAKOUT` | 0.3 | Chance each hollow breaks out to the outside, leaving a gap in the rim |
+| `GAP` | 12,30 | Break-out channel width range (px) |
+| `ROUGH` | 6 | Angular roughness of hollow edges (px); 0 = smooth |
+| `ROUGH_SPACING` | 40 | About one roughness jog per this much hollow edge (px) |
+| `SIMPLIFY` | 3 | Hollow outline simplification (px) — larger = fewer, longer edges |
+
+- A hollow that does not break out becomes a **hole**: the background and anything behind shows through it, and its outline is drawn.
+- Each hollow breaks out at most once, so the shape always stays in one piece. With several hollows all breaking out, the walls become fingers reaching from the rim.
+- Hollowing is one level only: a hollowed shape cannot be hollowed again.
+- Holes move with the shape under MOVE, ROTATE, SCALE, RESIZE, DEFORM and REFLECT, and are kept by STORE/LOAD, STORE POINTS (`"holes"` key) and IMPORT.
+- A break-out reshapes the outer outline only at the channel mouth; the rest of the outline is unchanged.
+
+```
+HOLLOW s1
+HOLLOW s1 HOLLOWS=2,3 BREAKOUT=0.5
+HOLLOW s1 HOLLOWS=3 BREAKOUT=1 GAP=15,40
+```
+
+---
+
 ## RAND() — Inline Randomization
 
 `RAND(min,max)` and `RANDBOOL()` can appear anywhere in a command. They are evaluated once at parse time (before the command runs). In a BATCH loop they re-evaluate on every iteration, which is how you get variety across a run.
@@ -737,6 +770,9 @@ LIST EXECUTABLES <scriptfile>
 INFO <name>
 INFO PROC dynamic_polygon
 HELP [<command>]
+
+# Hollows (name optional if WORKWITH set)
+HOLLOW [<name>] [RIM=min,max] [HOLLOWS=min,max] [WALL=min,max] [BREAKOUT=p] [GAP=min,max] [ROUGH=px]
 
 # Viewport guide (display only, not in PNG)
 VIEWPORT <w>,<h>    # pixels or ratios (e.g. 0.7,1.0)
