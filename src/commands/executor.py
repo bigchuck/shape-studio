@@ -287,8 +287,10 @@ class CommandExecutor:
             raise ValueError(f"DEFORM only supports Polygon shapes, '{name}' is {shape.attrs['type']}")
 
         points = shape.attrs['geometry']['points']
-        new_points = deform_points(points, axis=axis, along=along, across=across)
+        new_points, new_holes = deform_points(points, axis=axis, along=along, across=across,
+                                              holes=shape.get_holes())
         shape.attrs['geometry']['points'] = new_points
+        shape._set_holes(new_holes)
         shape.add_history('DEFORM', command_text)
         self.active_canvas.redraw()
 
@@ -786,6 +788,8 @@ class CommandExecutor:
         elif shape.attrs['type'] == 'Polygon':
             info.append(f"Vertices: {len(geom['points'])}")
             info.append(f"Points: {geom['points']}")
+            for i, hole in enumerate(geom.get('holes') or []):
+                info.append(f"Hole {i + 1}: {len(hole)} vertices {hole}")
         elif shape.attrs['type'] == 'ShapeGroup':
             members = geom['members']
             info.append(f"Members ({len(members)}): {[m.name for m in members]}")
@@ -1897,7 +1901,12 @@ class CommandExecutor:
         
         # Restore attrs
         shape.attrs = attrs
-        
+        if shape_type == 'Polygon':
+            # JSON stores points as lists - keep the in-memory tuple form
+            geom['points'] = [tuple(p) for p in geom['points']]
+            if geom.get('holes'):
+                geom['holes'] = [[tuple(p) for p in hole] for hole in geom['holes']]
+
         # Restore canonical_name if present (set by collision resolver)
         if 'canonical_name' in data:
             shape.canonical_name = data['canonical_name']
@@ -3089,8 +3098,9 @@ class CommandExecutor:
             )
 
         points = shape.attrs['geometry']['points']
-        new_points = reflect_points(points, axis=axis)
+        new_points, new_holes = reflect_points(points, axis=axis, holes=shape.get_holes())
         shape.attrs['geometry']['points'] = new_points
+        shape._set_holes(new_holes)
         shape.add_history('REFLECT', command_text)
         self.active_canvas.redraw()
 

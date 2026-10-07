@@ -74,7 +74,7 @@ def _compute_principal_axis(points, centroid):
     return (vx, vy), (minor_ux, minor_uy)
 
 
-def deform_points(points, axis='major', along=1.0, across=1.0):
+def deform_points(points, axis='major', along=1.0, across=1.0, holes=None):
     """
     Deform a polygon by scaling along its principal axes.
 
@@ -84,9 +84,12 @@ def deform_points(points, axis='major', along=1.0, across=1.0):
                 'minor' — along/across refer to minor/major axes respectively
         along:  Scale factor along the named axis  (1.0 = no change)
         across: Scale factor perpendicular to named axis (1.0 = no change)
+        holes:  Optional list of hole rings, transformed with the same
+                centroid and axes as points
 
     Returns:
-        List of transformed (x, y) tuples (integers, matching Shape Studio convention)
+        List of transformed (x, y) tuples (integers, matching Shape Studio
+        convention), or (points, holes) when holes is given
 
     Raises:
         ValueError: if points is empty, axis is invalid, or factors are non-positive
@@ -112,30 +115,35 @@ def deform_points(points, axis='major', along=1.0, across=1.0):
         scale_minor = along
 
     cx, cy = centroid
-    result = []
-    for px, py in points:
-        # Translate to centroid-relative
-        rx = px - cx
-        ry = py - cy
 
-        # Project onto major and minor axes
-        proj_major = rx * major_u[0] + ry * major_u[1]
-        proj_minor = rx * minor_u[0] + ry * minor_u[1]
+    def transform(ring):
+        result = []
+        for px, py in ring:
+            # Translate to centroid-relative
+            rx = px - cx
+            ry = py - cy
 
-        # Scale each component
-        proj_major *= scale_major
-        proj_minor *= scale_minor
+            # Project onto major and minor axes
+            proj_major = rx * major_u[0] + ry * major_u[1]
+            proj_minor = rx * minor_u[0] + ry * minor_u[1]
 
-        # Reconstruct in canvas space
-        nx = cx + proj_major * major_u[0] + proj_minor * minor_u[0]
-        ny = cy + proj_major * major_u[1] + proj_minor * minor_u[1]
+            # Scale each component
+            proj_major *= scale_major
+            proj_minor *= scale_minor
 
-        result.append((int(round(nx)), int(round(ny))))
+            # Reconstruct in canvas space
+            nx = cx + proj_major * major_u[0] + proj_minor * minor_u[0]
+            ny = cy + proj_major * major_u[1] + proj_minor * minor_u[1]
 
-    return result
+            result.append((int(round(nx)), int(round(ny))))
+        return result
+
+    if holes is None:
+        return transform(points)
+    return transform(points), [transform(h) for h in holes]
 
 
-def reflect_points(points, axis='horizontal'):
+def reflect_points(points, axis='horizontal', holes=None):
     """Reflect a polygon across an axis through its centroid.
 
     Unlike rotation (which preserves handedness), reflection reverses it —
@@ -147,13 +155,34 @@ def reflect_points(points, axis='horizontal'):
                 'vertical'   — reflect left/right (across vertical line through centroid)
                 'major'      — reflect across the shape's major principal axis
                 'minor'      — reflect across the shape's minor principal axis
+        holes:  Optional list of hole rings, reflected across the same axis
+                (computed from points)
 
     Returns:
-        List of reflected (x, y) tuples (integers)
+        List of reflected (x, y) tuples (integers), or (points, holes) when
+        holes is given
 
     Raises:
         ValueError: if points is empty or axis is invalid
     """
+    if holes is not None:
+        # Reflect outer and holes as one point set so they share the axis,
+        # which is computed from the outer points alone
+        n = len(points)
+        sizes = [len(h) for h in holes]
+        combined = _reflect_with_frame(points, list(points) + [p for h in holes for p in h], axis)
+        out = combined[:n]
+        rest = combined[n:]
+        new_holes = []
+        for size in sizes:
+            new_holes.append(rest[:size])
+            rest = rest[size:]
+        return out, new_holes
+    return _reflect_with_frame(points, points, axis)
+
+
+def _reflect_with_frame(frame_points, points, axis):
+    """Reflect points across an axis derived from frame_points."""
     _VALID_AXES = ('horizontal', 'vertical', 'major', 'minor')
     if not points:
         raise ValueError("reflect_points: points list is empty")
@@ -162,7 +191,7 @@ def reflect_points(points, axis='horizontal'):
             f"reflect_points: axis must be one of {_VALID_AXES}, got '{axis}'"
         )
 
-    centroid = _compute_centroid(points)
+    centroid = _compute_centroid(frame_points)
     cx, cy = centroid
 
     if axis == 'horizontal':
@@ -175,7 +204,7 @@ def reflect_points(points, axis='horizontal'):
 
     else:
         # major or minor — reflect across the named principal axis line
-        major_u, minor_u = _compute_principal_axis(points, centroid)
+        major_u, minor_u = _compute_principal_axis(frame_points, centroid)
         # axis_u is the direction of the mirror line
         axis_u = major_u if axis == 'major' else minor_u
 

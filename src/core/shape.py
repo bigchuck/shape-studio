@@ -172,38 +172,77 @@ class Line(Shape):
 
 
 class Polygon(Shape):
-    """A polygon (closed shape with multiple vertices)"""
-    
-    def __init__(self, name, points):
+    """A polygon (closed shape with multiple vertices)
+
+    May carry holes - inner rings cut out of the fill (see HOLLOW). Holes
+    are stored in geometry['holes'] only when present, and move with the
+    outer ring under every transform.
+    """
+
+    def __init__(self, name, points, holes=None):
         super().__init__(name, 'Polygon')
         self.attrs['geometry'] = {
             'points': points
         }
-        
+        if holes:
+            self.attrs['geometry']['holes'] = holes
+
+    def get_holes(self):
+        """Hole rings (empty list if none)"""
+        return self.attrs['geometry'].get('holes') or []
+
+    def _set_holes(self, holes):
+        if holes:
+            self.attrs['geometry']['holes'] = holes
+        else:
+            self.attrs['geometry'].pop('holes', None)
+
     def draw(self, draw_context):
         """Draw the polygon using style attributes"""
         geom = self.attrs['geometry']
         style = self.attrs['style']
-        
+
         if len(geom['points']) < 2:
             return
-        
+
         outline_color = self._apply_alpha(style['color'], style['transparency'])
         fill_color = None
         if style['fill']:
             fill_color = self._apply_alpha(style['fill'], style['transparency'])
 
-        draw_context.polygon(
-            geom['points'], 
-            outline=outline_color,
-            fill=fill_color,
-            width=style['width']
-        )
-        
+        holes = self.get_holes()
+        if not holes:
+            draw_context.polygon(
+                geom['points'],
+                outline=outline_color,
+                fill=fill_color,
+                width=style['width']
+            )
+            return
+
+        # With holes: fill through a mask (outer ring minus holes), then
+        # outline every ring
+        if fill_color:
+            from PIL import Image, ImageDraw
+            mask = Image.new('L', draw_context.im.size, 0)
+            mask_draw = ImageDraw.Draw(mask)
+            mask_draw.polygon([tuple(p) for p in geom['points']], fill=255)
+            for hole in holes:
+                mask_draw.polygon([tuple(p) for p in hole], fill=0)
+            draw_context.bitmap((0, 0), mask, fill=fill_color)
+
+        for ring in [geom['points']] + holes:
+            draw_context.polygon(
+                [tuple(p) for p in ring],
+                outline=outline_color,
+                width=style['width']
+            )
+
     def move(self, dx, dy):
         """Move the polygon"""
         geom = self.attrs['geometry']
         geom['points'] = [(x + dx, y + dy) for x, y in geom['points']]
+        self._set_holes([[(x + dx, y + dy) for x, y in h] for h in self.get_holes()])
         
     def get_centroid(self):
         """Get the center point of the polygon"""
@@ -219,18 +258,24 @@ class Polygon(Shape):
         center = self.get_centroid()
         geom = self.attrs['geometry']
         geom['points'] = [self._rotate_point(p, center, angle) for p in geom['points']]
-        
+        self._set_holes([[self._rotate_point(p, center, angle) for p in h]
+                         for h in self.get_holes()])
+
     def scale(self, factor):
         """Scale the polygon from its center"""
         center = self.get_centroid()
         geom = self.attrs['geometry']
         geom['points'] = [self._scale_point(p, center, factor) for p in geom['points']]
-        
+        self._set_holes([[self._scale_point(p, center, factor) for p in h]
+                         for h in self.get_holes()])
+
     def resize(self, x_factor, y_factor):
         """Resize the polygon with separate X and Y factors"""
         center = self.get_centroid()
         geom = self.attrs['geometry']
         geom['points'] = [self._resize_point(p, center, x_factor, y_factor) for p in geom['points']]
+        self._set_holes([[self._resize_point(p, center, x_factor, y_factor) for p in h]
+                         for h in self.get_holes()])
         
     def _rotate_point(self, point, center, angle):
         """Rotate a point around a center by angle degrees"""
