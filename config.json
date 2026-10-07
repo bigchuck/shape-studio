@@ -50,6 +50,15 @@
       "pair_gap_min": 0.0,
       "pair_gap_max": 0.4
     },
+
+    "crook": {
+      "angle_min": 30.0,
+      "angle_max": 90.0,
+      "limb_ratio": 3.0,
+      "min_width": 20.0,
+      "min_length": 80.0,
+      "center_jitter": 0.15
+    },
     
     "validation": {
       "enabled": true,

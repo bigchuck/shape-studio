@@ -324,6 +324,11 @@ PROC dynamic_polygon <name> PARAM=value [PARAM=value ...]
 | `LEAN_MIN` / `LEAN_MAX` | float | Leaning sawtooth peak shift, fraction of tooth half-width (0 = upright, 1 = over the base end, >1 overhangs) |
 | `LEAN_PAIR_FACING` | `inward`, `outward`, or `random` | Pair: long flanks face the gap between the teeth (`inward`) or away from it (`outward`) |
 | `LEAN_PAIR_GAP_MIN` / `LEAN_PAIR_GAP_MAX` | float 0.0–1.0 | Pair: gap between teeth as fraction of the pair's span (0 = teeth share a base point) |
+| `CROOK_ANGLE_MIN` / `CROOK_ANGLE_MAX` | float (degrees) | Knee bend angle range (default 30–90) |
+| `CROOK_LIMB_RATIO` | float | Minimum limb length ÷ width to be bent (default 3.0) |
+| `CROOK_MIN_WIDTH` | float (pixels) | Ignore limbs narrower than this (default 20) |
+| `CROOK_MIN_LENGTH` | float (pixels) | Ignore limbs shorter than this, whatever their ratio (default 80) — keeps squarewave/sawtooth teeth from counting as limbs |
+| `CROOK_CENTER_JITTER` | float 0.0–0.5 | Random offset of the knee from the limb center, as fraction of limb length (default 0.15) |
 | `VERBOSE` | int | Debug verbosity; 0 = off |
 
 ### Operations
@@ -339,6 +344,7 @@ Operations are what reshape the polygon each iteration. You specify which ones t
 | `distort_original` | Shifts an existing vertex |
 | `lean_sawtooth` | Sawtooth whose peak leans toward one end — one steep short flank, one long flank |
 | `lean_sawtooth_pair` | Matched pair of leaning teeth on one segment, same direction/depth/lean, mirrored |
+| `crook` | Bends a limb (a narrow run of the shape) at a knee near its center; sharp outside corner, limb width kept. Needs a shape that already has limbs — see note below |
 
 **Specifying operations — three formats:**
 
@@ -353,6 +359,8 @@ OPERATIONS=split_offset:10,sawtooth:5,squarewave:3,remove_point:1,distort_origin
 ```
 
 Higher number = more likely to be chosen each iteration.
+
+**Note on `crook`:** it only acts on limbs — stretches of the shape at least `CROOK_LIMB_RATIO` times as long as they are wide. Freshly generated shapes rarely have them, so in a normal run most crook attempts find nothing and the iteration passes unchanged. It is most effective on a DERIVE from a stored shape that already has limbs (`source_shape`). To use it in fresh runs, lower `CROOK_LIMB_RATIO` to about 2.0; `CROOK_MIN_LENGTH` (default 80px) keeps it from treating squarewave/sawtooth teeth as limbs.
 
 ### Built-in presets
 

@@ -8,6 +8,7 @@ from src.core.shape import Polygon, Line, ShapeGroup
 from src.core.param_converters import CONVERTERS, choice_converter
 from src.config import config
 from src.core.shape_studies import get_shape_study_registry
+from src.core.crook import find_limbs, bend_at_chord
 
 
 class ProceduralGenerators:
@@ -87,7 +88,7 @@ class ProceduralGenerators:
                     'required': False,
                     'default': [['split_offset', 1], ['sawtooth', 1], ['squarewave', 0], ['remove_point', 0], ['distort_original', 0]],
                     'choices': ['split_offset', 'sawtooth', 'squarewave', 'remove_point', 'distort_original',
-                                'lean_sawtooth', 'lean_sawtooth_pair'],
+                                'lean_sawtooth', 'lean_sawtooth_pair', 'crook'],
                     'description': 'List of operations with optional weights [[op, weight], ...]'
                 },
                 'break_margin': {
@@ -156,6 +157,42 @@ class ProceduralGenerators:
                     'required': False,
                     'default': None,
                     'description': 'lean_sawtooth_pair: maximum gap between teeth (fraction of pair span, 0.0-1.0)'
+                },
+                'crook_angle_min': {
+                    'type': 'float',
+                    'required': False,
+                    'default': None,
+                    'description': 'crook: minimum knee bend angle (degrees)'
+                },
+                'crook_angle_max': {
+                    'type': 'float',
+                    'required': False,
+                    'default': None,
+                    'description': 'crook: maximum knee bend angle (degrees)'
+                },
+                'crook_limb_ratio': {
+                    'type': 'float',
+                    'required': False,
+                    'default': None,
+                    'description': 'crook: minimum limb length / width for a limb to bend'
+                },
+                'crook_min_width': {
+                    'type': 'float',
+                    'required': False,
+                    'default': None,
+                    'description': 'crook: ignore limbs narrower than this (pixels)'
+                },
+                'crook_min_length': {
+                    'type': 'float',
+                    'required': False,
+                    'default': None,
+                    'description': 'crook: ignore limbs shorter than this (pixels), whatever their ratio'
+                },
+                'crook_center_jitter': {
+                    'type': 'float',
+                    'required': False,
+                    'default': None,
+                    'description': 'crook: max random offset of the knee from limb center (fraction of limb length)'
                 },
                 'max_retries': {
                     'type': 'int',
@@ -390,6 +427,10 @@ class ProceduralGenerators:
                    squarewave_opposite_direction_prob=None,
                    lean_min=None, lean_max=None, lean_pair_facing=None,
                    lean_pair_gap_min=None, lean_pair_gap_max=None,
+                   crook_angle_min=None, crook_angle_max=None,
+                   crook_limb_ratio=None, crook_min_width=None,
+                   crook_min_length=None,
+                   crook_center_jitter=None,
                    min_segment_length=None,
                    return_mode='single', verbose=None,
                    save_iterations=None, snapshot_interval=None,
@@ -446,6 +487,15 @@ class ProceduralGenerators:
             'pair_facing': lean_pair_facing if lean_pair_facing is not None else config.procedural.lean_sawtooth.pair_facing,
             'pair_gap_min': lean_pair_gap_min if lean_pair_gap_min is not None else config.procedural.lean_sawtooth.pair_gap_min,
             'pair_gap_max': lean_pair_gap_max if lean_pair_gap_max is not None else config.procedural.lean_sawtooth.pair_gap_max,
+        }
+
+        crook_params = {
+            'angle_min': crook_angle_min if crook_angle_min is not None else config.procedural.crook.angle_min,
+            'angle_max': crook_angle_max if crook_angle_max is not None else config.procedural.crook.angle_max,
+            'limb_ratio': crook_limb_ratio if crook_limb_ratio is not None else config.procedural.crook.limb_ratio,
+            'min_width': crook_min_width if crook_min_width is not None else config.procedural.crook.min_width,
+            'min_length': crook_min_length if crook_min_length is not None else config.procedural.crook.min_length,
+            'center_jitter': crook_center_jitter if crook_center_jitter is not None else config.procedural.crook.center_jitter,
         }
 
         verbose = verbose if verbose is not None else config.procedural.debug.verbose_default
@@ -643,7 +693,7 @@ class ProceduralGenerators:
                         operation, break_margin, break_width_max, projection_max,
                         direction_bias, centroid, bounds, distortable_points,
                         squarewave_independent_directions, squarewave_opposite_direction_prob,
-                        lean_params
+                        lean_params, crook_params
                     )
                     
                     # Validate: check for self-intersections and quality
@@ -756,6 +806,7 @@ class ProceduralGenerators:
                 'squarewave_independent_directions': squarewave_independent_directions,
                 'squarewave_opposite_direction_prob': squarewave_opposite_direction_prob,
                 'lean_sawtooth': lean_params,
+                'crook': crook_params,
                 'direction_bias': direction_bias,
                 'verbose': verbose,
                 'save_iterations': save_iterations,
@@ -931,7 +982,7 @@ class ProceduralGenerators:
                         distortable_points=None,
                         squarewave_independent_directions=False,
                         squarewave_opposite_prob=0.2,
-                        lean_params=None):
+                        lean_params=None, crook_params=None):
         """Apply a modification operation to a segment.
         
         Args:
@@ -949,6 +1000,8 @@ class ProceduralGenerators:
             squarewave_opposite_prob: Probability of opposite direction
             lean_params: Dict of leaning sawtooth settings (lean_min, lean_max,
                          pair_facing, pair_gap_min, pair_gap_max)
+            crook_params: Dict of crook settings (angle_min, angle_max,
+                          limb_ratio, min_width, min_length, center_jitter)
 
         Returns:
             (new_points, new_distortable_points) tuple
@@ -986,6 +1039,9 @@ class ProceduralGenerators:
                                               direction_bias, centroid, bounds,
                                               lean_params)
             return new_points, distortable_points
+
+        elif operation == 'crook':
+            return self._op_crook(points, bounds, distortable_points, crook_params)
 
         elif operation == 'remove_point':
             return self._op_remove_point(points, segment_idx, 
@@ -1471,6 +1527,70 @@ class ProceduralGenerators:
                     raise ValueError(f"Point {point} outside bounds {bounds}")
 
         return points[:idx+1] + inserted + points[idx+1:]
+
+    def _op_crook(self, points, bounds=None, distortable_points=None,
+                  crook_params=None):
+        """Bend a limb of the polygon at a knee near its center.
+
+        Operation: finds limbs (narrow runs of the shape at least
+        limb_ratio x their width), picks one at random, and bends it at a
+        cross-section near its center. The inside corner of the knee pivots;
+        the outside corner becomes a sharp mitre, so limb width is kept on
+        both arms. The smaller piece of the polygon rotates.
+
+        Ignores the selected segment - limbs are found across the whole
+        polygon, like distort_original.
+
+        Args:
+            points: Current polygon points
+            bounds: Bounding box (x1, y1, x2, y2) for validation
+            distortable_points: List of original vertices (moved with the limb)
+            crook_params: Dict with angle_min, angle_max, limb_ratio,
+                          min_width, min_length, center_jitter
+
+        Returns:
+            (new_points, new_distortable_points) tuple
+
+        Raises:
+            ValueError: If no limb is found or the bend is invalid
+        """
+        # Limbs depend only on the points, which are unchanged across the
+        # retries of one iteration - cache to avoid recomputing each attempt
+        key = (tuple(points), crook_params['limb_ratio'],
+               crook_params['min_width'], crook_params['min_length'])
+        cached = getattr(self, '_crook_limb_cache', None)
+        if cached and cached[0] == key:
+            limbs = cached[1]
+        else:
+            limbs = find_limbs(points,
+                               min_width=crook_params['min_width'],
+                               limb_ratio=crook_params['limb_ratio'],
+                               min_length=crook_params['min_length'])
+            self._crook_limb_cache = (key, limbs)
+
+        if not limbs:
+            raise ValueError("No limb found to crook")
+
+        limb = random.choice(limbs)
+        chord = limb.center_chord(jitter=crook_params['center_jitter'], rng=random)
+        angle = random.uniform(crook_params['angle_min'], crook_params['angle_max'])
+        pivot = random.choice(('start', 'end'))
+
+        new_points, moved = bend_at_chord(points, chord, angle, pivot)
+        new_points = [self._round_point(p) for p in new_points]
+
+        if bounds:
+            for point in new_points:
+                if not self._is_within_bounds(point, bounds):
+                    raise ValueError(f"Point {point} outside bounds {bounds}")
+
+        # Original vertices on the limb move with it
+        new_distortable = [
+            self._round_point(moved[p]) if p in moved else p
+            for p in (distortable_points or [])
+        ]
+
+        return new_points, new_distortable
 
     def _op_remove_point(self, points, idx, break_margin, break_width_max, projection_max,
                         direction_bias, centroid, bounds=None,

@@ -1,5 +1,5 @@
 """
-Crook geometry for Shape Studio - limb detection
+Crook geometry for Shape Studio - limb detection and knee bend
 
 A limb is a stretch of polygon where the shape stays narrow over a
 distance: two roughly parallel sides facing each other across the interior.
@@ -15,6 +15,15 @@ Limb detection:
        end tracks along the opposite side.
     4. A run is a limb if its length is at least limb_ratio x its width.
        Each limb is found from both sides; the duplicate is dropped.
+
+Knee bend (bend_at_chord):
+    1. Insert both chord ends into the outline. The chord splits the
+       polygon into two pieces; the smaller (by area) is the limb.
+    2. One chord end is the pivot P - the inside corner of the bend. The
+       limb rotates about P, swinging toward P's side.
+    3. On the outside of the bend, the body's edge and the rotated limb's
+       edge are extended to meet at a sharp corner O, which replaces the
+       other chord end. Limb width is preserved on both arms.
 """
 import math
 from dataclasses import dataclass, field
@@ -173,14 +182,16 @@ def sample_chords(points, spacing=None, perp_tolerance_deg=30.0):
     return samples, perimeter, spacing
 
 
-def find_limbs(points, min_width=20.0, limb_ratio=3.0, taper_max=0.6,
-               corner_jump_max=0.4, width_tolerance=3.0, max_gap=0.5,
-               perp_tolerance_deg=30.0, spacing=None):
+def find_limbs(points, min_width=20.0, limb_ratio=3.0, min_length=0.0,
+               taper_max=0.6, corner_jump_max=0.4, width_tolerance=3.0,
+               max_gap=0.5, perp_tolerance_deg=30.0, spacing=None):
     """Find limbs - narrow runs of consistent width - in a polygon.
 
     Args:
         points: Polygon vertices
         min_width: Ignore runs narrower than this (pixels)
+        min_length: Ignore runs shorter than this (pixels), whatever their
+                    ratio - keeps small teeth from counting as limbs
         limb_ratio: Minimum run length / width to qualify as a limb
         taper_max: Max width change per pixel of run length between
                    neighboring chords (0.6 ~ sides diverging ~30 degrees)
@@ -255,7 +266,7 @@ def find_limbs(points, min_width=20.0, limb_ratio=3.0, taper_max=0.6,
         near_len = _arc_dist(run[0].start_arc, run[-1].start_arc, perimeter)
         far_len = _arc_dist(run[0].end_arc, run[-1].end_arc, perimeter)
         length = (near_len + far_len) / 2
-        if length < limb_ratio * width:
+        if length < limb_ratio * width or length < min_length:
             continue
         limbs.append(Limb(chords=run, width=width, length=length))
 
@@ -282,3 +293,153 @@ def _dedupe(limbs, perimeter):
         if not duplicate:
             kept.append(limb)
     return kept
+
+
+def _split_at_chord(points, chord, snap=1.0):
+    """Insert the chord's ends into the outline.
+
+    A chord end within snap pixels of an existing vertex uses that vertex.
+
+    Returns:
+        (outline, start_index, end_index)
+    """
+    n = len(points)
+    vertex_of = {}
+    on_edge = {}
+    for key, edge, pt in (('start', chord.start_edge, chord.start),
+                          ('end', chord.end_edge, chord.end)):
+        a, b = points[edge], points[(edge + 1) % n]
+        if math.dist(a, pt) <= snap:
+            vertex_of[key] = edge
+        elif math.dist(b, pt) <= snap:
+            vertex_of[key] = (edge + 1) % n
+        else:
+            on_edge[edge] = (key, pt)
+
+    outline = []
+    index = {}
+    for i, v in enumerate(points):
+        for key, vi in vertex_of.items():
+            if vi == i:
+                index[key] = len(outline)
+        outline.append(v)
+        if i in on_edge:
+            key, pt = on_edge[i]
+            index[key] = len(outline)
+            outline.append(pt)
+
+    if index['start'] == index['end']:
+        raise ValueError("Crook chord is degenerate")
+    return outline, index['start'], index['end']
+
+
+def _chain(outline, i, j):
+    """Outline points walking forward from index i to index j inclusive."""
+    m = len(outline)
+    out = [outline[i]]
+    k = i
+    while k != j:
+        k = (k + 1) % m
+        out.append(outline[k])
+    return out
+
+
+def _rotate(point, center, cos_a, sin_a):
+    x, y = point[0] - center[0], point[1] - center[1]
+    return (center[0] + x * cos_a - y * sin_a, center[1] + x * sin_a + y * cos_a)
+
+
+def _line_intersection(p, d, q, e):
+    """Intersection of lines p + t*d and q + s*e.
+
+    Returns:
+        (point, t, s) or None if parallel
+    """
+    denom = d[0] * e[1] - d[1] * e[0]
+    if abs(denom) < 1e-9:
+        return None
+    wx, wy = q[0] - p[0], q[1] - p[1]
+    t = (wx * e[1] - wy * e[0]) / denom
+    s = (wx * d[1] - wy * d[0]) / denom
+    return (p[0] + t * d[0], p[1] + t * d[1]), t, s
+
+
+def bend_at_chord(points, chord, angle_deg, pivot='start', max_mitre=3.0):
+    """Bend the polygon at a chord into a knee.
+
+    Args:
+        points: Polygon vertices
+        chord: Chord to bend at (typically Limb.center_chord())
+        angle_deg: Bend angle in degrees (> 0)
+        pivot: 'start' or 'end' - which chord end is the inside corner
+        max_mitre: Reject if the outside corner lies further than this
+                   many chord widths from the chord
+
+    Returns:
+        (new_points, moved) where moved maps each original limb vertex to
+        its rotated position (unrounded)
+
+    Raises:
+        ValueError: If the bend cannot be constructed
+    """
+    outline, i_start, i_end = _split_at_chord(points, chord)
+
+    # The smaller piece is the limb and rotates; the body stays put
+    piece_a = _chain(outline, i_start, i_end)
+    piece_b = _chain(outline, i_end, i_start)
+    if abs(_signed_area(piece_a)) <= abs(_signed_area(piece_b)):
+        limb, body = piece_a, piece_b
+    else:
+        limb, body = piece_b, piece_a
+    # body runs X..Y and limb runs Y..X, where {X, Y} are the chord ends
+    if len(limb) < 3:
+        raise ValueError("Crook limb has no vertices to rotate")
+
+    p = outline[i_start] if pivot == 'start' else outline[i_end]
+    q = outline[i_end] if pivot == 'start' else outline[i_start]
+    width = math.dist(p, q)
+    if width == 0:
+        raise ValueError("Crook chord has zero width")
+
+    # Unit vector across the chord (P -> Q) and into the limb
+    vx, vy = (q[0] - p[0]) / width, (q[1] - p[1]) / width
+    ux, uy = -vy, vx
+    cx = sum(pt[0] for pt in limb) / len(limb)
+    cy = sum(pt[1] for pt in limb) / len(limb)
+    mx, my = (p[0] + q[0]) / 2, (p[1] + q[1]) / 2
+    if ux * (cx - mx) + uy * (cy - my) < 0:
+        ux, uy = -ux, -uy
+
+    # Rotate so the limb swings toward P's side: u turns toward -v
+    angle = math.radians(angle_deg)
+    if (-uy) * (-vx) + ux * (-vy) < 0:
+        angle = -angle
+    cos_a, sin_a = math.cos(angle), math.sin(angle)
+
+    interior = limb[1:-1]
+    rotated = [_rotate(pt, p, cos_a, sin_a) for pt in interior]
+    moved = dict(zip(interior, rotated))
+
+    # Outside corner: extend the body edge into Q and the rotated limb
+    # edge out of Q' until they meet
+    q_rot = _rotate(q, p, cos_a, sin_a)
+    if body[-1] == q:
+        body_nb, limb_nb = body[-2], rotated[0]
+    else:
+        body_nb, limb_nb = body[1], rotated[-1]
+    d_body = (q[0] - body_nb[0], q[1] - body_nb[1])
+    d_limb = (q_rot[0] - limb_nb[0], q_rot[1] - limb_nb[1])
+    hit = _line_intersection(q, d_body, q_rot, d_limb)
+    if hit is None:
+        raise ValueError("Crook outside edges are parallel")
+    corner, t, s = hit
+    if t < 0 or s < 0:
+        raise ValueError("Crook outside corner falls behind the knee")
+    if math.dist(corner, q) > max_mitre * width:
+        raise ValueError("Crook outside corner too far from the knee")
+
+    if body[-1] == q:
+        new_points = body[:-1] + [corner] + rotated
+    else:
+        new_points = [corner] + body[1:] + rotated
+    return new_points, moved

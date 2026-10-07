@@ -230,6 +230,16 @@ class Config:
                     'pair_gap_max': 0.4,
                 },
 
+                # Crook - knee bend of a limb
+                'crook': {
+                    'angle_min': 30.0,       # knee bend angle range (degrees)
+                    'angle_max': 90.0,
+                    'limb_ratio': 3.0,       # minimum limb length / width
+                    'min_width': 20.0,       # ignore limbs narrower than this (px)
+                    'min_length': 80.0,      # ignore limbs shorter than this (px) - excludes teeth
+                    'center_jitter': 0.15,   # knee offset from limb center (fraction of length)
+                },
+
                 # Geometric validation thresholds
                 'validation': {
                     'enabled': True,
