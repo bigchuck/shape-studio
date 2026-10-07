@@ -220,7 +220,16 @@ class Config:
                     'independent_directions': False,
                     'opposite_direction_prob': 0.2,
                 },
-                
+
+                # Leaning sawtooth (lean_sawtooth, lean_sawtooth_pair)
+                'lean_sawtooth': {
+                    'lean_min': 0.3,         # peak shift, fraction of tooth half-width
+                    'lean_max': 0.9,         # 1.0 = peak over base end; > 1.0 overhangs
+                    'pair_facing': 'random', # inward | outward | random
+                    'pair_gap_min': 0.0,     # gap between pair teeth, fraction of span
+                    'pair_gap_max': 0.4,
+                },
+
                 # Geometric validation thresholds
                 'validation': {
                     'enabled': True,

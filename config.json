@@ -42,6 +42,14 @@
       "independent_directions": false,
       "opposite_direction_prob": 0.2
     },
+
+    "lean_sawtooth": {
+      "lean_min": 0.3,
+      "lean_max": 0.9,
+      "pair_facing": "random",
+      "pair_gap_min": 0.0,
+      "pair_gap_max": 0.4
+    },
     
     "validation": {
       "enabled": true,

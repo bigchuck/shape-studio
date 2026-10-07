@@ -321,6 +321,9 @@ PROC dynamic_polygon <name> PARAM=value [PARAM=value ...]
 | `DIRECTION_BIAS` | `inward`, `outward`, or `random` | Preferred projection direction |
 | `SQUAREWAVE_INDEPENDENT_DIRECTIONS` | bool | Each squarewave step can go a different direction |
 | `SQUAREWAVE_OPPOSITE_DIRECTION_PROB` | float 0.0–1.0 | Probability of reversing direction in squarewave |
+| `LEAN_MIN` / `LEAN_MAX` | float | Leaning sawtooth peak shift, fraction of tooth half-width (0 = upright, 1 = over the base end, >1 overhangs) |
+| `LEAN_PAIR_FACING` | `inward`, `outward`, or `random` | Pair: long flanks face the gap between the teeth (`inward`) or away from it (`outward`) |
+| `LEAN_PAIR_GAP_MIN` / `LEAN_PAIR_GAP_MAX` | float 0.0–1.0 | Pair: gap between teeth as fraction of the pair's span (0 = teeth share a base point) |
 | `VERBOSE` | int | Debug verbosity; 0 = off |
 
 ### Operations
@@ -334,6 +337,8 @@ Operations are what reshape the polygon each iteration. You specify which ones t
 | `squarewave` | Inserts a rectangular step on a segment |
 | `remove_point` | Removes an existing vertex (simplification) |
 | `distort_original` | Shifts an existing vertex |
+| `lean_sawtooth` | Sawtooth whose peak leans toward one end — one steep short flank, one long flank |
+| `lean_sawtooth_pair` | Matched pair of leaning teeth on one segment, same direction/depth/lean, mirrored |
 
 **Specifying operations — three formats:**
 
