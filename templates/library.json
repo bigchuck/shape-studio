@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "description": "Reusable shape generation templates for LoRA training datasets",
+  "description": "Reusable shape generation templates",
   "templates": {
     "bg_shape": {
       "description": "Background layer organic shape",
@@ -102,6 +102,89 @@
     },
 
     "organic_outline_nofill": {
+      "description": "Organic polygon outline - flowing natural forms",
+      "target_canvas": "MAIN",
+      "comments": "Template for organic shapes using sawtooth operations and inward bias. Creates smooth, flowing outlines.",
+      "commands": [
+        "PROC dynamic_polygon ${name} vertices=${verts} bounds=${bounds} iterations=${iters} operations=${ops} direction_bias=${dirbias} break_width_max=${break_width} projection_max=${projection} connect=${connect} squarewave_independent_directions=${sqrwv_indep}",
+        "COLOR ${name} ${color}",
+        "WIDTH ${name} ${width}"
+      ],
+      "required_params": ["name","ops"],
+      "optional_params": {
+        "verts": "6,10",
+        "bounds": "100,100,668,668",
+        "iters": "15",
+        "break_width": "0.4",
+        "projection": "1.5",
+        "color": "black",
+        "width": "2",
+        "connect": "angle_sort",
+        "dirbias": "inward",
+        "sqrwv_indep": "False"
+      }
+    },
+
+    "nofill_leaning": {
+      "description": "Polygon with leaning sawtooths",
+      "target_canvas": "MAIN",
+      "comments": "Both single and double leaners with both inward and outward leans. Lean settings (lean_ratio_min, lean_pair_facing, ...) default to config; override them per executable with a proc_params block.",
+      "commands": [
+        "PROC dynamic_polygon ${name}",
+        "COLOR ${name} ${color}",
+        "WIDTH ${name} ${width}"
+      ],
+      "proc_params": {
+        "vertices": "${verts}",
+        "bounds": "${bounds}",
+        "iterations": "${iters}",
+        "operations": "${ops}",
+        "direction_bias": "${dirbias}",
+        "break_width_max": "${break_width}",
+        "projection_max": "${projection}",
+        "connect": "${connect}",
+        "squarewave_independent_directions": "${sqrwv_indep}"
+      },
+      "required_params": ["name","ops"],
+      "optional_params": {
+        "verts": "6,10",
+        "bounds": "100,100,668,668",
+        "iters": "15",
+        "break_width": "0.4",
+        "projection": "1.5",
+        "color": "black",
+        "width": "2",
+        "connect": "angle_sort",
+        "dirbias": "inward",
+        "sqrwv_indep": "False"
+      }
+    },
+
+    "nofill_crook": {
+      "description": "Organic polygon outline - flowing natural forms",
+      "target_canvas": "MAIN",
+      "comments": "Template for organic shapes using sawtooth operations and inward bias. Creates smooth, flowing outlines.",
+      "commands": [
+        "PROC dynamic_polygon ${name} vertices=${verts} bounds=${bounds} iterations=${iters} operations=${ops} direction_bias=${dirbias} break_width_max=${break_width} projection_max=${projection} connect=${connect} squarewave_independent_directions=${sqrwv_indep}",
+        "COLOR ${name} ${color}",
+        "WIDTH ${name} ${width}"
+      ],
+      "required_params": ["name","ops"],
+      "optional_params": {
+        "verts": "6,10",
+        "bounds": "100,100,668,668",
+        "iters": "15",
+        "break_width": "0.4",
+        "projection": "1.5",
+        "color": "black",
+        "width": "2",
+        "connect": "angle_sort",
+        "dirbias": "inward",
+        "sqrwv_indep": "False"
+      }
+    },
+
+    "nofill_hollow": {
       "description": "Organic polygon outline - flowing natural forms",
       "target_canvas": "MAIN",
       "comments": "Template for organic shapes using sawtooth operations and inward bias. Creates smooth, flowing outlines.",

@@ -94,7 +94,25 @@ class TemplateLibrary:
                 raise ValueError(
                     f"Template '{name}' optional_params must be a dict in {source_file}"
                 )
-    
+
+        if 'proc_params' in template_def:
+            if not isinstance(template_def['proc_params'], dict):
+                raise ValueError(
+                    f"Template '{name}' proc_params must be a dict in {source_file}"
+                )
+            if not any(self._is_proc_command(cmd) for cmd in commands):
+                raise ValueError(
+                    f"Template '{name}' has proc_params but no PROC command in {source_file}"
+                )
+
+    @staticmethod
+    def _is_proc_command(cmd):
+        """True if a template command (string or dict) is a PROC command"""
+        if isinstance(cmd, dict):
+            return str(cmd.get('command', '')).upper() == 'PROC'
+        words = cmd.split(None, 1)
+        return bool(words) and words[0].upper() == 'PROC'
+
     def get_template(self, name):
         """Get template definition by name
         
@@ -368,10 +386,17 @@ class TemplateExecutor:
             if merged_shape_params and hasattr(self.executor, 'procedural_gen'):
                 self.executor.procedural_gen._shape_parameters = merged_shape_params
 
+        # PROC parameters kept outside the command string, keyed by the real
+        # PROC parameter name. Priority: executable proc_params > template proc_params
+        proc_params = self._resolve_proc_params(
+            template_name, template, cmd_spec, params
+        )
+
         # Substitute and execute each command in template
         template_commands = template['commands']
         for cmd_template in template_commands:
             self.executor._last_storage_name = None
+            is_proc = TemplateLibrary._is_proc_command(cmd_template)
 
             if isinstance(cmd_template, dict):
                 # Dict command — pass compose_parameters through from cmd_spec
@@ -379,10 +404,16 @@ class TemplateExecutor:
                 merged = dict(cmd_template)
                 if 'compose_parameters' not in merged and 'compose_parameters' in cmd_spec:
                     merged['compose_parameters'] = cmd_spec['compose_parameters']
+                if is_proc and proc_params:
+                    merged['params'] = {**merged.get('params', {}), **proc_params}
                 self.executor._execute_structured_command(merged)
             else:
                 # String command — normal substitution path
                 resolved_cmd = self._substitute_params(cmd_template, params)
+                if is_proc and proc_params:
+                    resolved_cmd += ' ' + ' '.join(
+                        f"{k}={v}" for k, v in proc_params.items()
+                    )
                 self.executor.execute(resolved_cmd)
             last = self.executor._last_storage_name
             if last and last != params.get('name'):
@@ -394,6 +425,32 @@ class TemplateExecutor:
             
         return f"Template '{template_name}' applied"
     
+    def _resolve_proc_params(self, template_name, template, cmd_spec, params):
+        """Merge template and executable proc_params and substitute ${...} in values
+
+        Returns:
+            Dict of UPPERCASE PROC parameter name -> resolved string value
+        """
+        merged = {}
+        for source in (template.get('proc_params'), cmd_spec.get('proc_params')):
+            if not source:
+                continue
+            if not isinstance(source, dict):
+                raise ValueError(f"Template '{template_name}' proc_params must be a dict")
+            for key, value in source.items():
+                merged[key.strip().upper()] = value
+
+        resolved = {}
+        for key, value in merged.items():
+            value = self._substitute_params(str(value), params).strip()
+            if not value or any(c.isspace() for c in value):
+                raise ValueError(
+                    f"Template '{template_name}' proc_params {key}={value!r}: "
+                    f"value must be non-empty with no whitespace"
+                )
+            resolved[key] = value
+        return resolved
+
     def _substitute_params(self, command_str, params):
         """Substitute ${var} placeholders in command string
         
@@ -512,6 +569,9 @@ class TemplateExecutor:
                     f"Command {i} template '{template_name}' "
                     f"missing required params: {', '.join(missing)}"
                 )
+
+            # Check proc_params resolve (catches undefined ${...} references)
+            self._resolve_proc_params(template_name, template, cmd_spec, params)
     
     def list_executables(self, script_filepath):
         """List executables in a script file

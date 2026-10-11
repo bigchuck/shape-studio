@@ -554,6 +554,29 @@ Templates are parameterized, reusable command blueprints stored in JSON library 
 - `required_params` — must be supplied by the caller
 - `optional_params` — defaults used when caller doesn't supply them
 
+### proc_params — keeping long PROC commands short
+
+Instead of writing every parameter into the PROC string, a template can list them in a `proc_params` block keyed by the real PROC parameter name. Values may use `${...}` tokens. They are appended to every PROC command in the template.
+
+```json
+"commands": ["PROC dynamic_polygon ${name}", "COLOR ${name} ${color}"],
+"proc_params": {
+  "vertices": "${verts}",
+  "operations": "${ops}",
+  "lean_pair_facing": "random"
+}
+```
+
+An executable command can add or override entries with its own `proc_params` block (executable wins over template):
+
+```json
+{ "template": "nofill_leaning",
+  "params": { "name": "shape1", "ops": "lean_sawtooth_pair" },
+  "proc_params": { "lean_pair_facing": "outward", "lean_cap_max": "0.5" } }
+```
+
+Leave out any PROC parameter you don't want to change; it falls back to its `config.json` default. Values can't contain spaces.
+
 ### Executable script file
 
 ```json
