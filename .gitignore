@@ -41,3 +41,6 @@ htmlcov/
 *.bak
 projects/
 shapes/
+
+# Generated from shape_studio_primer.md
+shape_studio_primer.pdf
