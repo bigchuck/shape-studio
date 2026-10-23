@@ -2,6 +2,7 @@
 Template system for Shape Studio
 Provides reusable procedural blueprints with parameter substitution
 """
+import fnmatch
 import json
 import random
 import re
@@ -71,17 +72,17 @@ class TemplateLibrary:
         if not commands:
             raise ValueError(f"Template '{name}' has no commands in {source_file}")
         
-        # Commands must be strings or dicts
+        # Commands must be strings, command dicts or if/then/else dicts
+        declared = set(template_def.get('required_params', [])) | set(
+            template_def.get('optional_params', {})
+        )
         for i, cmd in enumerate(commands):
-            if not isinstance(cmd, (str, dict)):
-                raise ValueError(
-                    f"Template '{name}' command {i} must be a string or dict in {source_file}"
-                )
-            if isinstance(cmd, dict) and 'command' not in cmd:
-                raise ValueError(
-                    f"Template '{name}' command {i} dict missing 'command' field in {source_file}"
-                )
-        
+            if isinstance(cmd, dict) and 'if' in cmd:
+                self._validate_conditional(name, i, cmd, declared, source_file)
+            else:
+                self._validate_command(name, f"command {i}", cmd, source_file)
+        commands = list(self.flatten_commands(commands))
+
         # Validate param definitions if present
         if 'required_params' in template_def:
             if not isinstance(template_def['required_params'], list):
@@ -104,6 +105,123 @@ class TemplateLibrary:
                 raise ValueError(
                     f"Template '{name}' has proc_params but no PROC command in {source_file}"
                 )
+
+        if 'ops_add' in template_def:
+            if 'ops' not in declared:
+                raise ValueError(
+                    f"Template '{name}' has ops_add but does not declare an 'ops' param in {source_file}"
+                )
+            self.validate_ops_add(name, template_def['ops_add'], declared, source_file)
+
+        if 'proc_passthrough' in template_def:
+            patterns = template_def['proc_passthrough']
+            if not isinstance(patterns, list) or not all(isinstance(p, str) for p in patterns):
+                raise ValueError(
+                    f"Template '{name}' proc_passthrough must be a list of strings in {source_file}"
+                )
+            if not any(self._is_proc_command(cmd) for cmd in commands):
+                raise ValueError(
+                    f"Template '{name}' has proc_passthrough but no PROC command in {source_file}"
+                )
+
+    def _validate_command(self, name, where, cmd, source_file):
+        """Validate a plain template command (string or command dict)"""
+        if not isinstance(cmd, (str, dict)):
+            raise ValueError(
+                f"Template '{name}' {where} must be a string or dict in {source_file}"
+            )
+        if isinstance(cmd, dict) and 'command' not in cmd:
+            raise ValueError(
+                f"Template '{name}' {where} dict missing 'command' field in {source_file}"
+            )
+
+    def _validate_conditional(self, name, i, cmd, declared, source_file):
+        """Validate an {"if": ..., "then": [...], "else": [...]} command entry"""
+        unknown = set(cmd) - {'if', 'then', 'else'}
+        if unknown:
+            raise ValueError(
+                f"Template '{name}' command {i} has unknown key(s) "
+                f"{', '.join(sorted(unknown))} (expected if, then, else) in {source_file}"
+            )
+        self.validate_condition(name, f"command {i}", cmd['if'], declared, source_file)
+
+        if 'then' not in cmd:
+            raise ValueError(f"Template '{name}' command {i} 'if' has no 'then' in {source_file}")
+        for branch in ('then', 'else'):
+            if branch not in cmd:
+                continue
+            if not isinstance(cmd[branch], list):
+                raise ValueError(
+                    f"Template '{name}' command {i} '{branch}' must be a list in {source_file}"
+                )
+            for j, sub in enumerate(cmd[branch]):
+                if isinstance(sub, dict) and 'if' in sub:
+                    raise ValueError(
+                        f"Template '{name}' command {i} '{branch}' item {j}: "
+                        f"nested 'if' is not supported in {source_file}"
+                    )
+                self._validate_command(
+                    name, f"command {i} '{branch}' item {j}", sub, source_file
+                )
+
+    @staticmethod
+    def validate_condition(name, where, condition, declared, source_file):
+        """Check a condition is a string whose ${...} refs are all declared params"""
+        if not isinstance(condition, str) or not condition.strip():
+            raise ValueError(
+                f"Template '{name}' {where} condition must be a non-empty string in {source_file}"
+            )
+        refs = re.findall(r'\$\{([^}]+)\}', condition)
+        if not refs:
+            raise ValueError(
+                f"Template '{name}' {where} condition {condition!r} must reference "
+                f"a param as ${{name}} in {source_file}"
+            )
+        undeclared = [r for r in refs if r not in declared]
+        if undeclared:
+            raise ValueError(
+                f"Template '{name}' {where} condition {condition!r} uses undeclared "
+                f"param(s) {', '.join(undeclared)}; add them to optional_params "
+                f"or required_params in {source_file}"
+            )
+
+    @classmethod
+    def validate_ops_add(cls, name, ops_add, declared, source_file):
+        """Check an ops_add list of {"if": condition, "then": "op:weight,..."}"""
+        if not isinstance(ops_add, list):
+            raise ValueError(f"Template '{name}' ops_add must be a list in {source_file}")
+        for i, entry in enumerate(ops_add):
+            where = f"ops_add entry {i}"
+            if not isinstance(entry, dict):
+                raise ValueError(f"Template '{name}' {where} must be a dict in {source_file}")
+            unknown = set(entry) - {'if', 'then'}
+            if unknown or 'if' not in entry or 'then' not in entry:
+                raise ValueError(
+                    f"Template '{name}' {where} must have exactly 'if' and 'then' keys in {source_file}"
+                )
+            cls.validate_condition(name, where, entry['if'], declared, source_file)
+            then = entry['then']
+            if not isinstance(then, str) or not then.strip():
+                raise ValueError(
+                    f"Template '{name}' {where} 'then' must be a non-empty "
+                    f"\"op:weight,...\" string in {source_file}"
+                )
+            undeclared = [r for r in re.findall(r'\$\{([^}]+)\}', then) if r not in declared]
+            if undeclared:
+                raise ValueError(
+                    f"Template '{name}' {where} 'then' uses undeclared param(s) "
+                    f"{', '.join(undeclared)} in {source_file}"
+                )
+
+    @staticmethod
+    def flatten_commands(commands):
+        """Yield every command in a template, including both branches of each if"""
+        for cmd in commands:
+            if isinstance(cmd, dict) and 'if' in cmd:
+                yield from cmd.get('then', [])
+                yield from cmd.get('else', [])
+            else:
+                yield cmd
 
     @staticmethod
     def _is_proc_command(cmd):
@@ -359,7 +477,13 @@ class TemplateExecutor:
                 f"Template '{template_name}' missing required parameters: {', '.join(missing)}\n"
                 f"Required: {', '.join(required_params)}"
             )
-        
+
+        # Extend ops with the ops_add entries whose condition holds.
+        # Priority: executable ops_add replaces template ops_add entirely.
+        ops_add = self._get_ops_add(template_name, template, cmd_spec)
+        if ops_add:
+            params['ops'] = self._apply_ops_add(template_name, params.get('ops'), ops_add, params)
+
         # Extract shape_parameters from template and merge executable overrides.
         # Priority: executable shape_parameters > template shape_parameters
         # This allows PROC commands to receive template-defined shape configs
@@ -392,9 +516,9 @@ class TemplateExecutor:
             template_name, template, cmd_spec, params
         )
 
-        # Substitute and execute each command in template
-        template_commands = template['commands']
-        for cmd_template in template_commands:
+        # Substitute and execute each command in template. An if/then/else
+        # entry is evaluated when reached and its chosen branch run in place.
+        for cmd_template in self._iter_commands(template['commands'], params):
             self.executor._last_storage_name = None
             is_proc = TemplateLibrary._is_proc_command(cmd_template)
 
@@ -425,13 +549,92 @@ class TemplateExecutor:
             
         return f"Template '{template_name}' applied"
     
+    def _get_ops_add(self, template_name, template, cmd_spec):
+        """Return the ops_add list in effect: the executable's if given, else the template's"""
+        if 'ops_add' not in cmd_spec:
+            return template.get('ops_add')
+        declared = set(template.get('required_params', [])) | set(
+            template.get('optional_params', {})
+        )
+        if 'ops' not in declared:
+            raise ValueError(
+                f"Template '{template_name}' does not declare an 'ops' param; ops_add can't be used"
+            )
+        TemplateLibrary.validate_ops_add(
+            template_name, cmd_spec['ops_add'], declared, 'executable'
+        )
+        return cmd_spec['ops_add']
+
+    def _apply_ops_add(self, template_name, ops, ops_add, params):
+        """Append the ops of each ops_add entry whose condition holds
+
+        An added op already present in ops replaces its weight in place.
+        """
+        if not isinstance(ops, str):
+            raise ValueError(
+                f"Template '{template_name}' ops must be an \"op:weight,...\" string "
+                f"to use ops_add, got {ops!r}"
+            )
+        merged = {}  # op name -> "op:weight" token, in order
+        for token in ops.split(','):
+            if token.strip():
+                merged[token.split(':', 1)[0].strip()] = token.strip()
+        for entry in ops_add:
+            if not self._evaluate_condition(entry['if'], params):
+                continue
+            added = self._substitute_params(entry['then'], params)
+            for token in added.split(','):
+                if token.strip():
+                    merged[token.split(':', 1)[0].strip()] = token.strip()
+        return ','.join(merged.values())
+
+    def _iter_commands(self, commands, params):
+        """Yield template commands, replacing each if entry with its chosen branch"""
+        for cmd in commands:
+            if isinstance(cmd, dict) and 'if' in cmd:
+                branch = 'then' if self._evaluate_condition(cmd['if'], params) else 'else'
+                yield from cmd.get(branch, [])
+            else:
+                yield cmd
+
+    _FALSE_VALUES = ('', 'no', 'false', '0', 'none', 'off')
+
+    def _evaluate_condition(self, condition, params):
+        """Evaluate "${x}" (truthy) or "${x} == value" (case-insensitive match)"""
+        if ' == ' in condition:
+            left, right = condition.split(' == ', 1)
+            left = self._substitute_params(left, params).strip().lower()
+            right = self._substitute_params(right, params).strip().lower()
+            return left == right
+        return self._is_truthy(self._substitute_params(condition, params))
+
+    @classmethod
+    def _is_truthy(cls, value):
+        """False for no/false/0/none/off/empty or any number equal to zero"""
+        text = str(value).strip().lower()
+        if text in cls._FALSE_VALUES:
+            return False
+        try:
+            return float(text) != 0
+        except ValueError:
+            return True
+
     def _resolve_proc_params(self, template_name, template, cmd_spec, params):
         """Merge template and executable proc_params and substitute ${...} in values
+
+        Params matching a proc_passthrough pattern are forwarded under their
+        own name; explicit proc_params entries win over them. A passthrough
+        param with an empty value is skipped so PROC uses its config default.
 
         Returns:
             Dict of UPPERCASE PROC parameter name -> resolved string value
         """
         merged = {}
+        for pattern in template.get('proc_passthrough', []):
+            for key, value in params.items():
+                if fnmatch.fnmatchcase(key, pattern) and str(value).strip():
+                    merged[key.strip().upper()] = value
+
         for source in (template.get('proc_params'), cmd_spec.get('proc_params')):
             if not source:
                 continue
@@ -568,6 +771,13 @@ class TemplateExecutor:
                 raise ValueError(
                     f"Command {i} template '{template_name}' "
                     f"missing required params: {', '.join(missing)}"
+                )
+
+            # Check ops_add is well formed and applies to these params
+            ops_add = self._get_ops_add(template_name, template, cmd_spec)
+            if ops_add:
+                params['ops'] = self._apply_ops_add(
+                    template_name, params.get('ops'), ops_add, params
                 )
 
             # Check proc_params resolve (catches undefined ${...} references)

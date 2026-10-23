@@ -577,6 +577,61 @@ An executable command can add or override entries with its own `proc_params` blo
 
 Leave out any PROC parameter you don't want to change; it falls back to its `config.json` default. Values can't contain spaces.
 
+### proc_passthrough — forwarding params by name
+
+When a template param already has the real PROC parameter name, list a pattern in `proc_passthrough` instead of writing `"x": "${x}"` lines. Every param matching a pattern (`*` is a wildcard) is sent to PROC under its own name, whether it comes from `optional_params`, randomization or the executable's `params`.
+
+```json
+"proc_passthrough": ["lean_*", "crook_*"],
+"optional_params": {
+  "lean_ratio_min": "3",
+  "lean_ratio_max": "",
+  "crook_angle_min": "30"
+}
+```
+
+- A param with an empty value (`""`) is not sent, so PROC uses its `config.json` default. Handy for keeping a key in place while testing.
+- An explicit `proc_params` entry for the same name wins over pass-through.
+
+### if / then / else — optional commands
+
+A template command can be a conditional entry. Its `then` (or `else`) list of commands runs in place of the entry:
+
+```json
+"commands": [
+  "PROC dynamic_polygon ${name}",
+  { "if": "${hollow}", "then": ["HOLLOW ${name} BREAKOUT=${hollow_breakout}"] },
+  { "if": "${color}",  "then": ["COLOR ${name} ${color}"], "else": ["COLOR ${name} gray"] },
+  { "if": "${lean} == pair", "then": ["..."] }
+],
+"optional_params": { "hollow": "no", "color": "", "lean": "none", "hollow_breakout": "0.3" }
+```
+
+- `"${x}"` is true unless the value is `no`, `false`, `0`, `none`, `off`, empty, or a number equal to zero (case doesn't matter). So `"color": "black"` is true and `"color": ""` is false.
+- `"${x} == value"` compares as text, ignoring case.
+- Every `${x}` used in a condition must be declared in `optional_params` or `required_params`; a misspelled name is reported when the library loads.
+- Conditions are checked after randomization, so a flag can be randomized per run: `"randomization": { "hollow": ["yes", "no"] }`.
+- `else` is optional. `if` entries can't be nested.
+
+### ops_add — adding operations by flag
+
+`ops_add` extends the `ops` param with the operations of every entry whose condition holds. Conditions follow the same rules as `if`. The template must declare `ops`.
+
+```json
+"ops_add": [
+  { "if": "${lean} == single", "then": "lean_sawtooth:${lean_weight}" },
+  { "if": "${lean} == pair",   "then": "lean_sawtooth_pair:${lean_weight}" },
+  { "if": "${crook}",          "then": "crook:${crook_weight}" }
+],
+"optional_params": { "lean": "none", "crook": "no", "lean_weight": "1", "crook_weight": "1" }
+```
+
+With `"ops": "sawtooth:1,squarewave:1", "lean": "pair", "crook": "yes", "crook_weight": "3"` the PROC command gets `sawtooth:1,squarewave:1,lean_sawtooth_pair:1,crook:3`.
+
+- Don't write a leading comma; the pieces are joined for you.
+- An added op that is already in `ops` replaces its weight there (e.g. `crook:1` becomes `crook:3`).
+- An executable command can supply its own `ops_add` list, which replaces the template's list completely. Its conditions may only use params the template declares.
+
 ### Executable script file
 
 ```json
