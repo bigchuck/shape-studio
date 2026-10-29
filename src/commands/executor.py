@@ -13,6 +13,7 @@ from src.core.shape import Line, Polygon, ShapeGroup
 from src.commands.parser import CommandParser
 from src.core.procedural import ProceduralGenerators
 from src.core.templates import TemplateLibrary, TemplateExecutor
+from src.core import run_log
 from src.config import config
 from src.core.enhancement import EnhancementRegistry
 from src.commands.help_data import HELP as HELP_DATA
@@ -47,6 +48,8 @@ class CommandExecutor:
         self.workwith = None
         # REPLAY mode state — None when inactive
         self.replay_state = None
+        # runs.jsonl written by the last BATCH; default log for LOG and NOTE
+        self._last_run_log = None
 
         # Persistence directories
         self.project_store_dir = Path(config.paths.shapes)
@@ -135,6 +138,8 @@ class CommandExecutor:
             'HIGH':   self._execute_high,
             'IMPORT': self._execute_import,
             'HOLLOW': self._execute_hollow,
+            'LOG': self._execute_log,
+            'NOTE': self._execute_note,
             'HELP': self._execute_help,
         }
 
@@ -1393,7 +1398,7 @@ class CommandExecutor:
             store_shapes = cmd_dict.get('store_shapes', False)
             return self._execute_batch_templated(
                 count, filepath, executable_name, output_prefix, target_canvas,
-                store_shapes=store_shapes
+                store_shapes=store_shapes, command_text=command_text
             )
         else:
             # Old format - existing behavior
@@ -1402,7 +1407,8 @@ class CommandExecutor:
             )
 
     def _execute_batch_templated(self, count, filepath, executable_name, 
-                                output_prefix, target_canvas, store_shapes=False):
+                                output_prefix, target_canvas, store_shapes=False,
+                                command_text=None):
         """Execute BATCH with templated script
         
         Supports:
@@ -1460,10 +1466,18 @@ class CommandExecutor:
             # Inner loop over iterations
             output_dir = Path(config.paths.output) / Path(exec_prefix).parent
             start_i = self._scan_batch_start(output_dir, Path(exec_prefix).name)
+            run_images = []
             for i in range(start_i, start_i + count):
+                # Seed each image so it can be regenerated from the run log
+                seed = random.SystemRandom().getrandbits(32)
+                random.seed(seed)
+                image = {'index': i, 'seed': seed}
+                run_images.append(image)
+                self.template_executor.trace = []
                 try:
                     # Generate randomization values for this iteration
                     randomization = self.template_executor.generate_randomization(executable)
+                    image['draws'] = randomization
                     self._batch_index = f"{i:04d}"
                     self._current_exec_name = exec_name
                     self._current_output_prefix = exec_prefix
@@ -1487,6 +1501,7 @@ class CommandExecutor:
                     output_file.parent.mkdir(parents=True, exist_ok=True)
                     save_canvas.save(str(output_file))
                     self._batch_index = None
+                    image['png'] = output_file.name
                     successful += 1
                     
                     # Optionally store shapes under the PNG base name
@@ -1524,9 +1539,19 @@ class CommandExecutor:
                     
                 except Exception as e:
                     import traceback
+                    image['error'] = str(e)
                     results.append(f"  [{exec_name}] Iteration {i} FAILED: {e}")
                     results.append(f"    Detail: {traceback.format_exc().strip().splitlines()[-1]}")
-        
+                finally:
+                    image['steps'] = self.template_executor.trace
+                    self.template_executor.trace = None
+
+            run_id = self._log_batch_run(
+                output_dir, command_text, filepath, data, exec_name,
+                executable, exec_prefix, run_images
+            )
+            results.append(f"  [{exec_name}] logged as {run_id}")
+
         # Switch back to original canvas
         if target_canvas != original_canvas:
             self.execute(f"SWITCH {original_canvas}")
@@ -1541,6 +1566,77 @@ class CommandExecutor:
         if results:
             return summary + "\n" + "\n".join(results)
         return summary
+
+    def _log_batch_run(self, output_dir, command_text, filepath, script_data,
+                       exec_name, executable, exec_prefix, images):
+        """Append this executable's BATCH run to output_dir/runs.jsonl; return the run id"""
+        template_names = []
+        for image in images:
+            for step in image.get('steps') or []:
+                if step['template'] not in template_names:
+                    template_names.append(step['template'])
+        record = {
+            'command': command_text,
+            'git': run_log.git_info(),
+            'script': Path(filepath).name,
+            'executable': exec_name,
+            'prefix': exec_prefix,
+            'global_params': script_data.get('global_params', {}),
+            'exec_spec': executable,
+            'templates': {
+                name: self.template_library.get_template(name)
+                for name in template_names
+            },
+            'note': None,
+            'images': images,
+        }
+        log_path = Path(output_dir) / run_log.LOG_NAME
+        try:
+            run_id = run_log.append_run(log_path, record)
+        except OSError as e:
+            return f"(not logged: {e})"
+        self._last_run_log = log_path
+        return run_id
+
+    def _execute_log(self, cmd_dict, command_text):
+        """Execute LOG command - run log analysis (tools/runlog.py) into the log panel"""
+        import webbrowser
+        from tools import runlog
+
+        sub = cmd_dict['subcommand']
+        args = list(cmd_dict['args'])
+        if self._last_run_log and not {'-d', '--dir'} & set(args):
+            args = ['-d', str(self._last_run_log)] + args
+        try:
+            text = runlog.run_command([sub] + args)
+        except SystemExit as e:
+            raise ValueError(str(e))
+
+        if sub == 'report' and text.startswith('Report written to '):
+            webbrowser.open(Path(text[len('Report written to '):]).resolve().as_uri())
+        for line in text.splitlines():
+            self._emit(line)
+        return None
+
+    def _execute_note(self, cmd_dict, command_text):
+        """Execute NOTE command - attach a note to the last (or given) BATCH run"""
+        from tools import runlog
+
+        try:
+            log_path = self._last_run_log or runlog.find_log()
+        except SystemExit as e:
+            raise ValueError(str(e))
+        run_id, previous = run_log.set_note(log_path, cmd_dict['run'], cmd_dict['text'])
+        if previous:
+            return f"Note on {run_id} replaced (was: {previous})"
+        return f"Note added to {run_id}"
+
+    def _emit(self, text):
+        """Write one line to the UI log panel, or stdout when there is no UI"""
+        if hasattr(self, 'ui_instance') and self.ui_instance:
+            self.ui_instance._log_output(text)
+        else:
+            print(text)
 
     def _execute_batch_legacy(self, count, filepath, output_prefix, target_canvas):
         """Execute BATCH with old-style script (existing behavior)"""

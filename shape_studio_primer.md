@@ -676,6 +676,19 @@ Any parameter key starting with `_` (one or more underscores) is **silently igno
 
 This is the standard way to preserve experiments while using a different value.
 
+### Executable `optional_params` — defaults for every command
+
+An executable can carry its own `optional_params`. They apply to every command in the executable, which is handy for template flags such as `lean` or `crook`:
+
+```json
+"gen226_lean_one": {
+  "optional_params": { "lean": "single", "weight_lean": 10 },
+  "commands": [ { "template": "organic_outline_nofill", "params": { ... } } ]
+}
+```
+
+Precedence, lowest to highest: template `optional_params` → script `global_params` → executable `optional_params` → `randomization` → command `params`. So a flag set here can still be randomized, and a command's own `params` always win.
+
 ### Randomization in executables
 
 The `randomization` block in an executable specifies how certain parameters are randomized on each BATCH iteration. Four formats:
@@ -744,6 +757,27 @@ BATCH 20 generate_02.json --ALL results/explore MAIN
 # Multiple specific executables
 BATCH 30 generate_02.json gen02a,gen02b results/both MAIN
 ```
+
+### Run log — what made which image
+
+Every BATCH appends one record per executable to `runs.jsonl` in its output folder (e.g. `output/sa226/runs.jsonl`). Each record gets a run id (`r0001`, `r0002`, ...) and holds a copy of the executable and templates as they were at that moment, plus for each image its seed, randomization draws and the exact commands it ran. So you can keep editing one executable in place, and the log remembers every version.
+
+```
+LOG LIST                       # one line per run
+LOG DIFF                       # latest run vs the previous run of the same executable
+LOG DIFF r3 r7                 # any two runs
+LOG SHOW r7                    # every setting, and where it came from
+LOG SHOW r7 --image 0105       # seed, draws and resolved PROC for one image
+LOG VARYING --exec gen226_lean_one   # only the settings that changed across runs
+LOG REPORT                     # HTML report with thumbnails, opens in the browser
+NOTE slant 45 looks better     # note on the last run
+```
+
+- `LOG` and `NOTE` use the log of your last BATCH; `-d sa226` picks another output folder.
+- `ops` strings are compared op by op (`ops[sawtooth]`), and `".4"`, `"0.4"` and `0.4` count as the same value.
+- Keys disabled with `_` are hidden unless you add `--all`.
+- A randomized param shows as `~ min..max`. If `params` also sets it, `LOG SHOW` warns that the draw is ignored.
+- Outside the app: `python tools/runlog.py list|show|diff|varying|report ...` with the same arguments.
 
 ---
 

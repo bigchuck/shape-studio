@@ -67,6 +67,8 @@ class CommandParser:
             'HIGH':   self._parse_high,
             'IMPORT': self._parse_import,
             'HOLLOW': self._parse_hollow,
+            'LOG': self._parse_log,
+            'NOTE': self._parse_note,
             'HELP': self._parse_help,
         }
         
@@ -400,6 +402,27 @@ class CommandParser:
             )
 
         return {'command': 'VIEWPORT', 'width': w_px, 'height': h_px}
+
+    LOG_SUBCOMMANDS = ('LIST', 'SHOW', 'DIFF', 'VARYING', 'REPORT')
+
+    def _parse_log(self, parts):
+        """Parse LOG command: LOG LIST|SHOW|DIFF|VARYING|REPORT [args...]"""
+        if len(parts) < 2:
+            raise MissingParamsError("LOG requires: LOG LIST|SHOW|DIFF|VARYING|REPORT [args...]")
+        sub = parts[1].upper()
+        if sub not in self.LOG_SUBCOMMANDS:
+            raise ValueError(f"LOG subcommand must be one of {', '.join(self.LOG_SUBCOMMANDS)}")
+        return {'command': 'LOG', 'subcommand': sub.lower(), 'args': parts[2:]}
+
+    def _parse_note(self, parts):
+        """Parse NOTE command: NOTE [<run>] <text>"""
+        if len(parts) < 2:
+            raise MissingParamsError("NOTE requires: NOTE [<run>] <text>")
+        run_id = None
+        if len(parts) > 2 and re.fullmatch(r'r\d+', parts[1], re.IGNORECASE):
+            run_id = parts[1]
+            parts = parts[1:]
+        return {'command': 'NOTE', 'run': run_id, 'text': ' '.join(parts[1:])}
 
     def _parse_help(self, parts):
         """Parse HELP command: HELP [<command>]"""

@@ -458,8 +458,61 @@ HELP = {
             "  WIP|MAIN       Canvas to save (default WIP)\n"
             "  STORE          Also save shape JSON alongside each PNG\n"
             "\n"
+            "Each run is logged to runs.jsonl in the output folder\n"
+            "(settings, seeds, resolved commands). See LOG and NOTE.\n"
+            "\n"
             "Example:\n"
             "  BATCH 50 myscript.json gen1 output/run1"
+        ),
+    },
+    'LOG': {
+        'synopsis': 'Show BATCH run log: settings and what changed',
+        'usage': (
+            "LOG LIST    [--exec X] [--last N]\n"
+            "LOG SHOW    [<run>] [--image N]\n"
+            "LOG DIFF    [<run> [<run>]]\n"
+            "LOG VARYING [--exec X] [--last N]\n"
+            "LOG REPORT  [--exec X] [--last N] [-o file]\n"
+            "\n"
+            "  LIST     One line per run: images, changes, note\n"
+            "  SHOW     All settings of a run (default: latest)\n"
+            "           and where each came from; --image N gives\n"
+            "           that image's seed, draws and commands\n"
+            "  DIFF     Latest run vs previous run of the same\n"
+            "           executable; or <run> vs its previous;\n"
+            "           or two runs\n"
+            "  VARYING  Settings that changed across runs\n"
+            "  REPORT   Write runs_report.html and open it\n"
+            "\n"
+            "  run        r0004, r4 or 4\n"
+            "  --exec X   Only runs of executable X\n"
+            "  --last N   Only the last N runs\n"
+            "  --all      Include _disabled keys\n"
+            "  --full     Don't truncate long values\n"
+            "  -d dir     Output folder (default: last BATCH)\n"
+            "\n"
+            "Same as: python tools/runlog.py <subcommand> ...\n"
+            "\n"
+            "Examples:\n"
+            "  LOG DIFF\n"
+            "  LOG SHOW r12 --image 0105\n"
+            "  LOG VARYING --exec gen226_lean_one\n"
+            "  LOG REPORT -d sa226"
+        ),
+    },
+    'NOTE': {
+        'synopsis': 'Attach a note to a BATCH run in the run log',
+        'usage': (
+            "NOTE [<run>] <text>\n"
+            "\n"
+            "  run    r0004 (default: last run of the last BATCH)\n"
+            "  text   Note text; replaces any existing note\n"
+            "\n"
+            "Notes show in LOG LIST, LOG SHOW and LOG REPORT.\n"
+            "\n"
+            "Examples:\n"
+            "  NOTE slant 45 looks better, keep\n"
+            "  NOTE r0003 too spiky"
         ),
     },
     'ANIMATE': {

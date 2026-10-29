@@ -2,6 +2,7 @@
 Template system for Shape Studio
 Provides reusable procedural blueprints with parameter substitution
 """
+import copy
 import fnmatch
 import json
 import random
@@ -277,7 +278,10 @@ class TemplateExecutor:
         """
         self.library = library
         self.executor = command_executor
-        
+        # When set to a list (BATCH run log), each template command appends
+        # {template, params, commands} with its merged params and resolved commands
+        self.trace = None
+
     def execute_script(self, script_filepath, executable_name=None, 
                       batch_mode=False, randomization_values=None):
         """Execute a templated script
@@ -406,7 +410,10 @@ class TemplateExecutor:
         
         # Start with global params
         param_context.update(global_params)
-        
+
+        # Executable defaults for all its commands (randomization and params win)
+        param_context.update(self._get_exec_optional_params(exec_name, executable))
+
         # Apply randomization if provided (BATCH mode)
         if randomization_values:
             param_context.update(randomization_values)
@@ -441,7 +448,15 @@ class TemplateExecutor:
             results.append(result)
         
         return f"Executed {len(commands)} template command(s)"
-    
+
+    @staticmethod
+    def _get_exec_optional_params(exec_name, executable):
+        """Return the executable-level optional_params dict (empty if absent)"""
+        optional = executable.get('optional_params', {})
+        if not isinstance(optional, dict):
+            raise ValueError(f"Executable '{exec_name}' optional_params must be a dict")
+        return optional
+
     def _execute_template_command(self, template_name, template, 
                                   cmd_spec, param_context):
         """Execute a single template command with parameter substitution"""
@@ -516,6 +531,15 @@ class TemplateExecutor:
             template_name, template, cmd_spec, params
         )
 
+        executed = None
+        if self.trace is not None:
+            executed = []
+            self.trace.append({
+                'template': template_name,
+                'params': dict(params),
+                'commands': executed,
+            })
+
         # Substitute and execute each command in template. An if/then/else
         # entry is evaluated when reached and its chosen branch run in place.
         for cmd_template in self._iter_commands(template['commands'], params):
@@ -530,6 +554,8 @@ class TemplateExecutor:
                     merged['compose_parameters'] = cmd_spec['compose_parameters']
                 if is_proc and proc_params:
                     merged['params'] = {**merged.get('params', {}), **proc_params}
+                if executed is not None:
+                    executed.append(copy.deepcopy(merged))
                 self.executor._execute_structured_command(merged)
             else:
                 # String command — normal substitution path
@@ -538,6 +564,8 @@ class TemplateExecutor:
                     resolved_cmd += ' ' + ' '.join(
                         f"{k}={v}" for k, v in proc_params.items()
                     )
+                if executed is not None:
+                    executed.append(resolved_cmd)
                 self.executor.execute(resolved_cmd)
             last = self.executor._last_storage_name
             if last and last != params.get('name'):
@@ -760,8 +788,9 @@ class TemplateExecutor:
             
             # Build param context
             params = {}
-            params.update(global_params)
             params.update(template.get('optional_params', {}))
+            params.update(global_params)
+            params.update(self._get_exec_optional_params(exec_name, executable))
             params.update(cmd_spec.get('params', {}))
             
             # Check required params
