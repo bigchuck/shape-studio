@@ -11,20 +11,6 @@
   
   "executables": {
     
-    "clear_main": {
-      "description": "Clear main",
-      "author": "Mr. Chuck",
-      "created": "2026-05-05",
-      "target_canvas": "MAIN",
-      "comments": "Clear the canvas independent of drawing",
-      "commands": [
-        {
-          "template": "clear_main_template"
-        }
-      ]
-
-    },
-
     "gen226": {
       "description": "Basic polygon generator",
       "author": "Mr. Chuck",
@@ -76,28 +62,24 @@
         },
         "iters": [10,25]
       },
-
+      "optional_params": {
+        "lean": "single",
+        "weight_lean": 10
+      },
       "commands": [
         {
-          "template": "nofill_leaning",
+          "template": "organic_outline_nofill",
           "params": {
             "name": "shape1",
-            "break_width": "0.88",
-            "__break_width": "0.01",
-            "_break_width": "0.15",
-            "projection": "2.0",
-            "color": "black",
             "width": "3",
-            "ops": "lean_sawtooth:5,split_offset:1,sawtooth:1,squarewave:1,remove_point:1,distort_original:1",
+            "ops": "split_offset:1,sawtooth:1,squarewave:1,remove_point:1,distort_original:1",
             "dirbias": "random",
-            "lean_slant_max": "30",
-            "lean_ratio_min": "3",
-            "lean_ratio_max": "10",
-            "lean_extend_prob": "0",
-            "lean_extend_min": ".9",
-            "lean_extend_max": ".99",
-            "lean_cap_min": "0.2",
-            "lean_cap_max": "0.4"
+            "lean_slant_max": "60",
+            "_lean_slant_max": "(use 45 for less and 75 for more extreme)",
+            "lean_extend_prob": ".88",
+            "lean_extend_flank": "short",
+            "_lean_extend_min": ".9",
+            "_lean_extend_max": ".99"
           }
         }
       ]
@@ -118,54 +100,13 @@
         },
         "iters": [10,25]
       },
-
-      "commands": [
-        {
-          "template": "nofill_leaning",
-          "params": {
-            "name": "shape1",
-            "break_width": "0.88",
-            "__break_width": "0.01",
-            "_break_width": "0.15",
-            "projection": "2.0",
-            "color": "black",
-            "width": "3",
-            "ops": "lean_sawtooth_pair:1,split_offset:1,sawtooth:1,squarewave:1,remove_point:1,distort_original:1",
-            "dirbias": "random",
-            "lean_slant_max": "30",
-            "lean_ratio_min": "1.5",
-            "lean_ratio_max": "2.5",
-            "_lean_pair_facing": "outward",
-            "lean_pair_gap_min": 0.1,
-            "_lean_pair_gap_max": 0.4,
-            "_lean_pair_extend_prob_inward": 0.3,
-            "lean_pair_extend_prob_outward": 0.7
-
-          }
-        }
-      ]
-    },
-
-    "gen226_lean_one_extend": {
-      "description": "Single leaner with extension",
-      "author": "Mr. Chuck",
-      "created": "2026-10-11",
-      "target_canvas": "MAIN",
-      "comments": "Selection of single leaning sawtooth and paint brush extension",
-      "randomization": {
-        "projection": {
-          "type": "normal",
-          "min": 0.5,
-          "max": 1.5,
-          "mean": 1.0,
-          "std": 0.3
-        },
-        "iters": [10,25]
+      "optional_params": {
+        "lean": "pair",
+        "weight_lean": 10
       },
-
       "commands": [
         {
-          "template": "nofill_leaning",
+          "template": "organic_outline_nofill",
           "params": {
             "name": "shape1",
             "break_width": "0.88",
@@ -174,68 +115,79 @@
             "projection": "2.0",
             "color": "black",
             "width": "3",
-            "ops": "lean_sawtooth:1,split_offset:1,sawtooth:1,squarewave:1,remove_point:1,distort_original:1",
+            "ops": "split_offset:1,sawtooth:1,squarewave:1,remove_point:1,distort_original:1",
             "dirbias": "random",
             "lean_slant_max": "30",
             "lean_ratio_min": "1.5",
             "lean_ratio_max": "2.5",
-            "lean_extend_prob": ".6",
-            "lean_extend_min": ".6",
-            "lean_extend_max": ".9",
-            "lean_cap_min": "0.2",
-            "lean_cap_max": "0.4"
-          }
-        }
-      ]
-    },
-
-    "gen226_lean_one_two_extend": {
-      "description": "Single and double leaners with extension",
-      "author": "Mr. Chuck",
-      "created": "2026-10-11",
-      "target_canvas": "MAIN",
-      "comments": "Selection of both single and double leaning sawtooth and paint brush extension",
-      "randomization": {
-        "projection": {
-          "type": "normal",
-          "min": 0.5,
-          "max": 1.5,
-          "mean": 1.0,
-          "std": 0.3
-        },
-        "iters": [10,25]
-      },
-
-      "commands": [
-        {
-          "template": "nofill_leaning",
-          "params": {
-            "name": "shape1",
-            "break_width": "0.88",
-            "__break_width": "0.01",
-            "_break_width": "0.15",
-            "projection": "2.0",
-            "color": "black",
-            "width": "3",
-            "ops": "lean_sawtooth:1,lean_sawtooth_pair:1,split_offset:1,sawtooth:1,squarewave:1,remove_point:1,distort_original:1",
-            "dirbias": "random",
-            "lean_slant_max": "30",
-            "lean_ratio_min": "1.5",
-            "lean_ratio_max": "2.5",
-            "lean_extend_prob": ".6",
-            "lean_extend_min": ".6",
-            "lean_extend_max": ".9",
+            "lean_extend_prob": ".4",
+            "lean_extend_min": ".9",
+            "lean_extend_max": ".99",
             "lean_cap_min": "0.2",
             "lean_cap_max": "0.4",
-            "lean_pair_facing": "outward",
-            "lean_pair_gap_min": 0.01,
-            "lean_pair_gap_max": 0.01,
+            "lean_pair_facing": "random",
+            "lean_pair_gap_min": 0.1,
+            "lean_pair_gap_max": 0.4,
             "lean_pair_extend_prob_inward": 0.3,
             "lean_pair_extend_prob_outward": 0.7
+
           }
         }
       ]
     },
+    "gen226_lean_one_two": {
+      "description": "Single and Double leaner",
+      "author": "Mr. Chuck",
+      "created": "2026-10-11",
+      "target_canvas": "MAIN",
+      "comments": "Selection of single and double leaning sawtooth",
+      "randomization": {
+        "projection": {
+          "type": "normal",
+          "min": 0.5,
+          "max": 1.5,
+          "mean": 1.0,
+          "std": 0.3
+        },
+        "iters": [10,25]
+      },
+      "optional_params": {
+        "lean": "both",
+        "weight_lean": 10
+      },
+      "commands": [
+        {
+          "template": "organic_outline_nofill",
+          "params": {
+            "name": "shape1",
+            "break_width": "0.25",
+            "___break_width": "0.88",
+            "__break_width": "0.01",
+            "_break_width": "0.15",
+            "projection": "2.0",
+            "color": "black",
+            "width": "3",
+            "ops": "split_offset:1,sawtooth:1,squarewave:1,remove_point:1,distort_original:1",
+            "dirbias": "random",
+            "lean_slant_max": "30",
+            "lean_ratio_min": "1.5",
+            "lean_ratio_max": "2.5",
+            "lean_extend_prob": ".4",
+            "lean_extend_min": ".9",
+            "lean_extend_max": ".99",
+            "lean_cap_min": "0.2",
+            "lean_cap_max": "0.4",
+            "lean_pair_facing": "random",
+            "lean_pair_gap_min": 0.1,
+            "lean_pair_gap_max": 0.4,
+            "lean_pair_extend_prob_inward": 0.3,
+            "lean_pair_extend_prob_outward": 0.7
+
+          }
+        }
+      ]
+    },
+
 
 
 

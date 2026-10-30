@@ -323,10 +323,11 @@ PROC dynamic_polygon <name> PARAM=value [PARAM=value ...]
 | `SQUAREWAVE_OPPOSITE_DIRECTION_PROB` | float 0.0–1.0 | Probability of reversing direction in squarewave |
 | `LEAN_RATIO_MIN` / `LEAN_RATIO_MAX` | float | Leaning sawtooth: long flank ÷ short flank length (default 3–5). Tooth height follows from base width and ratio; `PROJECTION_MAX` does not apply |
 | `LEAN_SLANT_MAX` | float (degrees) | Leaning sawtooth: random tilt of the short flank from upright, either way (default 15) |
-| `LEAN_EXTEND_PROB` | float 0.0–1.0 | `lean_sawtooth`: chance the long flank continues past the peak into an overhanging protrusion (default 0.3) |
+| `LEAN_EXTEND_PROB` | float 0.0–1.0 | `lean_sawtooth`: chance a flank continues past the peak into an overhanging protrusion (default 0.3) |
 | `LEAN_PAIR_EXTEND_PROB_INWARD` / `_OUTWARD` | float 0.0–1.0 | Pair: per-tooth extension chance by facing (defaults 0.3 / 0.1); each tooth rolls separately, so 0, 1 or 2 extensions |
 | `LEAN_EXTEND_MIN` / `LEAN_EXTEND_MAX` | float | Extension length past the peak, fraction of the long flank (default 0.3–0.5) |
 | `LEAN_CAP_MIN` / `LEAN_CAP_MAX` | float | Extension end cap length, fraction of the short flank (default 0.8–1.2) |
+| `LEAN_EXTEND_FLANK` | `long`, `short`, or `random` | Which flank is extended (default `long`); `random` picks per tooth. Length units are the same either way |
 | `LEAN_PAIR_FACING` | `inward`, `outward`, or `random` | Pair: long flanks face the gap between the teeth (`inward`) or short flanks do (`outward`) |
 | `LEAN_PAIR_GAP_MIN` / `LEAN_PAIR_GAP_MAX` | float 0.0–1.0 | Pair: gap between teeth as fraction of the pair's span (0 = teeth share a base point) |
 | `CROOK_ANGLE_MIN` / `CROOK_ANGLE_MAX` | float (degrees) | Knee bend angle range (default 30–90) |

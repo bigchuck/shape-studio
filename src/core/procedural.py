@@ -187,6 +187,13 @@ class ProceduralGenerators:
                     'default': None,
                     'description': 'Leaning sawtooth extension: maximum end cap length (fraction of short flank)'
                 },
+                'lean_extend_flank': {
+                    'type': 'choice',
+                    'choices': ['long', 'short', 'random'],
+                    'required': False,
+                    'default': None,
+                    'description': 'Leaning sawtooth extension: which flank continues past the peak (random picks per tooth)'
+                },
                 'lean_pair_facing': {
                     'type': 'choice',
                     'choices': ['inward', 'outward', 'random'],
@@ -523,6 +530,7 @@ class ProceduralGenerators:
                    lean_pair_extend_prob_outward=None,
                    lean_extend_min=None, lean_extend_max=None,
                    lean_cap_min=None, lean_cap_max=None,
+                   lean_extend_flank=None,
                    lean_pair_facing=None,
                    lean_pair_gap_min=None, lean_pair_gap_max=None,
                    crook_angle_min=None, crook_angle_max=None,
@@ -591,6 +599,7 @@ class ProceduralGenerators:
             'extend_max': lean_extend_max if lean_extend_max is not None else lean_cfg.extend_max,
             'cap_min': lean_cap_min if lean_cap_min is not None else lean_cfg.cap_min,
             'cap_max': lean_cap_max if lean_cap_max is not None else lean_cfg.cap_max,
+            'extend_flank': lean_extend_flank if lean_extend_flank is not None else lean_cfg.extend_flank,
             'pair_facing': lean_pair_facing if lean_pair_facing is not None else config.procedural.lean_sawtooth.pair_facing,
             'pair_gap_min': lean_pair_gap_min if lean_pair_gap_min is not None else config.procedural.lean_sawtooth.pair_gap_min,
             'pair_gap_max': lean_pair_gap_max if lean_pair_gap_max is not None else config.procedural.lean_sawtooth.pair_gap_max,
@@ -1456,10 +1465,11 @@ class ProceduralGenerators:
         The short flank tilts slant_deg from perpendicular to the segment:
         positive overhangs its own foot, negative leans back.
 
-        With extension=(ext_frac, cap_frac) the long flank continues past
-        the peak by ext_frac x its length, a cap of cap_frac x the short
-        flank's length turns back toward the segment, and the underside
-        returns to the short flank's foot - an overhanging protrusion.
+        With extension=(ext_frac, cap_frac, flank) the chosen flank
+        ('long' or 'short') continues past the peak by ext_frac x the long
+        flank's length, a cap of cap_frac x the short flank's length turns
+        back toward the other flank, and the underside returns to the other
+        flank's foot - an overhanging protrusion.
 
         Args:
             p1, p2: Segment endpoints
@@ -1468,7 +1478,7 @@ class ProceduralGenerators:
             ratio: Long flank / short flank length
             slant_deg: Short flank tilt from perpendicular (degrees)
             perp: (dx, dy) unit perpendicular for the projection
-            extension: None, or (ext_frac, cap_frac)
+            extension: None, or (ext_frac, cap_frac, flank)
 
         Returns:
             Rounded points to insert in p1->p2 order - 3 for a plain tooth
@@ -1507,18 +1517,25 @@ class ProceduralGenerators:
         if extension is None:
             tooth = [a, peak, b]
         else:
-            ext_frac, cap_frac = extension
+            ext_frac, cap_frac, flank = extension
             long_len = math.dist(a, peak)
-            ux, uy = (peak[0] - a[0]) / long_len, (peak[1] - a[1]) / long_len
+            # The extended flank runs foot -> peak; the underside returns
+            # to the other flank's foot
+            foot, other = (a, b) if flank == 'long' else (b, a)
+            flank_len = math.dist(foot, peak)
+            ux, uy = (peak[0] - foot[0]) / flank_len, (peak[1] - foot[1]) / flank_len
             tip = (peak[0] + ux * ext_frac * long_len,
                    peak[1] + uy * ext_frac * long_len)
-            # Cap turns from the tip toward the short flank's side
+            # Cap turns from the tip toward the other flank's side
             nx, ny = -uy, ux
-            if nx * (b[0] - peak[0]) + ny * (b[1] - peak[1]) < 0:
+            if nx * (other[0] - peak[0]) + ny * (other[1] - peak[1]) < 0:
                 nx, ny = -nx, -ny
             cap = cap_frac * math.dist(peak, b)
             cap_end = (tip[0] + nx * cap, tip[1] + ny * cap)
-            tooth = [a, tip, cap_end, b]
+            if flank == 'long':
+                tooth = [a, tip, cap_end, b]
+            else:
+                tooth = [a, cap_end, tip, b]
 
         tooth = [self._round_point(p) for p in tooth]
         return tooth if lean_sign > 0 else tooth[::-1]
@@ -1559,12 +1576,16 @@ class ProceduralGenerators:
         """Decide whether a leaning tooth is extended, and by how much.
 
         Returns:
-            None, or (ext_frac, cap_frac) for _build_lean_tooth
+            None, or (ext_frac, cap_frac, flank) for _build_lean_tooth
         """
         if random.random() >= probability:
             return None
+        flank = lean_params['extend_flank']
+        if flank == 'random':
+            flank = random.choice(('long', 'short'))
         return (random.uniform(lean_params['extend_min'], lean_params['extend_max']),
-                random.uniform(lean_params['cap_min'], lean_params['cap_max']))
+                random.uniform(lean_params['cap_min'], lean_params['cap_max']),
+                flank)
 
     def _op_lean_sawtooth(self, points, idx, break_margin, break_width_max,
                           projection_max, direction_bias, centroid, bounds=None,

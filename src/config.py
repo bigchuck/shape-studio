@@ -233,6 +233,7 @@ class Config:
                     'extend_max': 0.5,
                     'cap_min': 0.8,          # extension end cap, fraction of short flank
                     'cap_max': 1.2,
+                    'extend_flank': 'long',  # long | short | random - flank that is extended
                     'pair_facing': 'random', # inward | outward | random
                     'pair_gap_min': 0.0,     # gap between pair teeth, fraction of span
                     'pair_gap_max': 0.4,
