@@ -685,13 +685,16 @@ HELP = {
     'HOLLOW': {
         'synopsis': 'Cut brush-stroke hollows into a polygon, optionally breaking out',
         'usage': (
-            "HOLLOW [<name>] [RIM=min,max] [HOLLOWS=min,max] [WALL=min,max]\n"
+            "HOLLOW [<name>] [RIM=min,max] [HOLLOWS=min,max] [WALL=min,max] [SPREAD=s]\n"
             "       [BREAKOUT=p] [GAP=min,max] [ROUGH=px] [ROUGH_SPACING=px] [SIMPLIFY=px]\n"
             "\n"
             "  name           Polygon to hollow (optional if WORKWITH is set)\n"
             "  RIM            Rim width range, px - varies smoothly along the edge\n"
             "  HOLLOWS        Number of hollows; walls are cut between them\n"
             "  WALL           Wall width range between hollows, px\n"
+            "  SPREAD         Hollow size variation (0-1). 0 = equal sizes,\n"
+            "                 1 = walls at fully random positions; between\n"
+            "                 blends the two. Walls stay within 5-95% of the area\n"
             "  BREAKOUT       Chance each hollow breaks out to the outside (0-1).\n"
             "                 At most one break-out per hollow, so the shape\n"
             "                 always stays in one piece\n"
@@ -706,7 +709,8 @@ HELP = {
             "Examples:\n"
             "  HOLLOW s1\n"
             "  HOLLOW s1 RIM=10,24 HOLLOWS=2,3 BREAKOUT=0.5\n"
-            "  HOLLOW s1 HOLLOWS=3 BREAKOUT=1 GAP=15,40"
+            "  HOLLOW s1 HOLLOWS=3 BREAKOUT=1 GAP=15,40\n"
+            "  HOLLOW s1 HOLLOWS=3 SPREAD=0.8"
         ),
     },
     'HELP': {

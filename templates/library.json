@@ -104,11 +104,12 @@
     "organic_outline_nofill": {
       "description": "Organic polygon outline - flowing natural forms, with optional lean / crook / hollow",
       "target_canvas": "MAIN",
-      "comments": "Flags: lean = none|single|pair|both, crook = yes|no, hollow = yes|no (hollow_breakout 0 = no break-outs). weight_lean / weight_crook set the added ops' weights. lean_* and crook_* params are passed straight to PROC; set one to \"\" to use the config default.",
+      "comments": "Flags: lean = none|single|pair|both, crook = yes|no, hollow = yes|no (hollow_breakout 0 = no break-outs); fill = <color>|none, applied only when hollow. weight_lean / weight_crook set the added ops' weights. lean_* and crook_* params are passed straight to PROC; set one to \"\" to use the config default.",
       "commands": [
         "PROC dynamic_polygon ${name}",
         { "if": "${hollow}", "then": [
-          "HOLLOW ${name} RIM=${hollow_rim_min},${hollow_rim_max} HOLLOWS=${hollow_hollows_min},${hollow_hollows_max} WALL=${hollow_wall_min},${hollow_wall_max} BREAKOUT=${hollow_breakout} GAP=${hollow_gap_min},${hollow_gap_max} ROUGH=${hollow_rough} ROUGH_SPACING=${hollow_rough_spacing} SIMPLIFY=${hollow_simplify}"
+          "HOLLOW ${name} RIM=${hollow_rim_min},${hollow_rim_max} HOLLOWS=${hollow_hollows_min},${hollow_hollows_max} WALL=${hollow_wall_min},${hollow_wall_max} SPREAD=${hollow_spread} BREAKOUT=${hollow_breakout} GAP=${hollow_gap_min},${hollow_gap_max} ROUGH=${hollow_rough} ROUGH_SPACING=${hollow_rough_spacing} SIMPLIFY=${hollow_simplify}",
+          "FILL ${name} ${fill}"
         ]},
         "COLOR ${name} ${color}",
         "WIDTH ${name} ${width}"
@@ -140,6 +141,7 @@
         "projection": "1.5",
         "color": "black",
         "width": "2",
+        "fill": "none",
         "connect": "angle_sort",
         "dirbias": "inward",
         "sqrwv_indep": "False",
@@ -177,6 +179,7 @@
         "hollow_hollows_max": "1",
         "hollow_wall_min": "8",
         "hollow_wall_max": "20",
+        "hollow_spread": "0.3",
         "hollow_breakout": "0.3",
         "hollow_gap_min": "12",
         "hollow_gap_max": "30",

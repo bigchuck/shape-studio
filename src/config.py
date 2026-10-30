@@ -303,6 +303,7 @@ class Config:
                 'hollows_max': 1,
                 'wall_min': 8.0,          # wall width range between hollows (px)
                 'wall_max': 20.0,
+                'spread': 0.3,            # hollow size variation: 0 = equal, 1 = fully random
                 'breakout_prob': 0.3,     # per-hollow chance of breaking out (max one each)
                 'gap_min': 12.0,          # break-out channel width range (px)
                 'gap_max': 30.0,

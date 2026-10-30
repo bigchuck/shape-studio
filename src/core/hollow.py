@@ -349,11 +349,13 @@ def validate_rings(outer, holes):
 # Hollow construction
 # ---------------------------------------------------------------------------
 
-def _walls(region, count, wall_min, wall_max, rng):
+def _walls(region, count, wall_min, wall_max, spread, rng):
     """Cut count straight walls of varying width across a hollow region.
 
-    Walls run roughly across the region's principal axis at evenly spaced
-    positions, each tilted at random and tapering from one end to the other.
+    Walls run roughly across the region's principal axis, each tilted at
+    random and tapering from one end to the other. Positions are area
+    fractions along the axis: evenly spaced blended with sorted random cut
+    points by spread (0 = equal hollows, 1 = fully random sizes).
     """
     if count <= 0:
         return region
@@ -374,8 +376,10 @@ def _walls(region, count, wall_min, wall_max, rng):
 
     region = region.copy()
     draw = ImageDraw.Draw(region)
+    # Both sequences are increasing, so the blend keeps walls in order
+    cuts = sorted(rng.random() for _ in range(count))
     for k in range(1, count + 1):
-        q = k / (count + 1) + rng.uniform(-0.08, 0.08)
+        q = (1 - spread) * k / (count + 1) + spread * cuts[k - 1]
         q = min(max(q, 0.05), 0.95)
         s = proj[int(q * (len(proj) - 1))]
         px, py = cx + ax * s, cy + ay * s
@@ -596,7 +600,7 @@ def hollow_polygon(points, params, rng):
     Args:
         points: Outer ring of the polygon
         params: Dict with rim_min, rim_max, hollows_min, hollows_max,
-                wall_min, wall_max, breakout_prob, gap_min, gap_max,
+                wall_min, wall_max, spread, breakout_prob, gap_min, gap_max,
                 rough, rough_spacing, simplify, wavelength
         rng: random.Random-like source
 
@@ -621,7 +625,8 @@ def hollow_polygon(points, params, rng):
         raise ValueError("shape is too narrow for the rim width")
 
     count = rng.randint(params['hollows_min'], params['hollows_max'])
-    region = _walls(region, count - 1, params['wall_min'], params['wall_max'], rng)
+    region = _walls(region, count - 1, params['wall_min'], params['wall_max'],
+                    params['spread'], rng)
 
     min_area = max(16, int((2 * rim_min) ** 2 / 4))
     comps = label_components(region, min_area)
