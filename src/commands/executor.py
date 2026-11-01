@@ -3281,6 +3281,7 @@ class CommandExecutor:
         return (
             f"Hollowed '{name}': {info['hollows']} hollow(s), "
             f"{info['breakouts']} break-out(s), {len(holes)} hole(s)"
+            + (f", {info['plugged']} plugged" if info.get('plugged') else "")
             + (f" after {attempt + 1} attempts" if attempt else "")
         )
 

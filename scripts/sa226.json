@@ -219,10 +219,16 @@
           "std": 0.3
         },
         "iters": [10,25],
+        "sqrwv_indep": ["true", "false"],
         "crook": ["yes", "no"],
         "weight_crook": [0, 5],
         "lean":  [["both", 3], ["single", 1], ["pair", 1], ["none", 5]],
-        "weight_lean": [0, 5]
+        "weight_lean": [0, 5],
+        "weight_split_offset": [1, 5],
+        "weight_sawtooth": [0, 5],
+        "weight_squarewave": [0, 5],
+        "weight_remove_point": [0, 5],
+        "weight_distort_original": [0, 5]
       },
       "optional_params": {
       },
@@ -233,7 +239,7 @@
             "name": "shape1",
             "break_width": "0.88",
             "width": "3",
-            "ops": "split_offset:1,sawtooth:1,squarewave:1,remove_point:1,distort_original:1",
+            "ops": "split_offset:${weight_split_offset},sawtooth:${weight_sawtooth},squarewave:${weight_squarewave},remove_point:${weight_remove_point},distort_original:${weight_distort_original}",
             "dirbias": "random",
             "lean_slant_max": "60",
             "lean_ratio_min": "1.5",
@@ -247,46 +253,7 @@
         }
       ]
     },
-    "gen226_hollow": {
-      "description": "Hollow out a polygon",
-      "author": "Mr. Chuck",
-      "created": "2026-10-30",
-      "target_canvas": "MAIN",
-      "comments": "Use the hollow feature to alter polygons",
-      "randomization": {
-        "projection": {
-          "type": "normal",
-          "min": 0.5,
-          "max": 1.5,
-          "mean": 1.0,
-          "std": 0.3
-        },
-        "iters": [10,25],
-        "hollow_rough": [0,6],
-        "hollow_spread": [0.0, 1.0],
-        "hollow_simplify": [1, 15]
-      },
-      "optional_params": {
-      },
-      "commands": [
-        {
-          "template": "organic_outline_nofill",
-          "params": {
-            "name": "shape1",
-            "break_width": "0.88",
-            "width": "3",
-            "ops": "split_offset:1,sawtooth:1,squarewave:1,remove_point:1,distort_original:1",
-            "dirbias": "random",
-            "hollow": "yes",
-            "hollow_rim_min": "10",
-            "hollow_rim_max": "30",
-            "hollow_hollows_max": "4",
-            "_hollow_simplify": "1-2 for organic, brush-like hollows that follow the rim's curves, 3-6 for the current angular look, 10+ for bold faceted cut-outs",
-            "fill": "ORANGE"
-          }
-        }
-      ]
-    },
+
     "gen226_lean_crook_hollow": {
       "description": "Use leans, crooks, and hollow to build a polygon",
       "author": "Mr. Chuck",
@@ -302,12 +269,14 @@
           "std": 0.3
         },
         "iters": [10, 25],
+        "sqrwv_indep": ["true", "false"],
         "crook": ["yes", "no"],
         "weight_crook": [0, 5],
         "lean":  [["both", 3], ["single", 1], ["pair", 1], ["none", 5]],
         "weight_lean": [0, 5],
         "hollow_rough": [0, 6],
         "hollow_spread": [0.0, 1.0],
+        "hollow_plug": [0.0, 0.7],
         "hollow_simplify": [[1, 6], [2, 6], [3, 3], [4, 3], [5, 2], [6, 2], [7, 1], [8, 1], [9, 1],
                             [10, 0.5], [11, 0.5], [12, 0.5], [13, 0.5], [14, 0.5], [15, 0.5]],
         "weight_split_offset": [1, 5],

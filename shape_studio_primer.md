@@ -418,7 +418,7 @@ SAVE myshape
 HOLLOW cuts one or more hollows into a finished polygon, leaving a rim that follows the outline like a brush stroke. The rim width varies smoothly along the edge, and the hollow's own edge is angular and rough.
 
 ```
-HOLLOW [<name>] [RIM=min,max] [HOLLOWS=min,max] [WALL=min,max] [SPREAD=s] [BREAKOUT=p] [GAP=min,max] [ROUGH=px] [ROUGH_SPACING=px] [SIMPLIFY=px]
+HOLLOW [<name>] [RIM=min,max] [HOLLOWS=min,max] [WALL=min,max] [SPREAD=s] [BREAKOUT=p] [PLUG=p] [GAP=min,max] [ROUGH=px] [ROUGH_SPACING=px] [SIMPLIFY=px]
 ```
 
 | Parameter | Default | Meaning |
@@ -428,6 +428,7 @@ HOLLOW [<name>] [RIM=min,max] [HOLLOWS=min,max] [WALL=min,max] [SPREAD=s] [BREAK
 | `WALL` | 8,20 | Wall width range between hollows (px); each wall tapers |
 | `SPREAD` | 0.3 | Hollow size variation, 0–1: 0 = equal sizes, 1 = walls at fully random positions, between blends the two. Walls stay within 5–95% of the hollow area |
 | `BREAKOUT` | 0.3 | Chance each hollow breaks out to the outside, leaving a gap in the rim |
+| `PLUG` | 0 | Plug some holes, leaving solid chunks, 0–1. Plugging k holes has weight PLUG^k, so low counts are favoured: 0 = never, 1 = any count equally likely. Broken-out hollows are never plugged, and at least one hollow always remains |
 | `GAP` | 12,30 | Break-out channel width range (px) |
 | `ROUGH` | 6 | Angular roughness of hollow edges (px); 0 = smooth |
 | `ROUGH_SPACING` | 40 | About one roughness jog per this much hollow edge (px) |
@@ -444,6 +445,7 @@ HOLLOW s1
 HOLLOW s1 HOLLOWS=2,3 BREAKOUT=0.5
 HOLLOW s1 HOLLOWS=3 BREAKOUT=1 GAP=15,40
 HOLLOW s1 HOLLOWS=3 SPREAD=0.8
+HOLLOW s1 HOLLOWS=4 PLUG=0.5
 ```
 
 ---
@@ -887,7 +889,7 @@ INFO PROC dynamic_polygon
 HELP [<command>]
 
 # Hollows (name optional if WORKWITH set)
-HOLLOW [<name>] [RIM=min,max] [HOLLOWS=min,max] [WALL=min,max] [SPREAD=s] [BREAKOUT=p] [GAP=min,max] [ROUGH=px]
+HOLLOW [<name>] [RIM=min,max] [HOLLOWS=min,max] [WALL=min,max] [SPREAD=s] [BREAKOUT=p] [PLUG=p] [GAP=min,max] [ROUGH=px]
 
 # Viewport guide (display only, not in PNG)
 VIEWPORT <w>,<h>    # pixels or ratios (e.g. 0.7,1.0)

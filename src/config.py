@@ -305,6 +305,7 @@ class Config:
                 'wall_max': 20.0,
                 'spread': 0.3,            # hollow size variation: 0 = equal, 1 = fully random
                 'breakout_prob': 0.3,     # per-hollow chance of breaking out (max one each)
+                'plug': 0.0,              # plug k of the holes (left solid), weight plug**k (0 = never)
                 'gap_min': 12.0,          # break-out channel width range (px)
                 'gap_max': 30.0,
                 'rough': 6.0,             # angular roughness amplitude of hollow edges (px)

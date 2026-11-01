@@ -1192,12 +1192,13 @@ class CommandParser:
         Ranges are min,max or a single value:
             RIM=12,28 HOLLOWS=1,3 WALL=8,20 GAP=12,30
         Single values:
-            SPREAD=0.3 BREAKOUT=0.3 ROUGH=6 ROUGH_SPACING=40 SIMPLIFY=3
+            SPREAD=0.3 BREAKOUT=0.3 PLUG=0.5 ROUGH=6 ROUGH_SPACING=40 SIMPLIFY=3
         The name may be omitted when WORKWITH is set.
         """
         ranges = {'RIM': 'rim', 'HOLLOWS': 'hollows', 'WALL': 'wall', 'GAP': 'gap'}
         singles = {'SPREAD': 'spread', 'BREAKOUT': 'breakout_prob', 'ROUGH': 'rough',
-                   'ROUGH_SPACING': 'rough_spacing', 'SIMPLIFY': 'simplify'}
+                   'ROUGH_SPACING': 'rough_spacing', 'SIMPLIFY': 'simplify',
+                   'PLUG': 'plug'}
 
         name = None
         args = parts[1:]
@@ -1232,6 +1233,8 @@ class CommandParser:
             raise ValueError("HOLLOW BREAKOUT must be between 0 and 1")
         if 'spread' in overrides and not 0 <= overrides['spread'] <= 1:
             raise ValueError("HOLLOW SPREAD must be between 0 and 1")
+        if 'plug' in overrides and not 0 <= overrides['plug'] <= 1:
+            raise ValueError("HOLLOW PLUG must be between 0 and 1")
 
         return {
             'command': 'HOLLOW',

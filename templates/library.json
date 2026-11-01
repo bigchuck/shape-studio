@@ -104,11 +104,11 @@
     "organic_outline_nofill": {
       "description": "Organic polygon outline - flowing natural forms, with optional lean / crook / hollow",
       "target_canvas": "MAIN",
-      "comments": "Flags: lean = none|single|pair|both, crook = yes|no, hollow = yes|no (hollow_breakout 0 = no break-outs); fill = <color>|none, applied only when hollow. weight_lean / weight_crook set the added ops' weights. lean_* and crook_* params are passed straight to PROC; set one to \"\" to use the config default.",
+      "comments": "Flags: lean = none|single|pair|both, crook = yes|no, hollow = yes|no (hollow_breakout 0 = no break-outs, hollow_plug 0 = no plugged holes); fill = <color>|none, applied only when hollow. weight_lean / weight_crook set the added ops' weights. lean_* and crook_* params are passed straight to PROC; set one to \"\" to use the config default.",
       "commands": [
         "PROC dynamic_polygon ${name}",
         { "if": "${hollow}", "then": [
-          "HOLLOW ${name} RIM=${hollow_rim_min},${hollow_rim_max} HOLLOWS=${hollow_hollows_min},${hollow_hollows_max} WALL=${hollow_wall_min},${hollow_wall_max} SPREAD=${hollow_spread} BREAKOUT=${hollow_breakout} GAP=${hollow_gap_min},${hollow_gap_max} ROUGH=${hollow_rough} ROUGH_SPACING=${hollow_rough_spacing} SIMPLIFY=${hollow_simplify}",
+          "HOLLOW ${name} RIM=${hollow_rim_min},${hollow_rim_max} HOLLOWS=${hollow_hollows_min},${hollow_hollows_max} WALL=${hollow_wall_min},${hollow_wall_max} SPREAD=${hollow_spread} BREAKOUT=${hollow_breakout} PLUG=${hollow_plug} GAP=${hollow_gap_min},${hollow_gap_max} ROUGH=${hollow_rough} ROUGH_SPACING=${hollow_rough_spacing} SIMPLIFY=${hollow_simplify}",
           "FILL ${name} ${fill}"
         ]},
         "COLOR ${name} ${color}",
@@ -181,6 +181,7 @@
         "hollow_wall_max": "20",
         "hollow_spread": "0.3",
         "hollow_breakout": "0.3",
+        "hollow_plug": "0",
         "hollow_gap_min": "12",
         "hollow_gap_max": "30",
         "hollow_rough": "6",
@@ -189,143 +190,6 @@
       }
     },
 
-    "nofill_leaning": {
-      "description": "Polygon with leaning sawtooths",
-      "target_canvas": "MAIN",
-      "comments": "Both single and double leaners with both inward and outward leans. Lean settings (lean_ratio_min, lean_pair_facing, ...) default to config; override them per executable with a proc_params block.",
-      "commands": [
-        "PROC dynamic_polygon ${name}",
-        "COLOR ${name} ${color}",
-        "WIDTH ${name} ${width}"
-      ],
-      "proc_params": {
-        "vertices": "${verts}",
-        "bounds": "${bounds}",
-        "iterations": "${iters}",
-        "operations": "${ops}",
-        "direction_bias": "${dirbias}",
-        "break_width_max": "${break_width}",
-        "projection_max": "${projection}",
-        "connect": "${connect}",
-        "squarewave_independent_directions": "${sqrwv_indep}",
-        "lean_slant_max": "${lean_slant_max}",
-        "lean_ratio_min": "${lean_ratio_min}",
-        "lean_ratio_max": "${lean_ratio_max}",
-        "lean_extend_prob": "${lean_extend_prob}",
-        "lean_extend_min": "${lean_extend_min}",
-        "lean_extend_max": "${lean_extend_max}",
-        "lean_cap_min": "${lean_cap_min}",
-        "lean_cap_max": "${lean_cap_max}",
-        "lean_extend_flank": "${lean_extend_flank}",
-        "lean_pair_facing": "${lean_pair_facing}",
-        "lean_pair_gap_min": "${lean_pair_gap_min}",
-        "lean_pair_gap_max": "${lean_pair_gap_max}",
-        "lean_pair_extend_prob_inward": "${lean_pair_extend_prob_inward}",
-        "lean_pair_extend_prob_outward": "${lean_pair_extend_prob_outward}"
-      },
-      "required_params": ["name","ops"],
-      "optional_params": {
-        "verts": "6,10",
-        "bounds": "100,100,668,668",
-        "iters": "15",
-        "break_width": "0.4",
-        "projection": "1.5",
-        "color": "black",
-        "width": "2",
-        "connect": "angle_sort",
-        "dirbias": "inward",
-        "sqrwv_indep": "False",
-        "lean_slant_max": "15",
-        "lean_ratio_min": "3",
-        "lean_ratio_max": "5",
-        "lean_extend_prob": ".3",
-        "lean_extend_min": ".3",
-        "lean_extend_max": ".5",
-        "lean_cap_min": "0.8",
-        "lean_cap_max": "1.2",
-        "lean_extend_flank": "long",
-        "lean_pair_facing": "random",
-        "lean_pair_gap_min": "0.0",
-        "lean_pair_gap_max": "0.4",
-        "lean_pair_extend_prob_inward": "0.3",
-        "lean_pair_extend_prob_outward": "0.1"
-      }
-    },
-
-    "nofill_crook": {
-      "description": "Organic polygon outline - flowing natural forms",
-      "target_canvas": "MAIN",
-      "comments": "Template for organic shapes using sawtooth operations and inward bias. Creates smooth, flowing outlines.",
-      "commands": [
-        "PROC dynamic_polygon ${name} vertices=${verts} bounds=${bounds} iterations=${iters} operations=${ops} direction_bias=${dirbias} break_width_max=${break_width} projection_max=${projection} connect=${connect} squarewave_independent_directions=${sqrwv_indep}",
-        "COLOR ${name} ${color}",
-        "WIDTH ${name} ${width}"
-      ],
-      "proc_params": {
-        "crook_angle_min": "${crook_angle_min}",
-        "crook_angle_max": "${crook_angle_max}",
-        "crook_limb_ratio": "${crook_limb_ratio}",
-        "crook_min_width": "${crook_min_width}",
-        "crook_min_length": "${crook_min_length}",
-        "crook_center_jitter": "${crook_center_jitter}"
-      },
-      "required_params": ["name","ops"],
-      "optional_params": {
-        "verts": "6,10",
-        "bounds": "100,100,668,668",
-        "iters": "15",
-        "break_width": "0.4",
-        "projection": "1.5",
-        "color": "black",
-        "width": "2",
-        "connect": "angle_sort",
-        "dirbias": "inward",
-        "sqrwv_indep": "False",
-        "crook_angle_min": "30",
-        "crook_angle_max": "90",
-        "crook_limb_ratio": "3.0",
-        "crook_min_width": "20",
-        "crook_min_length": "80",
-        "crook_center_jitter": "0.15"
-      }
-    },
-
-    "nofill_hollow": {
-      "description": "Organic polygon outline - flowing natural forms",
-      "target_canvas": "MAIN",
-      "comments": "Template for organic shapes using sawtooth operations and inward bias. Creates smooth, flowing outlines.",
-      "commands": [
-        "PROC dynamic_polygon ${name} vertices=${verts} bounds=${bounds} iterations=${iters} operations=${ops} direction_bias=${dirbias} break_width_max=${break_width} projection_max=${projection} connect=${connect} squarewave_independent_directions=${sqrwv_indep}",
-        "HOLLOW ${name} RIM=${hollow_rim_min},${hollow_rim_max} HOLLOWS=${hollow_hollows_min},${hollow_hollows_max} WALL=${hollow_wall_min},${hollow_wall_max} BREAKOUT=${hollow_breakout} GAP=${hollow_gap_min},${hollow_gap_max} ROUGH=${hollow_rough} ROUGH_SPACING=${hollow_rough_spacing} SIMPLIFY=${hollow_simplify}",
-        "COLOR ${name} ${color}",
-        "WIDTH ${name} ${width}"
-      ],
-      "required_params": ["name","ops"],
-      "optional_params": {
-        "verts": "6,10",
-        "bounds": "100,100,668,668",
-        "iters": "15",
-        "break_width": "0.4",
-        "projection": "1.5",
-        "color": "black",
-        "width": "2",
-        "connect": "angle_sort",
-        "dirbias": "inward",
-        "sqrwv_indep": "False",
-        "hollow_rim_min": "12",
-        "hollow_rim_max": "28",
-        "hollow_hollows_min": "1",
-        "hollow_hollows_max": "1",
-        "hollow_wall_min": "8",
-        "hollow_wall_max": "20",
-        "hollow_breakout": "0.3",
-        "hollow_gap_min": "12",
-        "hollow_gap_max": "30",
-        "hollow_rough": "6",
-        "hollow_rough_spacing": "40",
-        "hollow_simplify": "3"
-      }
-    },
 
     "compose_1": {
       "description": "Base composition template - visual defaults",

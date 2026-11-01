@@ -686,7 +686,8 @@ HELP = {
         'synopsis': 'Cut brush-stroke hollows into a polygon, optionally breaking out',
         'usage': (
             "HOLLOW [<name>] [RIM=min,max] [HOLLOWS=min,max] [WALL=min,max] [SPREAD=s]\n"
-            "       [BREAKOUT=p] [GAP=min,max] [ROUGH=px] [ROUGH_SPACING=px] [SIMPLIFY=px]\n"
+            "       [BREAKOUT=p] [PLUG=p] [GAP=min,max] [ROUGH=px] [ROUGH_SPACING=px]\n"
+            "       [SIMPLIFY=px]\n"
             "\n"
             "  name           Polygon to hollow (optional if WORKWITH is set)\n"
             "  RIM            Rim width range, px - varies smoothly along the edge\n"
@@ -698,6 +699,11 @@ HELP = {
             "  BREAKOUT       Chance each hollow breaks out to the outside (0-1).\n"
             "                 At most one break-out per hollow, so the shape\n"
             "                 always stays in one piece\n"
+            "  PLUG           Plug some holes, leaving solid chunks (0-1).\n"
+            "                 Plugging k holes has weight PLUG^k, so low counts\n"
+            "                 are favoured; 0 = never, 1 = any count equally\n"
+            "                 likely. Broken-out hollows are never plugged, and\n"
+            "                 at least one hollow always remains\n"
             "  GAP            Break-out channel width range, px\n"
             "  ROUGH          Angular roughness of hollow edges, px (0 = smooth)\n"
             "  ROUGH_SPACING  About one roughness jog per this much edge, px\n"
@@ -710,7 +716,8 @@ HELP = {
             "  HOLLOW s1\n"
             "  HOLLOW s1 RIM=10,24 HOLLOWS=2,3 BREAKOUT=0.5\n"
             "  HOLLOW s1 HOLLOWS=3 BREAKOUT=1 GAP=15,40\n"
-            "  HOLLOW s1 HOLLOWS=3 SPREAD=0.8"
+            "  HOLLOW s1 HOLLOWS=3 SPREAD=0.8\n"
+            "  HOLLOW s1 HOLLOWS=4 PLUG=0.5"
         ),
     },
     'HELP': {

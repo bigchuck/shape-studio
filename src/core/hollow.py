@@ -21,6 +21,7 @@ vectors:
     6. Break-outs: a straight channel from a hollow to the outside splices
        the hollow's ring into the outer ring. The outer ring is otherwise
        kept exactly. Hollows that do not break out become holes.
+    7. Plug: optionally plug some holes, leaving solid chunks.
 """
 import math
 from collections import deque
@@ -601,7 +602,8 @@ def hollow_polygon(points, params, rng):
         points: Outer ring of the polygon
         params: Dict with rim_min, rim_max, hollows_min, hollows_max,
                 wall_min, wall_max, spread, breakout_prob, gap_min, gap_max,
-                rough, rough_spacing, simplify, wavelength
+                rough, rough_spacing, simplify, wavelength, and optional
+                plug (see plug_holes)
         rng: random.Random-like source
 
     Returns:
@@ -679,9 +681,33 @@ def hollow_polygon(points, params, rng):
         else:
             holes.append(ring)
 
+    holes, plugged = plug_holes(holes, len(rings), params.get('plug', 0.0), rng)
+
     reason = validate_rings(outer, holes)
     if reason:
         raise ValueError(reason)
 
-    info = {'hollows': len(rings), 'breakouts': broke}
+    info = {'hollows': len(rings), 'breakouts': broke, 'plugged': plugged}
     return outer, holes, info
+
+
+def plug_holes(holes, total, plug, rng):
+    """Plug some holes, leaving those parts of the shape solid.
+
+    Only holes can be plugged - a broken-out hollow is part of the outline.
+    At least one hollow always remains, so at most total - 1 are plugged.
+    The number plugged, k, is drawn with weight plug**k: plug = 0 never
+    plugs, plug = 1 makes every count equally likely, and values between
+    favour low counts.
+
+    Returns:
+        (remaining_holes, plugged_count)
+    """
+    max_plug = min(len(holes), total - 1)
+    if plug <= 0 or max_plug <= 0:
+        return holes, 0
+    k = rng.choices(range(max_plug + 1), weights=[plug ** k for k in range(max_plug + 1)])[0]
+    if k == 0:
+        return holes, 0
+    drop = set(rng.sample(range(len(holes)), k))
+    return [h for i, h in enumerate(holes) if i not in drop], k
