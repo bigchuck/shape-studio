@@ -76,10 +76,9 @@
             "dirbias": "random",
             "lean_slant_max": "60",
             "_lean_slant_max": "(use 45 for less and 75 for more extreme)",
-            "lean_extend_prob": ".88",
-            "lean_extend_flank": "short",
-            "_lean_extend_min": ".9",
-            "_lean_extend_max": ".99"
+            "lean_extend_flank": "random",
+            "_lean_extend_min": "(use .9 to make big)",
+            "_lean_extend_max": "(use .99 to make big)"
           }
         }
       ]
@@ -110,35 +109,25 @@
           "params": {
             "name": "shape1",
             "break_width": "0.88",
-            "__break_width": "0.01",
-            "_break_width": "0.15",
-            "projection": "2.0",
-            "color": "black",
             "width": "3",
             "ops": "split_offset:1,sawtooth:1,squarewave:1,remove_point:1,distort_original:1",
             "dirbias": "random",
-            "lean_slant_max": "30",
+            "lean_slant_max": "60",
+            "_lean_slant_max": "(use 45 for less and 75 for more extreme)",
             "lean_ratio_min": "1.5",
             "lean_ratio_max": "2.5",
-            "lean_extend_prob": ".4",
-            "lean_extend_min": ".9",
-            "lean_extend_max": ".99",
-            "lean_cap_min": "0.2",
-            "lean_cap_max": "0.4",
-            "lean_pair_facing": "random",
-            "lean_pair_gap_min": 0.1,
-            "lean_pair_gap_max": 0.4,
-            "lean_pair_extend_prob_inward": 0.3,
-            "lean_pair_extend_prob_outward": 0.7
-
+            "lean_extend_flank": "random",
+            "_lean_extend_min": "(use .9 to make big)",
+            "_lean_extend_max": "(use .99 to make big)",
+            "lean_pair_gap_max": 0.1
           }
         }
       ]
     },
-    "gen226_lean_one_two": {
+    "gen226_lean_both": {
       "description": "Single and Double leaner",
       "author": "Mr. Chuck",
-      "created": "2026-10-11",
+      "created": "2026-10-30",
       "target_canvas": "MAIN",
       "comments": "Selection of single and double leaning sawtooth",
       "randomization": {
@@ -160,44 +149,28 @@
           "template": "organic_outline_nofill",
           "params": {
             "name": "shape1",
-            "break_width": "0.25",
-            "___break_width": "0.88",
-            "__break_width": "0.01",
-            "_break_width": "0.15",
-            "projection": "2.0",
-            "color": "black",
+            "break_width": "0.88",
             "width": "3",
             "ops": "split_offset:1,sawtooth:1,squarewave:1,remove_point:1,distort_original:1",
             "dirbias": "random",
-            "lean_slant_max": "30",
+            "lean_slant_max": "60",
+            "_lean_slant_max": "(use 45 for less and 75 for more extreme)",
             "lean_ratio_min": "1.5",
             "lean_ratio_max": "2.5",
-            "lean_extend_prob": ".4",
-            "lean_extend_min": ".9",
-            "lean_extend_max": ".99",
-            "lean_cap_min": "0.2",
-            "lean_cap_max": "0.4",
-            "lean_pair_facing": "random",
-            "lean_pair_gap_min": 0.1,
-            "lean_pair_gap_max": 0.4,
-            "lean_pair_extend_prob_inward": 0.3,
-            "lean_pair_extend_prob_outward": 0.7
-
+            "lean_extend_flank": "random",
+            "_lean_extend_min": "(use .9 to make big)",
+            "_lean_extend_max": "(use .99 to make big)",
+            "lean_pair_gap_max": 0.1
           }
         }
       ]
     },
-
-
-
-
-
-    "gen226holdaside": {
-      "description": "Single leaner",
+    "gen226_crook": {
+      "description": "Crook limbs",
       "author": "Mr. Chuck",
-      "created": "2026-10-11",
+      "created": "2026-10-30",
       "target_canvas": "MAIN",
-      "comments": "FIRST STEP Initial form as a block",
+      "comments": "Find and select limbs to offset their direction",
       "randomization": {
         "projection": {
           "type": "normal",
@@ -208,56 +181,172 @@
         },
         "iters": [10,25]
       },
-
+      "optional_params": {
+        "crook": "yes",
+        "weight_crook": 3
+      },
       "commands": [
         {
-          "template": "nofill_hollow",
+          "template": "organic_outline_nofill",
           "params": {
             "name": "shape1",
             "break_width": "0.88",
-            "__break_width": "0.01",
-            "_break_width": "0.15",
-            "projection": "2.0",
-            "color": "black",
             "width": "3",
-            "ops": "crook:10,lean_sawtooth:5,lean_sawtooth_pair:5,split_offset:1,sawtooth:1,squarewave:1,remove_point:1,distort_original:1",
+            "ops": "split_offset:1,sawtooth:1,squarewave:1,remove_point:1,distort_original:1",
             "dirbias": "random",
-            "_lean_slant_max": "30",
-            "_lean_ratio_min": "1.5",
-            "_lean_ratio_max": "2.5",
-            "_lean_extend_prob": ".6",
-            "_lean_extend_min": ".6",
-            "_lean_extend_max": ".9",
-            "_lean_cap_min": "0.2",
-            "_lean_cap_max": "0.4",
-            "_lean_pair_facing": "outward",
-            "_lean_pair_gap_min": "0.01",
-            "_lean_pair_gap_max": "0.01",
-            "_`lean_pair_extend_prob_inward": "0.3",
-            "_lean_pair_extend_prob_outward": "0.7",
-            "_crook_angle_min": "",
-            "_crook_angle_max": "",
-            "_crook_limb_ratio": "1.5",
-            "_crook_min_width": "50",
-            "_crook_min_length": "40",
-            "_crook_center_jitter": "0.05",
-            "_hollow_rim_min": "40",
-            "_hollow_rim_max": "75",
-            "_hollow_hollows_min": "2",
-            "_hollow_hollows_max": "5",
-            "_hollow_wall_min": "2",
-            "_hollow_wall_max": "40",
-            "_hollow_breakout": ".99",
-            "_hollow_gap_min": "3",
-            "_hollow_gap_max": "5",
-            "_hollow_rough": "90",
-            "_hollow_rough_spacing": "5",
-            "hollow_simplify": "10"
+            "_crook_angle_min_max": "(use 30,90 for good results, use 15,40 for subtle kinks, 75-110 for sharp elbows",
+            "crook_limb_ratio": "1.5",
+            "crook_min_length": "40",
+            "_crook_center_jitter": "(use 0 to .15 for balanced elbows, .3 to .5 for a mix that includes hook like bends, above .5 the knee often clamps at the end",
+            "crook_center_jitter": "0.35"
 
           }
         }
       ]
+    },
+    "gen226_lean_and_crook": {
+      "description": "Combine leaning sawtooth and crook limbs",
+      "author": "Mr. Chuck",
+      "created": "2026-10-30",
+      "target_canvas": "MAIN",
+      "comments": "Lean some sawtooth and find and select limbs to offset their direction",
+      "randomization": {
+        "projection": {
+          "type": "normal",
+          "min": 0.5,
+          "max": 1.5,
+          "mean": 1.0,
+          "std": 0.3
+        },
+        "iters": [10,25],
+        "crook": ["yes", "no"],
+        "weight_crook": [0, 5],
+        "lean":  [["both", 3], ["single", 1], ["pair", 1], ["none", 5]],
+        "weight_lean": [0, 5]
+      },
+      "optional_params": {
+      },
+      "commands": [
+        {
+          "template": "organic_outline_nofill",
+          "params": {
+            "name": "shape1",
+            "break_width": "0.88",
+            "width": "3",
+            "ops": "split_offset:1,sawtooth:1,squarewave:1,remove_point:1,distort_original:1",
+            "dirbias": "random",
+            "lean_slant_max": "60",
+            "lean_ratio_min": "1.5",
+            "lean_ratio_max": "2.5",
+            "lean_extend_flank": "random",
+            "lean_pair_gap_max": 0.1,
+            "crook_limb_ratio": "1.5",
+            "crook_min_length": "40",
+            "crook_center_jitter": "0.35"
+          }
+        }
+      ]
+    },
+    "gen226_hollow": {
+      "description": "Hollow out a polygon",
+      "author": "Mr. Chuck",
+      "created": "2026-10-30",
+      "target_canvas": "MAIN",
+      "comments": "Use the hollow feature to alter polygons",
+      "randomization": {
+        "projection": {
+          "type": "normal",
+          "min": 0.5,
+          "max": 1.5,
+          "mean": 1.0,
+          "std": 0.3
+        },
+        "iters": [10,25],
+        "hollow_rough": [0,6],
+        "hollow_spread": [0.0, 1.0],
+        "hollow_simplify": [1, 15]
+      },
+      "optional_params": {
+      },
+      "commands": [
+        {
+          "template": "organic_outline_nofill",
+          "params": {
+            "name": "shape1",
+            "break_width": "0.88",
+            "width": "3",
+            "ops": "split_offset:1,sawtooth:1,squarewave:1,remove_point:1,distort_original:1",
+            "dirbias": "random",
+            "hollow": "yes",
+            "hollow_rim_min": "10",
+            "hollow_rim_max": "30",
+            "hollow_hollows_max": "4",
+            "_hollow_simplify": "1-2 for organic, brush-like hollows that follow the rim's curves, 3-6 for the current angular look, 10+ for bold faceted cut-outs",
+            "fill": "ORANGE"
+          }
+        }
+      ]
+    },
+    "gen226_lean_crook_hollow": {
+      "description": "Use leans, crooks, and hollow to build a polygon",
+      "author": "Mr. Chuck",
+      "created": "2026-10-30",
+      "target_canvas": "MAIN",
+      "comments": "Use the leans, crook, and hollow features to alter polygons",
+      "randomization": {
+        "projection": {
+          "type": "normal",
+          "min": 0.5,
+          "max": 1.5,
+          "mean": 1.0,
+          "std": 0.3
+        },
+        "iters": [10, 25],
+        "crook": ["yes", "no"],
+        "weight_crook": [0, 5],
+        "lean":  [["both", 3], ["single", 1], ["pair", 1], ["none", 5]],
+        "weight_lean": [0, 5],
+        "hollow_rough": [0, 6],
+        "hollow_spread": [0.0, 1.0],
+        "hollow_simplify": [[1, 6], [2, 6], [3, 3], [4, 3], [5, 2], [6, 2], [7, 1], [8, 1], [9, 1],
+                            [10, 0.5], [11, 0.5], [12, 0.5], [13, 0.5], [14, 0.5], [15, 0.5]],
+        "weight_split_offset": [1, 5],
+        "weight_sawtooth": [0, 5],
+        "weight_squarewave": [0, 5],
+        "weight_remove_point": [0, 5],
+        "weight_distort_original": [0, 5]
+      },
+      "optional_params": {
+      },
+      "commands": [
+        {
+          "template": "organic_outline_nofill",
+          "params": {
+            "name": "shape1",
+            "break_width": "0.88",
+            "width": "3",
+            "ops": "split_offset:${weight_split_offset},sawtooth:${weight_sawtooth},squarewave:${weight_squarewave},remove_point:${weight_remove_point},distort_original:${weight_distort_original}",
+            "_ops": "weight_split_offset min is 1 so at least one op always has a positive weight",
+            "dirbias": "random",
+            "lean_slant_max": "60",
+            "lean_ratio_min": "1.5",
+            "lean_ratio_max": "2.5",
+            "lean_extend_flank": "random",
+            "lean_pair_gap_max": 0.1,
+            "crook_limb_ratio": "1.5",
+            "crook_min_length": "40",
+            "crook_center_jitter": "0.35",
+            "hollow": "yes",
+            "hollow_rim_min": "10",
+            "hollow_rim_max": "30",
+            "hollow_hollows_max": "4",
+            "_hollow_simplify": "1-2 for organic, brush-like hollows that follow the rim's curves, 3-6 for the current angular look, 10+ for bold faceted cut-outs. Randomization is weighted toward 1-2: ~43% 1-2, ~36% 3-6, ~11% 7-9, ~11% 10+",
+            "fill": "rgb(220,220,200)"
+          }
+        }
+      ]
     }
+
 
   }
 
