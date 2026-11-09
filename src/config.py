@@ -332,6 +332,8 @@ class Config:
                 'sep': 15.0,              # DIRS=random: minimum angle between directions
                 'snap_tolerance': 0.5,    # edges within this many degrees of a direction stay as is
                 'max_splits': 2,          # crossing fix: step doublings before an edge is left free
+                'fit': True,              # shift/shrink the result back inside the canvas
+                'fit_margin': 20.0,       # keep this many px clear of the canvas edge
             },
 
             # Randomization system

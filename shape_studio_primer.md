@@ -472,6 +472,7 @@ RIGID [<name>] [DIRS=ortho|hex|octo|random|a,b,...] [COUNT=n|min,max] [TILT=deg|
 
 - Directions are lines, so 0 also means 180. Two directions do not need to be at right angles: `DIRS=70` gives a slanted grid, and wide gaps (e.g. `DIRS=30`) give long, lopsided corners.
 - Where a corner would make the outline cross itself or a hole, only that step changes: its corner is flipped, then split into shallower steps, and as a last resort that short piece keeps its original angle. The result line reports these fixes.
+- Outward corners can push the shape past the canvas edge. RIGID then moves it back inside, shrinking it first if it no longer fits, and keeps `rigid.fit_margin` px (config, default 20) clear of the edge. The result line ends with e.g. `kept on canvas (scaled 0.94, moved +0,-40)`. Set config `rigid.fit` to false to turn this off.
 - The result line shows the directions actually used (e.g. `DIRS=random COUNT=1,3` → `DIRS=0,62,141`), and they are stored on the shape.
 - Typical order is `PROC → RIGID → HOLLOW`: a rigid outline with organic hollows. Running RIGID after HOLLOW with `HOLES=on` makes the holes rigid too.
 - RIGID replaces the angles earlier operations made: with `ortho`, a leaning sawtooth tooth becomes a staircase.

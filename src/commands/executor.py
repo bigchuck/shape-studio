@@ -3296,7 +3296,7 @@ class CommandExecutor:
         left free. The directions actually used are reported and stored.
         """
         import random as _random
-        from src.core.rigid import rigid_polygon, parse_dirs, parse_elbow
+        from src.core.rigid import rigid_polygon, parse_dirs, parse_elbow, fit_to_box
 
         name = self._resolve_shape_name(cmd_dict.get('name'))
         shapes = self.get_active_shapes()
@@ -3324,6 +3324,14 @@ class CommandExecutor:
         holes = shape.get_holes()
         outer, new_holes, info = rigid_polygon(points, holes, params, _random)
 
+        # Outward elbows can push the outline off the canvas: move it back
+        # inside, shrinking it first if it no longer fits
+        fit = None
+        if params['fit']:
+            m = float(params['fit_margin'])
+            box = (m, m, config.canvas.width - m, config.canvas.height - m)
+            outer, new_holes, fit = fit_to_box(outer, new_holes, box)
+
         shape.attrs['geometry']['points'] = outer
         shape._set_holes(new_holes)
         shape.attrs['rigid'] = {
@@ -3346,7 +3354,18 @@ class CommandExecutor:
             + f" - {', '.join(parts)}; "
             f"{info['vertices_before']} -> {info['vertices_after']} vertices"
             + (f" (crossings fixed: {', '.join(fixes)})" if fixes else "")
+            + (self._rigid_fit_text(fit) if fit else "")
         )
+
+    @staticmethod
+    def _rigid_fit_text(fit):
+        """Result-message note for a shape RIGID moved back onto the canvas"""
+        moves = []
+        if round(fit['scale'], 2) < 1.0:
+            moves.append(f"scaled {fit['scale']:.2f}")
+        if round(fit['dx']) or round(fit['dy']) or not moves:
+            moves.append(f"moved {fit['dx']:+.0f},{fit['dy']:+.0f}")
+        return f"; kept on canvas ({', '.join(moves)})"
 
     def _resolve_reflect_axis(self, axis_spec):
         """Resolve a REFLECT axis spec — no dependency on CommandLoopRunner.

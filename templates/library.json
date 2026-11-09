@@ -104,9 +104,15 @@
     "organic_outline_nofill": {
       "description": "Organic polygon outline - flowing natural forms, with optional lean / crook / hollow",
       "target_canvas": "MAIN",
-      "comments": "Flags: lean = none|single|pair|both, crook = yes|no, hollow = yes|no (hollow_breakout 0 = no break-outs, hollow_plug 0 = no plugged holes); fill = <color>|none, applied only when hollow. weight_lean / weight_crook set the added ops' weights. lean_* and crook_* params are passed straight to PROC; set one to \"\" to use the config default.",
+      "comments": "Flags: lean = none|single|pair|both, crook = yes|no, rigid = no|fixed|random (fixed uses rigid_dirs, random picks COUNT=rigid_count_min,rigid_count_max directions; runs after PROC, before HOLLOW), hollow = yes|no (hollow_breakout 0 = no break-outs, hollow_plug 0 = no plugged holes); fill = <color>|none, applied only when hollow. weight_lean / weight_crook set the added ops' weights. lean_* and crook_* params are passed straight to PROC; set one to \"\" to use the config default.",
       "commands": [
         "PROC dynamic_polygon ${name}",
+        { "if": "${rigid} == fixed", "then": [
+          "RIGID ${name} DIRS=${rigid_dirs} TILT=${rigid_tilt} STEPS=${rigid_steps_min},${rigid_steps_max} ELBOW=${rigid_elbow} EDGES=${rigid_edges} MIN_EDGE=${rigid_min_edge}"
+        ]},
+        { "if": "${rigid} == random", "then": [
+          "RIGID ${name} DIRS=random COUNT=${rigid_count_min},${rigid_count_max} TILT=${rigid_tilt} STEPS=${rigid_steps_min},${rigid_steps_max} ELBOW=${rigid_elbow} EDGES=${rigid_edges} MIN_EDGE=${rigid_min_edge}"
+        ]},
         { "if": "${hollow}", "then": [
           "HOLLOW ${name} RIM=${hollow_rim_min},${hollow_rim_max} HOLLOWS=${hollow_hollows_min},${hollow_hollows_max} WALL=${hollow_wall_min},${hollow_wall_max} SPREAD=${hollow_spread} BREAKOUT=${hollow_breakout} PLUG=${hollow_plug} GAP=${hollow_gap_min},${hollow_gap_max} ROUGH=${hollow_rough} ROUGH_SPACING=${hollow_rough_spacing} SIMPLIFY=${hollow_simplify}",
           "FILL ${name} ${fill}"
@@ -172,6 +178,16 @@
         "crook_min_length": "80",
         "crook_center_jitter": "0.15",
 
+        "rigid": "no",
+        "rigid_dirs": "ortho",
+        "rigid_count_min": "1",
+        "rigid_count_max": "2",
+        "rigid_tilt": "0",
+        "rigid_steps_min": "1",
+        "rigid_steps_max": "1",
+        "rigid_elbow": "out",
+        "rigid_edges": "1",
+        "rigid_min_edge": "0",
         "hollow": "no",
         "hollow_rim_min": "12",
         "hollow_rim_max": "28",

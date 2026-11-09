@@ -138,7 +138,9 @@
     "holes": false,
     "sep": 15.0,
     "snap_tolerance": 0.5,
-    "max_splits": 2
+    "max_splits": 2,
+    "fit": true,
+    "fit_margin": 20.0
   },
 
   "randomization": {

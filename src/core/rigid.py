@@ -518,3 +518,47 @@ def rigid_polygon(points, holes, params, rng):
         **fixes,
     }
     return outer, new_holes, info
+
+
+# ---------------------------------------------------------------------------
+# Keep the result on the canvas
+# ---------------------------------------------------------------------------
+
+def fit_to_box(outer, holes, box):
+    """Shift (and if needed shrink) a polygon so it lies inside box.
+
+    Outward elbows can push the outline past the canvas edge. If the
+    shape is too big for the box it is first scaled down about its own
+    bounding-box centre; then it is moved just far enough to be inside.
+    Shapes already inside are left alone.
+
+    Args:
+        outer: outer ring points; holes: list of hole rings
+        box: (x0, y0, x1, y1) the area the shape must stay in
+
+    Returns:
+        (outer, holes, fit) - fit is None when nothing changed, else
+        {'scale': s, 'dx': dx, 'dy': dy}
+    """
+    x0, y0, x1, y1 = box
+    xs = [p[0] for p in outer]
+    ys = [p[1] for p in outer]
+    bx0, bx1, by0, by1 = min(xs), max(xs), min(ys), max(ys)
+    if bx0 >= x0 and bx1 <= x1 and by0 >= y0 and by1 <= y1:
+        return outer, holes, None
+
+    w, h = bx1 - bx0, by1 - by0
+    s = min(1.0,
+            (x1 - x0) / w if w > 0 else 1.0,
+            (y1 - y0) / h if h > 0 else 1.0)
+    cx, cy = (bx0 + bx1) / 2, (by0 + by1) / 2
+    # Bounding box after scaling about its centre
+    nx0, nx1 = cx - w * s / 2, cx + w * s / 2
+    ny0, ny1 = cy - h * s / 2, cy + h * s / 2
+    dx = x0 - nx0 if nx0 < x0 else (x1 - nx1 if nx1 > x1 else 0.0)
+    dy = y0 - ny0 if ny0 < y0 else (y1 - ny1 if ny1 > y1 else 0.0)
+
+    def tf(ring):
+        return [(cx + (x - cx) * s + dx, cy + (y - cy) * s + dy) for x, y in ring]
+
+    return tf(outer), [tf(r) for r in holes], {'scale': s, 'dx': dx, 'dy': dy}
