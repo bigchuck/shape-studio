@@ -138,6 +138,7 @@ class CommandExecutor:
             'HIGH':   self._execute_high,
             'IMPORT': self._execute_import,
             'HOLLOW': self._execute_hollow,
+            'RIGID': self._execute_rigid,
             'LOG': self._execute_log,
             'NOTE': self._execute_note,
             'HELP': self._execute_help,
@@ -2574,6 +2575,7 @@ class CommandExecutor:
             'HIGH':   self._execute_high,
             'IMPORT': self._execute_import,
             'HOLLOW': self._execute_hollow,
+            'RIGID': self._execute_rigid,
             'HELP': self._execute_help,
         }
 
@@ -3283,6 +3285,67 @@ class CommandExecutor:
             f"{info['breakouts']} break-out(s), {len(holes)} hole(s)"
             + (f", {info['plugged']} plugged" if info.get('plugged') else "")
             + (f" after {attempt + 1} attempts" if attempt else "")
+        )
+
+    def _execute_rigid(self, cmd_dict, command_text):
+        """Execute RIGID command - put a polygon's edges on fixed directions.
+
+        Settings come from config.rigid, overridden by the command's
+        parameters. Off-direction edges become elbows (or staircases);
+        edges that would make the outline cross are flipped, split or
+        left free. The directions actually used are reported and stored.
+        """
+        import random as _random
+        from src.core.rigid import rigid_polygon, parse_dirs, parse_elbow
+
+        name = self._resolve_shape_name(cmd_dict.get('name'))
+        shapes = self.get_active_shapes()
+        if name not in shapes:
+            raise ValueError(f"Shape '{name}' not found on {self.active_canvas_name} canvas")
+
+        shape = shapes[name]
+        if shape.attrs['type'] != 'Polygon':
+            raise ValueError(f"RIGID only supports Polygon shapes, '{name}' is {shape.attrs['type']}")
+
+        overrides = cmd_dict.get('overrides', {})
+        params = config.rigid.to_dict()
+        params.update(overrides)
+        if 'steps_min' in overrides:
+            params['step'] = 0.0
+        params['dirs'] = parse_dirs(params['dirs'])
+        params['elbow'] = parse_elbow(params['elbow'])
+        for key in ('count_min', 'count_max', 'steps_min', 'steps_max', 'max_splits'):
+            params[key] = int(params[key])
+        params['holes'] = bool(params['holes'])
+        if 'count_min' in overrides and params['dirs'] != 'random':
+            raise ValueError("RIGID: COUNT only applies with DIRS=random")
+
+        points = shape.attrs['geometry']['points']
+        holes = shape.get_holes()
+        outer, new_holes, info = rigid_polygon(points, holes, params, _random)
+
+        shape.attrs['geometry']['points'] = outer
+        shape._set_holes(new_holes)
+        shape.attrs['rigid'] = {
+            'dirs': info['dirs'], 'tilt': info['tilt'],
+            'command': command_text,
+        }
+        shape.add_history('RIGID', command_text)
+        self.active_canvas.redraw()
+
+        dirs_text = ','.join(f"{d:g}" for d in info['dirs'])
+        parts = [f"{info['edges_rigid']} edges reshaped"]
+        if info['edges_aligned']:
+            parts.append(f"{info['edges_aligned']} already on a direction")
+        if info['edges_skipped']:
+            parts.append(f"{info['edges_skipped']} left free (EDGES/MIN_EDGE)")
+        fixes = [f"{info[k]} {k}" for k in ('flipped', 'split', 'freed') if info[k]]
+        return (
+            f"Rigid '{name}': DIRS={dirs_text}"
+            + (f" TILT={info['tilt']:.1f}" if info['tilt'] else "")
+            + f" - {', '.join(parts)}; "
+            f"{info['vertices_before']} -> {info['vertices_after']} vertices"
+            + (f" (crossings fixed: {', '.join(fixes)})" if fixes else "")
         )
 
     def _resolve_reflect_axis(self, axis_spec):

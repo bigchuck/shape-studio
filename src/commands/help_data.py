@@ -720,6 +720,51 @@ HELP = {
             "  HOLLOW s1 HOLLOWS=4 PLUG=0.5"
         ),
     },
+    'RIGID': {
+        'synopsis': 'Put polygon edges on a fixed set of directions (elbows/staircases)',
+        'usage': (
+            "RIGID [<name>] [DIRS=ortho|hex|octo|random|a,b,...] [COUNT=n|min,max]\n"
+            "      [TILT=deg|min,max] [STEPS=n|min,max | STEP=px]\n"
+            "      [ELBOW=out|in|alt|out:w,in:w] [EDGES=p] [MIN_EDGE=px] [HOLES=on|off]\n"
+            "\n"
+            "  name      Polygon to reshape (optional if WORKWITH is set)\n"
+            "  DIRS      Allowed edge directions in degrees. 0 is always\n"
+            "            included, so list only the others: DIRS=70 means\n"
+            "            0 and 70. Directions are lines (0 also means 180).\n"
+            "            ortho = 90, hex = 60,120, octo = 45,90,135.\n"
+            "            Angles may be separated by , or /\n"
+            "            random = draw COUNT directions (besides 0), at least\n"
+            "            config rigid.sep degrees apart\n"
+            "  COUNT     How many random directions besides 0 (DIRS=random only).\n"
+            "            n or min,max (inclusive)\n"
+            "  TILT      Turn the whole direction set, degrees (or a random\n"
+            "            range). Without it, 0 means horizontal\n"
+            "  STEPS     Corners per edge: 1 = one elbow, more = a staircase.\n"
+            "            min,max picks per edge\n"
+            "  STEP      Instead of STEPS: about one corner per this many px,\n"
+            "            so the grain is even all round\n"
+            "  ELBOW     Which side each corner goes: out = adds material\n"
+            "            (bulges), in = removes it (bites), alt = alternates,\n"
+            "            or weights like out:3,in:1 picked per edge\n"
+            "  EDGES     Chance each edge is reshaped (0-1); the rest stay free\n"
+            "  MIN_EDGE  Leave edges shorter than this alone, px\n"
+            "  HOLES     Also reshape hole outlines (from HOLLOW)\n"
+            "\n"
+            "Original vertices stay where they are. Where a corner would make\n"
+            "the outline cross itself or a hole, only that step is changed:\n"
+            "its corner is flipped, then split into shallower steps, and as a\n"
+            "last resort that piece keeps its original angle. The result line\n"
+            "shows the directions used and how many fixes were needed.\n"
+            "Defaults come from config.json 'rigid'.\n"
+            "\n"
+            "Examples:\n"
+            "  RIGID s1\n"
+            "  RIGID s1 STEPS=4 ELBOW=in\n"
+            "  RIGID s1 DIRS=70 TILT=15\n"
+            "  RIGID s1 DIRS=random COUNT=1,3 TILT=0,90\n"
+            "  RIGID s1 DIRS=octo STEP=10 ELBOW=out:3,in:1 EDGES=0.7"
+        ),
+    },
     'HELP': {
         'synopsis': 'Show command help in the log',
         'usage': (

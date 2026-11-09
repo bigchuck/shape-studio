@@ -450,6 +450,43 @@ HOLLOW s1 HOLLOWS=4 PLUG=0.5
 
 ---
 
+## RIGID — Edges on Fixed Directions
+
+RIGID makes a polygon's edges run along a small set of allowed directions. An edge that is off-direction becomes an elbow (two legs meeting at a new corner) or a staircase of elbows, built from the two allowed directions on either side of it. The original vertices stay where they are, so the shape keeps its overall form while its angles become rigid.
+
+```
+RIGID [<name>] [DIRS=ortho|hex|octo|random|a,b,...] [COUNT=n|min,max] [TILT=deg|min,max] [STEPS=n|min,max | STEP=px] [ELBOW=out|in|alt|out:w,in:w] [EDGES=p] [MIN_EDGE=px] [HOLES=on|off]
+```
+
+| Parameter | Default | Meaning |
+|-----------|---------|---------|
+| `DIRS` | ortho | Allowed directions in degrees. **0 is always included**, so list only the others: `DIRS=70` means 0 and 70. Presets: `ortho` = 90, `hex` = 60,120, `octo` = 45,90,135. `random` draws COUNT directions. Angles may be separated by `,` or `/` |
+| `COUNT` | 1 | `DIRS=random` only: how many directions besides 0, `n` or `min,max` (inclusive). They are kept at least `rigid.sep` degrees apart (config, default 15) |
+| `TILT` | 0 | Turn the whole direction set (degrees, or a random `min,max`). `ortho TILT=23` gives 23 and 113 |
+| `STEPS` | 1 | Corners per edge: 1 = one elbow, more = a staircase. `min,max` picks per edge |
+| `STEP` | — | Instead of STEPS: about one corner per this many px, for an even grain all round |
+| `ELBOW` | out | Which side corners go: `out` adds material (outline bulges, holes shrink), `in` removes it, `alt` alternates, or weights such as `out:3,in:1` picked per edge |
+| `EDGES` | 1 | Chance each edge is reshaped, 0–1; the rest keep their angle |
+| `MIN_EDGE` | 0 | Leave edges shorter than this alone (px) |
+| `HOLES` | off | Also reshape hole outlines (from HOLLOW) |
+
+- Directions are lines, so 0 also means 180. Two directions do not need to be at right angles: `DIRS=70` gives a slanted grid, and wide gaps (e.g. `DIRS=30`) give long, lopsided corners.
+- Where a corner would make the outline cross itself or a hole, only that step changes: its corner is flipped, then split into shallower steps, and as a last resort that short piece keeps its original angle. The result line reports these fixes.
+- The result line shows the directions actually used (e.g. `DIRS=random COUNT=1,3` → `DIRS=0,62,141`), and they are stored on the shape.
+- Typical order is `PROC → RIGID → HOLLOW`: a rigid outline with organic hollows. Running RIGID after HOLLOW with `HOLES=on` makes the holes rigid too.
+- RIGID replaces the angles earlier operations made: with `ortho`, a leaning sawtooth tooth becomes a staircase.
+- In templates, randomise DIRS with a weighted list such as `[["ortho", 4], ["octo", 2], ["70", 1], ["50/110", 1]]`.
+
+```
+RIGID s1
+RIGID s1 STEPS=4 ELBOW=in
+RIGID s1 DIRS=70 TILT=15
+RIGID s1 DIRS=random COUNT=1,3 TILT=0,90
+RIGID s1 DIRS=octo STEP=10 ELBOW=out:3,in:1 EDGES=0.7
+```
+
+---
+
 ## RAND() — Inline Randomization
 
 `RAND(min,max)` and `RANDBOOL()` can appear anywhere in a command. They are evaluated once at parse time (before the command runs). In a BATCH loop they re-evaluate on every iteration, which is how you get variety across a run.

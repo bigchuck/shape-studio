@@ -315,6 +315,25 @@ class Config:
                 'max_attempts': 12,       # whole-hollow retries before giving up
             },
 
+            # RIGID command - polygon edges on a fixed set of directions
+            'rigid': {
+                'dirs': 'ortho',          # ortho | hex | octo | random | list of angles (0 implied)
+                'count_min': 1,           # DIRS=random: how many directions besides 0
+                'count_max': 1,
+                'tilt_min': 0.0,          # turn the whole direction set (degrees)
+                'tilt_max': 0.0,
+                'steps_min': 1,           # elbows per edge (1 = one corner)
+                'steps_max': 1,
+                'step': 0.0,              # > 0: about one elbow per this many px (overrides steps)
+                'elbow': 'out',           # out | in | alt | weighted "out:3,in:1"
+                'edges': 1.0,             # chance each edge is made rigid
+                'min_edge': 0.0,          # leave edges shorter than this alone (px)
+                'holes': False,           # also rigidify hole outlines
+                'sep': 15.0,              # DIRS=random: minimum angle between directions
+                'snap_tolerance': 0.5,    # edges within this many degrees of a direction stay as is
+                'max_splits': 2,          # crossing fix: step doublings before an edge is left free
+            },
+
             # Randomization system
             'randomization': {
                 # Normal distribution settings

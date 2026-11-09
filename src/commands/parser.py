@@ -67,6 +67,7 @@ class CommandParser:
             'HIGH':   self._parse_high,
             'IMPORT': self._parse_import,
             'HOLLOW': self._parse_hollow,
+            'RIGID': self._parse_rigid,
             'LOG': self._parse_log,
             'NOTE': self._parse_note,
             'HELP': self._parse_help,
@@ -1238,6 +1239,86 @@ class CommandParser:
 
         return {
             'command': 'HOLLOW',
+            'name': name,
+            'overrides': overrides,
+        }
+
+    def _parse_rigid(self, parts):
+        """Parse RIGID command: RIGID [<name>] [KEY=value ...]
+
+            DIRS=ortho|hex|octo|random|a,b,...   (0 always included)
+            COUNT=n|min,max   (with DIRS=random)
+            TILT=deg|min,max
+            STEPS=n|min,max  or  STEP=px
+            ELBOW=out|in|alt|out:3,in:1
+            EDGES=p  MIN_EDGE=px  HOLES=on|off
+        The name may be omitted when WORKWITH is set.
+        """
+        from src.core.rigid import parse_dirs, parse_elbow
+
+        def number_range(key, val, cast=float):
+            try:
+                values = [cast(float(v)) for v in val.split(',')]
+            except ValueError:
+                raise ValueError(f"RIGID {key} must be a number or min,max, got '{val}'")
+            if len(values) == 1:
+                values = values * 2
+            if len(values) != 2 or values[0] > values[1]:
+                raise ValueError(f"RIGID {key} must be a number or min,max, got '{val}'")
+            return values
+
+        name = None
+        args = parts[1:]
+        if args and '=' not in args[0]:
+            name = args[0]
+            args = args[1:]
+
+        overrides = {}
+        for part in args:
+            if '=' not in part:
+                raise ValueError(f"RIGID: expected KEY=value, got '{part}'")
+            key, val = part.split('=', 1)
+            key = key.upper()
+            if key == 'DIRS':
+                overrides['dirs'] = parse_dirs(val)
+            elif key == 'COUNT':
+                lo, hi = number_range(key, val, int)
+                if lo < 1:
+                    raise ValueError("RIGID COUNT must be at least 1")
+                overrides['count_min'], overrides['count_max'] = lo, hi
+            elif key == 'TILT':
+                overrides['tilt_min'], overrides['tilt_max'] = number_range(key, val)
+            elif key == 'STEPS':
+                lo, hi = number_range(key, val, int)
+                if lo < 1:
+                    raise ValueError("RIGID STEPS must be at least 1")
+                overrides['steps_min'], overrides['steps_max'] = lo, hi
+            elif key == 'STEP':
+                overrides['step'] = float(val)
+                if overrides['step'] <= 0:
+                    raise ValueError("RIGID STEP must be greater than 0")
+            elif key == 'ELBOW':
+                overrides['elbow'] = parse_elbow(val)
+            elif key == 'EDGES':
+                overrides['edges'] = float(val)
+                if not 0 <= overrides['edges'] <= 1:
+                    raise ValueError("RIGID EDGES must be between 0 and 1")
+            elif key == 'MIN_EDGE':
+                overrides['min_edge'] = float(val)
+                if overrides['min_edge'] < 0:
+                    raise ValueError("RIGID MIN_EDGE must not be negative")
+            elif key == 'HOLES':
+                if val.lower() not in ('on', 'off'):
+                    raise ValueError(f"RIGID HOLES must be on or off, got '{val}'")
+                overrides['holes'] = val.lower() == 'on'
+            else:
+                raise ValueError(f"RIGID: unknown parameter '{key}'")
+
+        if 'steps_min' in overrides and 'step' in overrides:
+            raise ValueError("RIGID: use STEPS or STEP, not both")
+
+        return {
+            'command': 'RIGID',
             'name': name,
             'overrides': overrides,
         }

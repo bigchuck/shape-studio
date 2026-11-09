@@ -123,6 +123,24 @@
     "max_attempts": 12
   },
 
+  "rigid": {
+    "dirs": "ortho",
+    "count_min": 1,
+    "count_max": 1,
+    "tilt_min": 0.0,
+    "tilt_max": 0.0,
+    "steps_min": 1,
+    "steps_max": 1,
+    "step": 0.0,
+    "elbow": "out",
+    "edges": 1.0,
+    "min_edge": 0.0,
+    "holes": false,
+    "sep": 15.0,
+    "snap_tolerance": 0.5,
+    "max_splits": 2
+  },
+
   "randomization": {
     "normal_distribution": {
       "max_sampling_attempts": 1000,
